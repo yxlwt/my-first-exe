@@ -12,7 +12,6 @@ import tkinter.messagebox as messagebox
 ctk.set_appearance_mode("System")  
 ctk.set_default_color_theme("blue") 
 
-# 绝对路径锁定，确保数据文件安全
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
 else:
@@ -153,8 +152,12 @@ class StudyEngineApp(ctk.CTk):
     def get_random_quote(self):
         return random.choice(self.encouragements)
 
+    # 💡 核心修复点：安全解析 kwargs，防止参数重复导致的奔溃
     def create_card(self, parent, **kwargs):
-        return ctk.CTkFrame(parent, fg_color=("#FFFFFF", "#1C1C1E"), corner_radius=15, **kwargs)
+        # 提取或使用默认颜色/圆角，剩余参数透传给 CTkFrame
+        bg_color = kwargs.pop("fg_color", ("#FFFFFF", "#1C1C1E"))
+        radius = kwargs.pop("corner_radius", 15)
+        return ctk.CTkFrame(parent, fg_color=bg_color, corner_radius=radius, **kwargs)
 
     def build_ui(self):
         self.countdown_card = self.create_card(self)
@@ -205,7 +208,6 @@ class StudyEngineApp(ctk.CTk):
         self.mode_selector.set("🌱 番茄种树")
         self.mode_selector.pack(pady=15, padx=30, fill="x")
 
-        # 💡 核心修复：移除会导致框架崩溃的 transparent 参数，换用安全的十六进制颜色值
         self.pomo_options = ["15分钟", "25分钟", "35分钟", "45分钟", "60分钟", "90分钟"]
         self.pomo_var = ctk.StringVar(value="25分钟")
         self.pomo_menu = ctk.CTkOptionMenu(
