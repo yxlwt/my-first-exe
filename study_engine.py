@@ -106,7 +106,7 @@ class DataManager:
             return [item for item in self.data["studyData"] if str(item.get("date")).startswith(current_month_prefix)]
         return []
 
-# ================= 4. 极致现代风 UI 系统 =================
+# ================= 4. 极致自适应 UI 系统 =================
 class StudyEngineApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -120,11 +120,17 @@ class StudyEngineApp(ctk.CTk):
             "顶峰相见吧，在十二月最冷的冬日里拼出最热血的成绩。"
         ]
 
+        # 💡 解除限制：允许自适应调整，但设定最小安全尺寸
         self.title("冲刺备考引擎")
-        self.geometry("460x780")
-        self.resizable(False, False) 
+        self.geometry("500x820")
+        self.minsize(400, 650) 
         self.configure(fg_color=("#F2F2F7", "#000000")) 
         self.set_window_center()
+
+        # 定义全局柔和字体
+        self.font_main = ("Microsoft YaHei UI", 14)
+        self.font_title = ("Microsoft YaHei UI", 16, "bold")
+        self.font_number = ("Consolas", 72, "bold")
 
         self.timer_active = False
         self.mode = "pomodoro" 
@@ -140,8 +146,8 @@ class StudyEngineApp(ctk.CTk):
 
     def set_window_center(self):
         self.update_idletasks()
-        width = 460
-        height = 780
+        width = 500
+        height = 820
         x = (self.winfo_screenwidth() // 2) - (width // 2)
         y = (self.winfo_screenheight() // 2) - (height // 2)
         self.geometry(f'{width}x{height}+{x}+{y}')
@@ -152,21 +158,24 @@ class StudyEngineApp(ctk.CTk):
     def get_random_quote(self):
         return random.choice(self.encouragements)
 
-    # 💡 核心修复点：安全解析 kwargs，防止参数重复导致的奔溃
     def create_card(self, parent, **kwargs):
-        # 提取或使用默认颜色/圆角，剩余参数透传给 CTkFrame
         bg_color = kwargs.pop("fg_color", ("#FFFFFF", "#1C1C1E"))
-        radius = kwargs.pop("corner_radius", 15)
+        radius = kwargs.pop("corner_radius", 18) # 更圆润的苹果卡片风格
         return ctk.CTkFrame(parent, fg_color=bg_color, corner_radius=radius, **kwargs)
 
     def build_ui(self):
+        # 顶部考研倒计时 (自动拉伸 fill="x")
         self.countdown_card = self.create_card(self)
         self.countdown_card.pack(fill="x", padx=20, pady=(20, 10))
-        self.countdown_label = ctk.CTkLabel(self.countdown_card, text="距离初试仅剩 -- 天", font=("Helvetica", 16, "bold"), text_color=("#007AFF", "#0A84FF"))
-        self.countdown_label.pack(pady=12)
+        self.countdown_label = ctk.CTkLabel(self.countdown_card, text="距离初试仅剩 -- 天", font=self.font_title, text_color=("#007AFF", "#0A84FF"))
+        self.countdown_label.pack(pady=16)
         self.refresh_exam_countdown()
 
-        self.tabview = ctk.CTkTabview(self, fg_color="transparent", bg_color="transparent", segmented_button_selected_color=("#34C759", "#30D158"), segmented_button_selected_hover_color=("#248A3D", "#248A3D"))
+        # 核心多标签页面板 (自动拉伸 fill="both", expand=True)
+        self.tabview = ctk.CTkTabview(self, fg_color="transparent", bg_color="transparent", 
+                                      segmented_button_selected_color=("#34C759", "#30D158"), 
+                                      segmented_button_selected_hover_color=("#248A3D", "#248A3D"),
+                                      text_color=("#1C1C1E", "#FFFFFF"), font=("Microsoft YaHei UI", 14, "bold"))
         self.tabview.pack(padx=20, pady=(0, 20), fill="both", expand=True)
         
         self.tab_focus = self.tabview.add("专注")
@@ -183,111 +192,140 @@ class StudyEngineApp(ctk.CTk):
         self.focus_card = self.create_card(self.tab_focus)
         self.focus_card.pack(fill="both", expand=True, pady=5)
 
+        # 💡 弹性排版：将倒计时区域放在中间自适应扩展
+        self.focus_top = ctk.CTkFrame(self.focus_card, fg_color="transparent")
+        self.focus_top.pack(fill="x", pady=20)
+        
         self.subject_var = ctk.StringVar(value=self.db.data["currentSubject"])
-        self.subject_menu = ctk.CTkOptionMenu(self.focus_card, values=self.db.data["subjects"], variable=self.subject_var, command=self.sync_subject_preference, fg_color=("#F2F2F7", "#2C2C2E"), text_color=("#000000", "#FFFFFF"), button_color=("#E5E5EA", "#3A3A3C"), corner_radius=10)
-        self.subject_menu.pack(pady=(20, 10))
+        self.subject_menu = ctk.CTkOptionMenu(self.focus_top, values=self.db.data["subjects"], variable=self.subject_var, command=self.sync_subject_preference, 
+                                              fg_color=("#F2F2F7", "#2C2C2E"), text_color=("#1C1C1E", "#FFFFFF"), button_color=("#E5E5EA", "#3A3A3C"), 
+                                              font=("Microsoft YaHei UI", 14, "bold"), corner_radius=10, height=36)
+        self.subject_menu.pack()
 
-        self.icon_label = ctk.CTkLabel(self.focus_card, text="🌰", font=("Segoe UI Emoji", 80))
-        self.icon_label.pack(pady=(10, 0))
+        # 中部弹性扩展区
+        self.focus_center = ctk.CTkFrame(self.focus_card, fg_color="transparent")
+        self.focus_center.pack(expand=True, fill="both")
 
-        self.time_label = ctk.CTkLabel(self.focus_card, text="25:00", font=("Consolas", 64, "bold"))
-        self.time_label.pack(pady=(0, 5))
+        self.icon_label = ctk.CTkLabel(self.focus_center, text="🌰", font=("Segoe UI Emoji", 90))
+        self.icon_label.pack(expand=True, side="bottom", pady=(0, 0))
 
-        self.quote_label = ctk.CTkLabel(self.focus_card, text=self.encouragements[0], font=("Helvetica", 12), text_color="#8E8E93")
-        self.quote_label.pack(pady=(0, 20))
+        self.time_label = ctk.CTkLabel(self.focus_center, text="25:00", font=self.font_number, text_color=("#1C1C1E", "#FFFFFF"))
+        self.time_label.pack(expand=True, side="bottom", pady=(0, 0))
 
-        self.goal_frame = ctk.CTkFrame(self.focus_card, fg_color="transparent")
-        self.goal_frame.pack(fill="x", padx=30, pady=10)
-        self.goal_header_label = ctk.CTkLabel(self.goal_frame, text="🎯 今日进度: 0m / 6h", font=("Helvetica", 12, "bold"), text_color="#8E8E93")
+        self.quote_label = ctk.CTkLabel(self.focus_center, text=self.encouragements[0], font=("Microsoft YaHei UI", 13), text_color="#8E8E93")
+        self.quote_label.pack(expand=True, side="bottom", pady=(0, 20))
+
+        # 底部控制区锚定
+        self.focus_bottom = ctk.CTkFrame(self.focus_card, fg_color="transparent")
+        self.focus_bottom.pack(fill="x", side="bottom", pady=20, padx=20)
+
+        self.goal_frame = ctk.CTkFrame(self.focus_bottom, fg_color="transparent")
+        self.goal_frame.pack(fill="x", pady=(0, 20))
+        self.goal_header_label = ctk.CTkLabel(self.goal_frame, text="🎯 今日进度: 0m / 6h", font=("Microsoft YaHei UI", 12, "bold"), text_color="#8E8E93")
         self.goal_header_label.pack(anchor="w", pady=2)
         self.goal_progress_bar = ctk.CTkProgressBar(self.goal_frame, progress_color=("#34C759", "#30D158"), height=8, corner_radius=4)
         self.goal_progress_bar.pack(fill="x")
         self.goal_progress_bar.set(0)
 
-        self.mode_selector = ctk.CTkSegmentedButton(self.focus_card, values=["🧱 正向筑城", "🌱 番茄种树"], command=self.handle_mode_switch, selected_color=("#007AFF", "#0A84FF"), selected_hover_color=("#0056B3", "#0056B3"))
+        self.mode_selector = ctk.CTkSegmentedButton(self.focus_bottom, values=["🧱 正向筑城", "🌱 番茄种树"], command=self.handle_mode_switch, 
+                                                    selected_color=("#007AFF", "#0A84FF"), selected_hover_color=("#0056B3", "#0056B3"), font=("Microsoft YaHei UI", 13, "bold"), height=36)
         self.mode_selector.set("🌱 番茄种树")
-        self.mode_selector.pack(pady=15, padx=30, fill="x")
+        self.mode_selector.pack(fill="x", pady=(0, 15))
 
         self.pomo_options = ["15分钟", "25分钟", "35分钟", "45分钟", "60分钟", "90分钟"]
         self.pomo_var = ctk.StringVar(value="25分钟")
-        self.pomo_menu = ctk.CTkOptionMenu(
-            self.focus_card, 
-            values=self.pomo_options, 
-            variable=self.pomo_var, 
-            command=self.change_pomo_time, 
-            fg_color=("#F2F2F7", "#2C2C2E"), 
-            text_color=("#007AFF", "#0A84FF"), 
-            button_color=("#E5E5EA", "#3A3A3C"), 
-            font=("Helvetica", 12, "bold"),
-            corner_radius=10
-        )
-        self.pomo_menu.pack(pady=(0, 10))
+        self.pomo_menu = ctk.CTkOptionMenu(self.focus_bottom, values=self.pomo_options, variable=self.pomo_var, command=self.change_pomo_time, 
+                                           fg_color=("#F2F2F7", "#2C2C2E"), text_color=("#007AFF", "#0A84FF"), button_color=("#E5E5EA", "#3A3A3C"), 
+                                           font=("Microsoft YaHei UI", 13, "bold"), corner_radius=10, height=36)
+        self.pomo_menu.pack(pady=(0, 20))
 
-        self.ctrl_frame = ctk.CTkFrame(self.focus_card, fg_color="transparent")
-        self.ctrl_frame.pack(pady=(10, 20))
-        self.start_btn = ctk.CTkButton(self.ctrl_frame, text="▶ 开始专注", font=("Helvetica", 14, "bold"), width=140, height=42, corner_radius=21, fg_color=("#34C759", "#30D158"), hover_color=("#248A3D", "#248A3D"), command=self.trigger_timer_switch)
-        self.start_btn.pack(side="left", padx=10)
-        self.stop_btn = ctk.CTkButton(self.ctrl_frame, text="⏹ 结束", font=("Helvetica", 14, "bold"), width=140, height=42, corner_radius=21, fg_color=("#FF3B30", "#FF453A"), hover_color=("#C92A20", "#C92A20"), command=lambda: self.terminate_session(False), state="disabled")
-        self.stop_btn.pack(side="left", padx=10)
+        self.ctrl_frame = ctk.CTkFrame(self.focus_bottom, fg_color="transparent")
+        self.ctrl_frame.pack(fill="x")
+        self.start_btn = ctk.CTkButton(self.ctrl_frame, text="▶ 开始专注", font=("Microsoft YaHei UI", 16, "bold"), height=50, corner_radius=25, 
+                                       fg_color=("#34C759", "#30D158"), hover_color=("#248A3D", "#248A3D"), command=self.trigger_timer_switch)
+        self.start_btn.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        
+        self.stop_btn = ctk.CTkButton(self.ctrl_frame, text="⏹ 结束", font=("Microsoft YaHei UI", 16, "bold"), height=50, corner_radius=25, 
+                                      fg_color=("#FF3B30", "#FF453A"), hover_color=("#C92A20", "#C92A20"), command=lambda: self.terminate_session(False), state="disabled")
+        self.stop_btn.pack(side="right", fill="x", expand=True, padx=(10, 0))
 
     def assemble_forest_tab(self):
-        self.forest_selector = ctk.CTkSegmentedButton(self.tab_forest, values=["今日战果", "本周图鉴", "本月图鉴"], command=self.switch_forest_scope)
+        self.forest_selector = ctk.CTkSegmentedButton(self.tab_forest, values=["今日战果", "本周图鉴", "本月图鉴"], command=self.switch_forest_scope, font=("Microsoft YaHei UI", 13, "bold"), height=36)
         self.forest_selector.set("今日战果")
-        self.forest_selector.pack(pady=(5, 15), fill="x")
+        self.forest_selector.pack(pady=(10, 15), fill="x", padx=10)
 
-        self.forest_summary = ctk.CTkLabel(self.tab_forest, text="累计收获 0 个战果", font=("Helvetica", 13, "bold"), text_color="#8E8E93")
-        self.forest_summary.pack(pady=(0, 5))
+        self.forest_summary = ctk.CTkLabel(self.tab_forest, text="累计收获 0 个战果", font=("Microsoft YaHei UI", 14, "bold"), text_color="#8E8E93")
+        self.forest_summary.pack(pady=(0, 10))
 
         self.forest_card = self.create_card(self.tab_forest)
         self.forest_card.pack(fill="both", expand=True)
+        
         self.forest_scroll = ctk.CTkScrollableFrame(self.forest_card, fg_color="transparent", corner_radius=0)
-        self.forest_scroll.pack(fill="both", expand=True, padx=5, pady=5)
+        self.forest_scroll.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        self.forest_grid_frame = ctk.CTkFrame(self.forest_scroll, fg_color="transparent")
+        self.forest_grid_frame.pack(fill="both", expand=True)
+        
+        # 💡 动态网格监听：随窗口宽度自动折行排版
+        self.forest_scroll.bind("<Configure>", self.on_forest_resize)
+        self.forest_widgets = []
+
+    def on_forest_resize(self, event=None):
+        if not hasattr(self, 'forest_widgets') or not self.forest_widgets: return
+        self.forest_scroll.update_idletasks()
+        width = self.forest_scroll.winfo_width()
+        cols = max(1, width // 80) # 每棵树预留80像素宽度
+        if cols == getattr(self, 'current_forest_cols', 0): return
+        self.current_forest_cols = cols
+        
+        for i, w in enumerate(self.forest_widgets):
+            w.grid(row=i//cols, column=i%cols, padx=15, pady=15)
 
     def assemble_stats_tab(self):
-        self.stats_selector = ctk.CTkSegmentedButton(self.tab_stats, values=["今日", "本周", "本月"], command=self.switch_stats_scope)
+        self.stats_selector = ctk.CTkSegmentedButton(self.tab_stats, values=["今日", "本周", "本月"], command=self.switch_stats_scope, font=("Microsoft YaHei UI", 13, "bold"), height=36)
         self.stats_selector.set("今日")
-        self.stats_selector.pack(pady=(5, 15), fill="x")
+        self.stats_selector.pack(pady=(10, 15), fill="x", padx=10)
 
-        self.stats_summary_card = self.create_card(self.tab_stats, height=80)
+        self.stats_summary_card = self.create_card(self.tab_stats, height=90)
         self.stats_summary_card.pack(fill="x", pady=(0, 15))
         self.stats_summary_card.pack_propagate(False) 
         
-        self.stats_total_label = ctk.CTkLabel(self.stats_summary_card, text="0s", font=("Consolas", 32, "bold"))
-        self.stats_total_label.pack(side="left", padx=20, pady=20)
+        self.stats_total_label = ctk.CTkLabel(self.stats_summary_card, text="0s", font=("Consolas", 36, "bold"), text_color=("#1C1C1E", "#FFFFFF"))
+        self.stats_total_label.pack(side="left", padx=25, pady=20)
         
-        self.stats_delta_label = ctk.CTkLabel(self.stats_summary_card, text="无对比数据", font=("Helvetica", 12, "bold"), text_color="#8E8E93")
-        self.stats_delta_label.pack(side="right", padx=20, pady=20)
+        self.stats_delta_label = ctk.CTkLabel(self.stats_summary_card, text="无对比数据", font=("Microsoft YaHei UI", 13, "bold"), text_color="#8E8E93")
+        self.stats_delta_label.pack(side="right", padx=25, pady=20)
 
         self.chart_card = self.create_card(self.tab_stats)
         self.chart_card.pack(fill="both", expand=True)
         self.chart_scroll = ctk.CTkScrollableFrame(self.chart_card, fg_color="transparent", corner_radius=0)
-        self.chart_scroll.pack(fill="both", expand=True, padx=5, pady=5)
+        self.chart_scroll.pack(fill="both", expand=True, padx=10, pady=10)
 
     def assemble_settings_tab(self):
         self.settings_scroll = ctk.CTkScrollableFrame(self.tab_settings, fg_color="transparent", corner_radius=0)
         self.settings_scroll.pack(fill="both", expand=True)
 
         goal_card = self.create_card(self.settings_scroll)
-        goal_card.pack(fill="x", pady=(0, 15), ipady=10)
-        ctk.CTkLabel(goal_card, text="🎯 每日专注目标 (小时)", font=("Helvetica", 14, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
+        goal_card.pack(fill="x", pady=(10, 15), ipady=15)
+        ctk.CTkLabel(goal_card, text="🎯 每日专注目标 (小时)", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w", padx=25, pady=(15, 10))
         self.goal_input_var = ctk.StringVar(value=str(self.db.data["dailyGoal"] / 3600))
-        self.goal_input = ctk.CTkEntry(goal_card, textvariable=self.goal_input_var, font=("Helvetica", 14), corner_radius=8)
-        self.goal_input.pack(fill="x", padx=20, pady=(0, 10))
+        self.goal_input = ctk.CTkEntry(goal_card, textvariable=self.goal_input_var, font=("Microsoft YaHei UI", 15), corner_radius=10, height=40)
+        self.goal_input.pack(fill="x", padx=25, pady=(0, 10))
         self.goal_input.bind("<FocusOut>", self.update_goal_threshold)
         self.goal_input.bind("<Return>", self.update_goal_threshold)
 
         sub_card = self.create_card(self.settings_scroll)
-        sub_card.pack(fill="x", pady=(0, 15), ipady=10)
-        ctk.CTkLabel(sub_card, text="🏷️ 备考科目管理", font=("Helvetica", 14, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
+        sub_card.pack(fill="x", pady=(0, 15), ipady=15)
+        ctk.CTkLabel(sub_card, text="🏷️ 备考科目管理", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w", padx=25, pady=(15, 10))
         self.subject_listbox_frame = ctk.CTkFrame(sub_card, fg_color="transparent")
-        self.subject_listbox_frame.pack(fill="x", padx=20)
+        self.subject_listbox_frame.pack(fill="x", padx=25)
         self.refresh_settings_subject_view()
 
         data_card = self.create_card(self.settings_scroll)
-        data_card.pack(fill="x", pady=(0, 10), ipady=10)
-        ctk.CTkLabel(data_card, text="💾 数据安全与容灾", font=("Helvetica", 14, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
-        ctk.CTkButton(data_card, text="⬇ 导出本地记录备份 (JSON)", height=36, corner_radius=8, fg_color=("#E5E5EA", "#3A3A3C"), text_color=("#000000", "#FFFFFF"), hover_color=("#D1D1D6", "#48484A"), command=self.export_records_safe).pack(fill="x", padx=20, pady=(5, 5))
-        ctk.CTkButton(data_card, text="⬆ 导入历史数据恢复", height=36, corner_radius=8, fg_color="transparent", border_width=1, text_color=("#000000", "#FFFFFF"), command=self.import_records_safe).pack(fill="x", padx=20, pady=(5, 10))
+        data_card.pack(fill="x", pady=(0, 10), ipady=15)
+        ctk.CTkLabel(data_card, text="💾 数据安全与容灾", font=("Microsoft YaHei UI", 15, "bold")).pack(anchor="w", padx=25, pady=(15, 10))
+        ctk.CTkButton(data_card, text="⬇ 导出记录备份 (JSON)", font=("Microsoft YaHei UI", 14, "bold"), height=42, corner_radius=10, fg_color=("#E5E5EA", "#3A3A3C"), text_color=("#1C1C1E", "#FFFFFF"), hover_color=("#D1D1D6", "#48484A"), command=self.export_records_safe).pack(fill="x", padx=25, pady=(5, 10))
+        ctk.CTkButton(data_card, text="⬆ 导入历史数据恢复", font=("Microsoft YaHei UI", 14, "bold"), height=42, corner_radius=10, fg_color="transparent", border_width=2, border_color=("#D1D1D6", "#48484A"), text_color=("#1C1C1E", "#FFFFFF"), hover_color=("#E5E5EA", "#3A3A3C"), command=self.import_records_safe).pack(fill="x", padx=25, pady=(5, 10))
 
     # ================= 5. 底层逻辑 =================
     def sync_subject_preference(self, choice):
@@ -470,32 +508,28 @@ class StudyEngineApp(ctk.CTk):
         self.render_forest_view()
 
     def render_forest_view(self):
-        for widget in self.forest_scroll.winfo_children():
+        for widget in self.forest_grid_frame.winfo_children():
             widget.destroy()
 
         records = self.db.get_filtered_data(self.current_forest_range)
         self.forest_summary.configure(text=f"当前时段累计收获 {len(records)} 个战果")
+        self.forest_widgets = []
+        self.current_forest_cols = 0 # 触发强制重新排版
 
         if not records:
-            ctk.CTkLabel(self.forest_scroll, text="空空如也，快去专注吧 ✨", font=("Helvetica", 14), text_color="#8E8E93").pack(pady=50)
+            lbl = ctk.CTkLabel(self.forest_grid_frame, text="空空如也，快去专注吧 ✨", font=("Microsoft YaHei UI", 14), text_color="#8E8E93")
+            lbl.grid(row=0, column=0, pady=50)
+            self.forest_widgets.append(lbl)
             return
 
-        grid_frame = ctk.CTkFrame(self.forest_scroll, fg_color="transparent")
-        grid_frame.pack(fill="both", expand=True)
-        
-        row, col = 0, 0
         for r in records:
-            lbl = ctk.CTkLabel(grid_frame, text=r.get("tree", "🌲"), font=("Segoe UI Emoji", 32), cursor="hand2")
-            lbl.grid(row=row, column=col, padx=10, pady=10)
-            
+            lbl = ctk.CTkLabel(self.forest_grid_frame, text=r.get("tree", "🌲"), font=("Segoe UI Emoji", 42), cursor="hand2")
             note_text = f" [{r['note']}]" if r.get("note") else ""
             info_string = f"{r['subject']} | {format_dur(r['duration'])}{note_text}"
             self.bind_hover_tip(lbl, info_string)
+            self.forest_widgets.append(lbl)
             
-            col += 1
-            if col > 6: 
-                col = 0
-                row += 1
+        self.on_forest_resize() # 初始化布局
 
     def bind_hover_tip(self, widget, text):
         def on_enter(e):
@@ -542,7 +576,7 @@ class StudyEngineApp(ctk.CTk):
             self.stats_delta_label.configure(text=f"↓ 少 {format_dur(abs(delta))}", text_color=("#FF3B30", "#FF453A"))
 
         if not curr_records:
-            ctk.CTkLabel(self.chart_scroll, text="当前时段无专注数据", font=("Helvetica", 14), text_color="#8E8E93").pack(pady=50)
+            ctk.CTkLabel(self.chart_scroll, text="当前时段无专注数据", font=("Microsoft YaHei UI", 14), text_color="#8E8E93").pack(pady=50)
             return
 
         subject_map = {}
@@ -553,16 +587,16 @@ class StudyEngineApp(ctk.CTk):
             pct = dur / curr_total if curr_total > 0 else 0
             
             bar_frame = ctk.CTkFrame(self.chart_scroll, fg_color="transparent")
-            bar_frame.pack(fill="x", pady=8, padx=5)
+            bar_frame.pack(fill="x", pady=8, padx=10)
 
-            lbl_title = ctk.CTkLabel(bar_frame, text=f"{sub} ({round(pct*100, 1)}%)", font=("Helvetica", 13, "bold"))
+            lbl_title = ctk.CTkLabel(bar_frame, text=f"{sub} ({round(pct*100, 1)}%)", font=("Microsoft YaHei UI", 14, "bold"))
             lbl_title.pack(side="left")
             
-            lbl_time = ctk.CTkLabel(bar_frame, text=format_dur(dur), font=("Helvetica", 12), text_color="#8E8E93")
+            lbl_time = ctk.CTkLabel(bar_frame, text=format_dur(dur), font=("Microsoft YaHei UI", 13), text_color="#8E8E93")
             lbl_time.pack(side="right")
 
-            p_bar = ctk.CTkProgressBar(self.chart_scroll, height=8, corner_radius=4, progress_color=("#007AFF", "#0A84FF"))
-            p_bar.pack(fill="x", pady=(0, 12), padx=5)
+            p_bar = ctk.CTkProgressBar(self.chart_scroll, height=10, corner_radius=5, progress_color=("#007AFF", "#0A84FF"))
+            p_bar.pack(fill="x", pady=(0, 15), padx=10)
             p_bar.set(pct)
 
     # ================= 7. 高级设置 =================
@@ -581,18 +615,18 @@ class StudyEngineApp(ctk.CTk):
             widget.destroy()
 
         for sub in self.db.data["subjects"]:
-            sub_row = self.create_card(self.subject_listbox_frame, fg_color=("#F2F2F7", "#2C2C2E"), corner_radius=8)
-            sub_row.pack(fill="x", pady=4)
+            sub_row = self.create_card(self.subject_listbox_frame, fg_color=("#F2F2F7", "#2C2C2E"), corner_radius=10)
+            sub_row.pack(fill="x", pady=5)
             
-            ctk.CTkLabel(sub_row, text=sub, font=("Helvetica", 13, "bold")).pack(side="left", padx=15, pady=8)
-            btn_del = ctk.CTkButton(sub_row, text="删除", width=50, height=26, corner_radius=6, fg_color=("#FF3B30", "#FF453A"), hover_color="#C92A20", font=("Helvetica", 11, "bold"), command=lambda s=sub: self.remove_custom_subject(s))
-            btn_del.pack(side="right", padx=10)
+            ctk.CTkLabel(sub_row, text=sub, font=("Microsoft YaHei UI", 14, "bold")).pack(side="left", padx=15, pady=10)
+            btn_del = ctk.CTkButton(sub_row, text="删除", width=55, height=28, corner_radius=8, fg_color=("#FF3B30", "#FF453A"), hover_color="#C92A20", font=("Microsoft YaHei UI", 12, "bold"), command=lambda s=sub: self.remove_custom_subject(s))
+            btn_del.pack(side="right", padx=15)
 
         add_row = ctk.CTkFrame(self.subject_listbox_frame, fg_color="transparent")
-        add_row.pack(fill="x", pady=(10, 0))
-        self.new_sub_entry = ctk.CTkEntry(add_row, placeholder_text="新科目名称", height=32, corner_radius=8)
-        self.new_sub_entry.pack(side="left", expand=True, fill="x", padx=(0, 10))
-        ctk.CTkButton(add_row, text="＋", width=40, height=32, corner_radius=8, font=("Helvetica", 16, "bold"), command=self.append_custom_subject).pack(side="right")
+        add_row.pack(fill="x", pady=(15, 0))
+        self.new_sub_entry = ctk.CTkEntry(add_row, placeholder_text="输入新科目...", font=("Microsoft YaHei UI", 14), height=38, corner_radius=10)
+        self.new_sub_entry.pack(side="left", expand=True, fill="x", padx=(0, 15))
+        ctk.CTkButton(add_row, text="＋", width=45, height=38, corner_radius=10, font=("Microsoft YaHei UI", 18, "bold"), command=self.append_custom_subject).pack(side="right")
 
     def append_custom_subject(self):
         name = self.new_sub_entry.get().strip()
