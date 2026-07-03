@@ -12,7 +12,7 @@ import tkinter.messagebox as messagebox
 ctk.set_appearance_mode("System")  
 ctk.set_default_color_theme("blue") 
 
-# 💡 核心修复 1：绝对路径锁定。确保打包成 exe 后，无论通过快捷方式还是终端打开，数据文件都保存在 exe 同目录下！
+# 绝对路径锁定，确保数据文件安全
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
 else:
@@ -121,10 +121,9 @@ class StudyEngineApp(ctk.CTk):
             "顶峰相见吧，在十二月最冷的冬日里拼出最热血的成绩。"
         ]
 
-        # 窗口配置
         self.title("冲刺备考引擎")
         self.geometry("460x780")
-        self.resizable(False, False) # 💡 核心修复 3：锁定物理尺寸，防止拉伸导致排版崩坏
+        self.resizable(False, False) 
         self.configure(fg_color=("#F2F2F7", "#000000")) 
         self.set_window_center()
 
@@ -158,14 +157,12 @@ class StudyEngineApp(ctk.CTk):
         return ctk.CTkFrame(parent, fg_color=("#FFFFFF", "#1C1C1E"), corner_radius=15, **kwargs)
 
     def build_ui(self):
-        # 顶部倒计时卡片
         self.countdown_card = self.create_card(self)
         self.countdown_card.pack(fill="x", padx=20, pady=(20, 10))
         self.countdown_label = ctk.CTkLabel(self.countdown_card, text="距离初试仅剩 -- 天", font=("Helvetica", 16, "bold"), text_color=("#007AFF", "#0A84FF"))
         self.countdown_label.pack(pady=12)
         self.refresh_exam_countdown()
 
-        # 无边框多签面板
         self.tabview = ctk.CTkTabview(self, fg_color="transparent", bg_color="transparent", segmented_button_selected_color=("#34C759", "#30D158"), segmented_button_selected_hover_color=("#248A3D", "#248A3D"))
         self.tabview.pack(padx=20, pady=(0, 20), fill="both", expand=True)
         
@@ -208,9 +205,20 @@ class StudyEngineApp(ctk.CTk):
         self.mode_selector.set("🌱 番茄种树")
         self.mode_selector.pack(pady=15, padx=30, fill="x")
 
+        # 💡 核心修复：移除会导致框架崩溃的 transparent 参数，换用安全的十六进制颜色值
         self.pomo_options = ["15分钟", "25分钟", "35分钟", "45分钟", "60分钟", "90分钟"]
         self.pomo_var = ctk.StringVar(value="25分钟")
-        self.pomo_menu = ctk.CTkOptionMenu(self.focus_card, values=self.pomo_options, variable=self.pomo_var, command=self.change_pomo_time, fg_color="transparent", text_color=("#007AFF", "#0A84FF"), button_color="transparent", font=("Helvetica", 12, "bold"))
+        self.pomo_menu = ctk.CTkOptionMenu(
+            self.focus_card, 
+            values=self.pomo_options, 
+            variable=self.pomo_var, 
+            command=self.change_pomo_time, 
+            fg_color=("#F2F2F7", "#2C2C2E"), 
+            text_color=("#007AFF", "#0A84FF"), 
+            button_color=("#E5E5EA", "#3A3A3C"), 
+            font=("Helvetica", 12, "bold"),
+            corner_radius=10
+        )
         self.pomo_menu.pack(pady=(0, 10))
 
         self.ctrl_frame = ctk.CTkFrame(self.focus_card, fg_color="transparent")
@@ -370,13 +378,13 @@ class StudyEngineApp(ctk.CTk):
         self.handle_mode_switch(self.mode_selector.get())
         self.render_forest_view()
         self.render_stats_dashboard()
+        self.title("冲刺备考引擎")
 
     def check_cross_day(self):
         if not self.timer_active:
             self.elapsed_time = 0
         else:
             self.terminate_session(auto_save=True)
-            # 💡 核心修复 2：跨天重启计时时，正确重置锁死 UI 界面状态
             self.timer_active = True
             self.start_tick = time.time()
             self.start_btn.configure(text="⏸ 暂停专注", fg_color=("#FF9500", "#FF9F0A"), hover_color="#E08300")
@@ -403,8 +411,10 @@ class StudyEngineApp(ctk.CTk):
                     return
                 else:
                     self.time_label.configure(text=format_time(remain))
+                    self.title(f"(🌱 {int(remain//60)}m) 考研引擎")
             else:
                 self.time_label.configure(text=format_time(self.elapsed_time))
+                self.title(f"(🧱 {format_dur(self.elapsed_time)}) 考研引擎")
 
             self.refresh_live_tree_icon()
             self.refresh_live_goal_bar()
