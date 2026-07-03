@@ -1,6 +1,7 @@
 import customtkinter as ctk
 import json
 import os
+import sys
 import time
 import random
 from datetime import datetime, timedelta
@@ -9,10 +10,15 @@ import tkinter.messagebox as messagebox
 
 # ================= 1. 环境与配置初始化 =================
 ctk.set_appearance_mode("System")  
-# 自定义高颜值的全局主题色
 ctk.set_default_color_theme("blue") 
 
-DATA_FILE = "study_data.json"
+# 💡 核心修复 1：绝对路径锁定。确保打包成 exe 后，无论通过快捷方式还是终端打开，数据文件都保存在 exe 同目录下！
+if getattr(sys, 'frozen', False):
+    application_path = os.path.dirname(sys.executable)
+else:
+    application_path = os.path.dirname(os.path.abspath(__file__))
+    
+DATA_FILE = os.path.join(application_path, "study_data.json")
 
 # ================= 2. 工具函数 =================
 def format_dur(seconds):
@@ -118,11 +124,12 @@ class StudyEngineApp(ctk.CTk):
         # 窗口配置
         self.title("冲刺备考引擎")
         self.geometry("460x780")
-        self.configure(fg_color=("#F2F2F7", "#000000")) # iOS风格的底色
+        self.resizable(False, False) # 💡 核心修复 3：锁定物理尺寸，防止拉伸导致排版崩坏
+        self.configure(fg_color=("#F2F2F7", "#000000")) 
         self.set_window_center()
 
         self.timer_active = False
-        self.mode = "pomodoro" # 改用普通变量配合SegmentedButton
+        self.mode = "pomodoro" 
         self.pomo_target = 25 * 60
         self.elapsed_time = 0
         self.start_tick = 0
@@ -147,7 +154,6 @@ class StudyEngineApp(ctk.CTk):
     def get_random_quote(self):
         return random.choice(self.encouragements)
 
-    # 🎨 创建带有阴影/卡片质感的 Frame
     def create_card(self, parent, **kwargs):
         return ctk.CTkFrame(parent, fg_color=("#FFFFFF", "#1C1C1E"), corner_radius=15, **kwargs)
 
@@ -159,7 +165,7 @@ class StudyEngineApp(ctk.CTk):
         self.countdown_label.pack(pady=12)
         self.refresh_exam_countdown()
 
-        # 优雅的无边框多签面板
+        # 无边框多签面板
         self.tabview = ctk.CTkTabview(self, fg_color="transparent", bg_color="transparent", segmented_button_selected_color=("#34C759", "#30D158"), segmented_button_selected_hover_color=("#248A3D", "#248A3D"))
         self.tabview.pack(padx=20, pady=(0, 20), fill="both", expand=True)
         
@@ -174,16 +180,13 @@ class StudyEngineApp(ctk.CTk):
         self.assemble_settings_tab()
 
     def assemble_focus_tab(self):
-        # 主控面板卡片
         self.focus_card = self.create_card(self.tab_focus)
         self.focus_card.pack(fill="both", expand=True, pady=5)
 
-        # 科目选择 (去掉难看的边框)
         self.subject_var = ctk.StringVar(value=self.db.data["currentSubject"])
         self.subject_menu = ctk.CTkOptionMenu(self.focus_card, values=self.db.data["subjects"], variable=self.subject_var, command=self.sync_subject_preference, fg_color=("#F2F2F7", "#2C2C2E"), text_color=("#000000", "#FFFFFF"), button_color=("#E5E5EA", "#3A3A3C"), corner_radius=10)
         self.subject_menu.pack(pady=(20, 10))
 
-        # 时钟区域
         self.icon_label = ctk.CTkLabel(self.focus_card, text="🌰", font=("Segoe UI Emoji", 80))
         self.icon_label.pack(pady=(10, 0))
 
@@ -193,7 +196,6 @@ class StudyEngineApp(ctk.CTk):
         self.quote_label = ctk.CTkLabel(self.focus_card, text=self.encouragements[0], font=("Helvetica", 12), text_color="#8E8E93")
         self.quote_label.pack(pady=(0, 20))
 
-        # 进度槽
         self.goal_frame = ctk.CTkFrame(self.focus_card, fg_color="transparent")
         self.goal_frame.pack(fill="x", padx=30, pady=10)
         self.goal_header_label = ctk.CTkLabel(self.goal_frame, text="🎯 今日进度: 0m / 6h", font=("Helvetica", 12, "bold"), text_color="#8E8E93")
@@ -202,18 +204,15 @@ class StudyEngineApp(ctk.CTk):
         self.goal_progress_bar.pack(fill="x")
         self.goal_progress_bar.set(0)
 
-        # 模式切换：使用丝滑的分段按钮替代老旧单选框
         self.mode_selector = ctk.CTkSegmentedButton(self.focus_card, values=["🧱 正向筑城", "🌱 番茄种树"], command=self.handle_mode_switch, selected_color=("#007AFF", "#0A84FF"), selected_hover_color=("#0056B3", "#0056B3"))
         self.mode_selector.set("🌱 番茄种树")
         self.mode_selector.pack(pady=15, padx=30, fill="x")
 
-        # 番茄时间选择器
         self.pomo_options = ["15分钟", "25分钟", "35分钟", "45分钟", "60分钟", "90分钟"]
         self.pomo_var = ctk.StringVar(value="25分钟")
         self.pomo_menu = ctk.CTkOptionMenu(self.focus_card, values=self.pomo_options, variable=self.pomo_var, command=self.change_pomo_time, fg_color="transparent", text_color=("#007AFF", "#0A84FF"), button_color="transparent", font=("Helvetica", 12, "bold"))
         self.pomo_menu.pack(pady=(0, 10))
 
-        # 胶囊形控制按钮
         self.ctrl_frame = ctk.CTkFrame(self.focus_card, fg_color="transparent")
         self.ctrl_frame.pack(pady=(10, 20))
         self.start_btn = ctk.CTkButton(self.ctrl_frame, text="▶ 开始专注", font=("Helvetica", 14, "bold"), width=140, height=42, corner_radius=21, fg_color=("#34C759", "#30D158"), hover_color=("#248A3D", "#248A3D"), command=self.trigger_timer_switch)
@@ -222,7 +221,6 @@ class StudyEngineApp(ctk.CTk):
         self.stop_btn.pack(side="left", padx=10)
 
     def assemble_forest_tab(self):
-        # 顶置选择器
         self.forest_selector = ctk.CTkSegmentedButton(self.tab_forest, values=["今日战果", "本周图鉴", "本月图鉴"], command=self.switch_forest_scope)
         self.forest_selector.set("今日战果")
         self.forest_selector.pack(pady=(5, 15), fill="x")
@@ -230,7 +228,6 @@ class StudyEngineApp(ctk.CTk):
         self.forest_summary = ctk.CTkLabel(self.tab_forest, text="累计收获 0 个战果", font=("Helvetica", 13, "bold"), text_color="#8E8E93")
         self.forest_summary.pack(pady=(0, 5))
 
-        # 隐形滚动卡片区 (去掉默认难看的 label)
         self.forest_card = self.create_card(self.tab_forest)
         self.forest_card.pack(fill="both", expand=True)
         self.forest_scroll = ctk.CTkScrollableFrame(self.forest_card, fg_color="transparent", corner_radius=0)
@@ -241,10 +238,9 @@ class StudyEngineApp(ctk.CTk):
         self.stats_selector.set("今日")
         self.stats_selector.pack(pady=(5, 15), fill="x")
 
-        # 数据总览卡片
         self.stats_summary_card = self.create_card(self.tab_stats, height=80)
         self.stats_summary_card.pack(fill="x", pady=(0, 15))
-        self.stats_summary_card.pack_propagate(False) # 固定高度
+        self.stats_summary_card.pack_propagate(False) 
         
         self.stats_total_label = ctk.CTkLabel(self.stats_summary_card, text="0s", font=("Consolas", 32, "bold"))
         self.stats_total_label.pack(side="left", padx=20, pady=20)
@@ -252,7 +248,6 @@ class StudyEngineApp(ctk.CTk):
         self.stats_delta_label = ctk.CTkLabel(self.stats_summary_card, text="无对比数据", font=("Helvetica", 12, "bold"), text_color="#8E8E93")
         self.stats_delta_label.pack(side="right", padx=20, pady=20)
 
-        # 柱状图卡片
         self.chart_card = self.create_card(self.tab_stats)
         self.chart_card.pack(fill="both", expand=True)
         self.chart_scroll = ctk.CTkScrollableFrame(self.chart_card, fg_color="transparent", corner_radius=0)
@@ -262,7 +257,6 @@ class StudyEngineApp(ctk.CTk):
         self.settings_scroll = ctk.CTkScrollableFrame(self.tab_settings, fg_color="transparent", corner_radius=0)
         self.settings_scroll.pack(fill="both", expand=True)
 
-        # 模块 1：目标设置卡片
         goal_card = self.create_card(self.settings_scroll)
         goal_card.pack(fill="x", pady=(0, 15), ipady=10)
         ctk.CTkLabel(goal_card, text="🎯 每日专注目标 (小时)", font=("Helvetica", 14, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
@@ -272,7 +266,6 @@ class StudyEngineApp(ctk.CTk):
         self.goal_input.bind("<FocusOut>", self.update_goal_threshold)
         self.goal_input.bind("<Return>", self.update_goal_threshold)
 
-        # 模块 2：科目管理卡片
         sub_card = self.create_card(self.settings_scroll)
         sub_card.pack(fill="x", pady=(0, 15), ipady=10)
         ctk.CTkLabel(sub_card, text="🏷️ 备考科目管理", font=("Helvetica", 14, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
@@ -280,7 +273,6 @@ class StudyEngineApp(ctk.CTk):
         self.subject_listbox_frame.pack(fill="x", padx=20)
         self.refresh_settings_subject_view()
 
-        # 模块 3：数据安全卡片
         data_card = self.create_card(self.settings_scroll)
         data_card.pack(fill="x", pady=(0, 10), ipady=10)
         ctk.CTkLabel(data_card, text="💾 数据安全与容灾", font=("Helvetica", 14, "bold")).pack(anchor="w", padx=20, pady=(15, 5))
@@ -339,7 +331,6 @@ class StudyEngineApp(ctk.CTk):
 
     def terminate_session(self, auto_save=False):
         is_dead = False
-        force_save_short = False
         if not auto_save:
             if self.mode == "pomodoro" and self.elapsed_time < self.pomo_target:
                 if self.elapsed_time < 60:
@@ -356,7 +347,6 @@ class StudyEngineApp(ctk.CTk):
                 if not messagebox.askyesno("提示", "筑城不足 1 分钟，只留下了废料(🚧)。\n\n是否仍要强行保存？"):
                     self.abort_current_run()
                     return
-                force_save_short = True
 
         self.timer_active = False
         note_content = ""
@@ -377,19 +367,23 @@ class StudyEngineApp(ctk.CTk):
         self.pomo_menu.configure(state="normal")
         self.mode_selector.configure(state="normal")
         
-        # 复原 UI
         self.handle_mode_switch(self.mode_selector.get())
         self.render_forest_view()
         self.render_stats_dashboard()
-        self.title("冲刺备考引擎")
 
     def check_cross_day(self):
         if not self.timer_active:
             self.elapsed_time = 0
         else:
             self.terminate_session(auto_save=True)
-            self.start_tick = time.time()
+            # 💡 核心修复 2：跨天重启计时时，正确重置锁死 UI 界面状态
             self.timer_active = True
+            self.start_tick = time.time()
+            self.start_btn.configure(text="⏸ 暂停专注", fg_color=("#FF9500", "#FF9F0A"), hover_color="#E08300")
+            self.stop_btn.configure(state="normal")
+            self.subject_menu.configure(state="disabled")
+            self.pomo_menu.configure(state="disabled")
+            self.mode_selector.configure(state="disabled")
 
     def loop_worker(self):
         current_logical_date = self.get_logical_date_string()
@@ -409,10 +403,8 @@ class StudyEngineApp(ctk.CTk):
                     return
                 else:
                     self.time_label.configure(text=format_time(remain))
-                    self.title(f"(🌱 {int(remain//60)}m) 考研引擎")
             else:
                 self.time_label.configure(text=format_time(self.elapsed_time))
-                self.title(f"(🧱 {format_dur(self.elapsed_time)}) 考研引擎")
 
             self.refresh_live_tree_icon()
             self.refresh_live_goal_bar()
