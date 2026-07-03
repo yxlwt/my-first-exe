@@ -20,11 +20,11 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flet pyinstaller  # 🚀 替换为 flet
+        pip install flet
 
     - name: Package Application via Flet
       run: |
-        flet pack study_engine.py --name "StudyEngine" --icon "assets/icon.ico" --noconsole # 🚀 使用 Flet 专属打包器
+        flet pack study_engine.py --name "StudyEngine"
 
     - name: Upload Build Artifact
       uses: actions/upload-artifact@v4
