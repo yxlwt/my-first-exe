@@ -120,14 +120,12 @@ class StudyEngineApp(ctk.CTk):
             "顶峰相见吧，在十二月最冷的冬日里拼出最热血的成绩。"
         ]
 
-        # 💡 解除限制：允许自适应调整，但设定最小安全尺寸
         self.title("冲刺备考引擎")
         self.geometry("500x820")
         self.minsize(400, 650) 
         self.configure(fg_color=("#F2F2F7", "#000000")) 
         self.set_window_center()
 
-        # 定义全局柔和字体
         self.font_main = ("Microsoft YaHei UI", 14)
         self.font_title = ("Microsoft YaHei UI", 16, "bold")
         self.font_number = ("Consolas", 72, "bold")
@@ -160,22 +158,24 @@ class StudyEngineApp(ctk.CTk):
 
     def create_card(self, parent, **kwargs):
         bg_color = kwargs.pop("fg_color", ("#FFFFFF", "#1C1C1E"))
-        radius = kwargs.pop("corner_radius", 18) # 更圆润的苹果卡片风格
+        radius = kwargs.pop("corner_radius", 18)
         return ctk.CTkFrame(parent, fg_color=bg_color, corner_radius=radius, **kwargs)
 
     def build_ui(self):
-        # 顶部考研倒计时 (自动拉伸 fill="x")
         self.countdown_card = self.create_card(self)
         self.countdown_card.pack(fill="x", padx=20, pady=(20, 10))
         self.countdown_label = ctk.CTkLabel(self.countdown_card, text="距离初试仅剩 -- 天", font=self.font_title, text_color=("#007AFF", "#0A84FF"))
         self.countdown_label.pack(pady=16)
         self.refresh_exam_countdown()
 
-        # 核心多标签页面板 (自动拉伸 fill="both", expand=True)
-        self.tabview = ctk.CTkTabview(self, fg_color="transparent", bg_color="transparent", 
-                                      segmented_button_selected_color=("#34C759", "#30D158"), 
-                                      segmented_button_selected_hover_color=("#248A3D", "#248A3D"),
-                                      text_color=("#1C1C1E", "#FFFFFF"), font=("Microsoft YaHei UI", 14, "bold"))
+        # 💡 核心修复：移除 CTkTabview 不支持的 text_color 和 font 参数，避免闪退
+        self.tabview = ctk.CTkTabview(
+            self, 
+            fg_color="transparent", 
+            bg_color="transparent", 
+            segmented_button_selected_color=("#34C759", "#30D158"), 
+            segmented_button_selected_hover_color=("#248A3D", "#248A3D")
+        )
         self.tabview.pack(padx=20, pady=(0, 20), fill="both", expand=True)
         
         self.tab_focus = self.tabview.add("专注")
@@ -192,7 +192,6 @@ class StudyEngineApp(ctk.CTk):
         self.focus_card = self.create_card(self.tab_focus)
         self.focus_card.pack(fill="both", expand=True, pady=5)
 
-        # 💡 弹性排版：将倒计时区域放在中间自适应扩展
         self.focus_top = ctk.CTkFrame(self.focus_card, fg_color="transparent")
         self.focus_top.pack(fill="x", pady=20)
         
@@ -202,7 +201,6 @@ class StudyEngineApp(ctk.CTk):
                                               font=("Microsoft YaHei UI", 14, "bold"), corner_radius=10, height=36)
         self.subject_menu.pack()
 
-        # 中部弹性扩展区
         self.focus_center = ctk.CTkFrame(self.focus_card, fg_color="transparent")
         self.focus_center.pack(expand=True, fill="both")
 
@@ -215,7 +213,6 @@ class StudyEngineApp(ctk.CTk):
         self.quote_label = ctk.CTkLabel(self.focus_center, text=self.encouragements[0], font=("Microsoft YaHei UI", 13), text_color="#8E8E93")
         self.quote_label.pack(expand=True, side="bottom", pady=(0, 20))
 
-        # 底部控制区锚定
         self.focus_bottom = ctk.CTkFrame(self.focus_card, fg_color="transparent")
         self.focus_bottom.pack(fill="x", side="bottom", pady=20, padx=20)
 
@@ -266,7 +263,6 @@ class StudyEngineApp(ctk.CTk):
         self.forest_grid_frame = ctk.CTkFrame(self.forest_scroll, fg_color="transparent")
         self.forest_grid_frame.pack(fill="both", expand=True)
         
-        # 💡 动态网格监听：随窗口宽度自动折行排版
         self.forest_scroll.bind("<Configure>", self.on_forest_resize)
         self.forest_widgets = []
 
@@ -274,7 +270,7 @@ class StudyEngineApp(ctk.CTk):
         if not hasattr(self, 'forest_widgets') or not self.forest_widgets: return
         self.forest_scroll.update_idletasks()
         width = self.forest_scroll.winfo_width()
-        cols = max(1, width // 80) # 每棵树预留80像素宽度
+        cols = max(1, width // 80)
         if cols == getattr(self, 'current_forest_cols', 0): return
         self.current_forest_cols = cols
         
@@ -514,7 +510,7 @@ class StudyEngineApp(ctk.CTk):
         records = self.db.get_filtered_data(self.current_forest_range)
         self.forest_summary.configure(text=f"当前时段累计收获 {len(records)} 个战果")
         self.forest_widgets = []
-        self.current_forest_cols = 0 # 触发强制重新排版
+        self.current_forest_cols = 0 
 
         if not records:
             lbl = ctk.CTkLabel(self.forest_grid_frame, text="空空如也，快去专注吧 ✨", font=("Microsoft YaHei UI", 14), text_color="#8E8E93")
@@ -529,7 +525,7 @@ class StudyEngineApp(ctk.CTk):
             self.bind_hover_tip(lbl, info_string)
             self.forest_widgets.append(lbl)
             
-        self.on_forest_resize() # 初始化布局
+        self.on_forest_resize() 
 
     def bind_hover_tip(self, widget, text):
         def on_enter(e):
