@@ -10,7 +10,7 @@ import tkinter.messagebox as messagebox
 
 # ================= 1. 环境与配置初始化 =================
 ctk.set_appearance_mode("System")  
-ctk.set_default_color_theme("blue") # 恢复纯净的原生极地蓝主题
+ctk.set_default_color_theme("blue") 
 
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
@@ -162,19 +162,16 @@ class StudyEngineApp(ctk.CTk):
         return ctk.CTkFrame(parent, fg_color=bg_color, corner_radius=radius, **kwargs)
 
     def build_ui(self):
-        # 💡 银弹机制：构建“绝对居中防拉伸沙盒”
-        # 无论窗口怎么拉伸，里面的内容都被死死锁在这个 440x760 的物理外框内，优雅居中！
-        self.app_sandbox = ctk.CTkFrame(self, fg_color="transparent")
-        self.app_sandbox.place(relx=0.5, rely=0.5, anchor="center", width=440, height=760)
+        # 💡 核心修复：将 width 和 height 参数移入 CTkFrame 的构造函数中！
+        self.app_sandbox = ctk.CTkFrame(self, fg_color="transparent", width=440, height=760)
+        self.app_sandbox.place(relx=0.5, rely=0.5, anchor="center")
 
-        # 所有的组件全部挂载到 app_sandbox，而不是 self
         self.countdown_card = self.create_card(self.app_sandbox)
         self.countdown_card.pack(fill="x", pady=(10, 10))
         self.countdown_label = ctk.CTkLabel(self.countdown_card, text="距离初试仅剩 -- 天", font=self.font_title, text_color=("#007AFF", "#0A84FF"))
         self.countdown_label.pack(pady=12)
         self.refresh_exam_countdown()
 
-        # 去除所有多余配色，使用框架原生的极简主题
         self.tabview = ctk.CTkTabview(self.app_sandbox, fg_color="transparent", bg_color="transparent")
         self.tabview.pack(pady=(0, 10), fill="both", expand=True)
         
@@ -253,7 +250,6 @@ class StudyEngineApp(ctk.CTk):
     def on_forest_resize(self, event=None):
         if not hasattr(self, 'forest_widgets') or not self.forest_widgets: return
         self.forest_scroll.update_idletasks()
-        # 💡 固定沙盒宽度后，这里永远只会排布整齐的固定列数，不会再变形失控
         width = self.forest_scroll.winfo_width()
         cols = max(1, width // 75)
         if cols == getattr(self, 'current_forest_cols', 0): return
@@ -596,18 +592,18 @@ class StudyEngineApp(ctk.CTk):
             widget.destroy()
 
         for sub in self.db.data["subjects"]:
-            sub_row = self.create_card(self.subject_listbox_frame, fg_color=("#F2F2F7", "#2C2C2E"), corner_radius=8)
-            sub_row.pack(fill="x", pady=4)
+            sub_row = self.create_card(self.subject_listbox_frame, fg_color=("#F4F5F7", "#2C2C2E"), corner_radius=10)
+            sub_row.pack(fill="x", pady=5)
             
-            ctk.CTkLabel(sub_row, text=sub, font=("Helvetica", 13, "bold")).pack(side="left", padx=15, pady=8)
-            btn_del = ctk.CTkButton(sub_row, text="删除", width=50, height=26, corner_radius=6, fg_color=("#FF3B30", "#FF453A"), hover_color="#C92A20", font=("Helvetica", 11, "bold"), command=lambda s=sub: self.remove_custom_subject(s))
-            btn_del.pack(side="right", padx=10)
+            ctk.CTkLabel(sub_row, text=sub, font=("Helvetica", 14, "bold")).pack(side="left", padx=15, pady=10)
+            btn_del = ctk.CTkButton(sub_row, text="删除", width=55, height=28, corner_radius=8, fg_color=("#FF3B30", "#FF453A"), hover_color="#C92A20", font=("Helvetica", 12, "bold"), command=lambda s=sub: self.remove_custom_subject(s))
+            btn_del.pack(side="right", padx=15)
 
         add_row = ctk.CTkFrame(self.subject_listbox_frame, fg_color="transparent")
-        add_row.pack(fill="x", pady=(10, 0))
-        self.new_sub_entry = ctk.CTkEntry(add_row, placeholder_text="新科目名称", font=("Helvetica", 13), height=34, corner_radius=8)
-        self.new_sub_entry.pack(side="left", expand=True, fill="x", padx=(0, 10))
-        ctk.CTkButton(add_row, text="＋", width=40, height=34, corner_radius=8, font=("Helvetica", 16, "bold"), command=self.append_custom_subject).pack(side="right")
+        add_row.pack(fill="x", pady=(15, 0))
+        self.new_sub_entry = ctk.CTkEntry(add_row, placeholder_text="输入新科目...", font=("Helvetica", 14), height=40, fg_color=("#FFFFFF", "#1C1C1E"), border_width=1, corner_radius=10)
+        self.new_sub_entry.pack(side="left", expand=True, fill="x", padx=(0, 15))
+        ctk.CTkButton(add_row, text="＋", width=45, height=40, corner_radius=10, font=("Helvetica", 18, "bold"), command=self.append_custom_subject).pack(side="right")
 
     def append_custom_subject(self):
         name = self.new_sub_entry.get().strip()
