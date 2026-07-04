@@ -133,19 +133,19 @@ def main(page: ft.Page):
             page.window_min_height = 600
         except: pass
 
-    # 🚀 修复点 1：最完美的双端兼容弹窗，老版本必定进 dialog，新版本必定进 open
+    # 🚀 坚如磐石的弹窗引擎：彻底兼容所有版本
     def open_dlg(d):
-        try:
+        if hasattr(page, "open"):
             page.open(d)
-        except AttributeError:
+        else:
             page.dialog = d
             d.open = True
             page.update()
 
     def close_dlg(d):
-        try:
+        if hasattr(page, "close"):
             page.close(d)
-        except AttributeError:
+        else:
             d.open = False
             page.update()
 
@@ -335,6 +335,7 @@ def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 核心修复点 1：排版强制居中对齐，修复因为撑开导致的上下错位
     view_focus = ft.Container(
         content=ft.Column([
             ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
@@ -343,7 +344,8 @@ def main(page: ft.Page):
                 lbl_icon,
                 lbl_time,
                 lbl_quote
-            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True, spacing=5),
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
+            ft.Container(height=20), # 增加留白，让页面呼吸感更强
             ft.Column([
                 lbl_goal, bar_goal,
                 ft.Container(height=10),
@@ -352,7 +354,7 @@ def main(page: ft.Page):
                 ft.Container(height=10),
                 ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
             ])
-        ]),
+        ], alignment=ft.MainAxisAlignment.CENTER), # 最外层强行垂直居中
         bgcolor="white", border_radius=15, padding=25, expand=True, margin=5
     )
 
@@ -379,15 +381,6 @@ def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
-
-        # 🚀 修复点 2：直接点对点刷新控件！突破底层 Flet 全局刷新的阻塞问题
-        try:
-            lbl_time.update()
-            lbl_icon.update()
-            lbl_goal.update()
-            bar_goal.update()
-        except Exception:
-            pass
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
@@ -571,29 +564,40 @@ def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
+    # 🚀 核心修复点 2：为心跳线程套上铁布衫防崩溃罩，并强制它每秒去唤醒一次屏幕
     def heart_beat():
         while True:
-            # 🚀 修复点 3：放慢刷新频率 (0.2s -> 0.5s)，降低 WebSocket 拥堵概率
             time.sleep(0.5) 
             if not st.timer_active: continue
             
-            logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
-            if logical_now != st.last_date:
-                st.last_date = logical_now
-                refresh_forest(); refresh_stats()
-            
-            st.elapsed = time.time() - st.start_tick
-            
-            if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
-                st.timer_active = False 
-                st.elapsed = st.pomo_target
-                update_focus_ui()
-                try: import winsound; winsound.Beep(800, 500)
-                except: pass
-                trigger_success_dialog(is_dead=False)
-                continue
+            try:
+                logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
+                if logical_now != st.last_date:
+                    st.last_date = logical_now
+                    refresh_forest()
+                    refresh_stats()
                 
-            update_focus_ui()
+                st.elapsed = time.time() - st.start_tick
+                
+                if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
+                    st.timer_active = False 
+                    st.elapsed = st.pomo_target
+                    update_focus_ui()
+                    try: page.update()
+                    except: pass
+                    try: import winsound; winsound.Beep(800, 500)
+                    except: pass
+                    trigger_success_dialog(is_dead=False)
+                    continue
+                    
+                update_focus_ui()
+                # 🚀 极度关键：强制主线程推送画面，解决“必须点击才走字”的幽灵挂起现象！
+                try: page.update() 
+                except: pass
+                
+            except Exception as e:
+                # 就算发生极端错误，线程也不会死掉，保障你点击“结束”时依然能弹出窗口
+                pass
 
     threading.Thread(target=heart_beat, daemon=True).start()
 
