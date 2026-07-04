@@ -15,6 +15,7 @@ else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(application_path, "study_data.json")
 
+# 励志语录库
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
     "你做三四月的事，在十二月自有答案。",
@@ -126,7 +127,7 @@ def main(page: ft.Page):
         page.window.min_height = 600
     except AttributeError: pass
 
-    # 💡 绝对安全弹窗引擎
+    # 安全的单一弹窗引擎
     def open_dlg(d):
         page.dialog = d
         d.open = True
@@ -194,9 +195,10 @@ def main(page: ft.Page):
     )
 
     # ----------------- 专注视图 (0) -----------------
-    lbl_icon = ft.Text(value="🌰", size=90)
-    lbl_time = ft.Text(value="25:00", size=72, weight=ft.FontWeight.BOLD)
-    lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93")
+    # 💡 布局修复：自带原生居中属性，告别漂移
+    lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
+    lbl_time = ft.Text(value="25:00", size=80, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+    lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
     
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
@@ -249,7 +251,7 @@ def main(page: ft.Page):
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
             sel_subject.disabled = True
-            lbl_quote.value = random.choice(ENCOURAGEMENTS) 
+            lbl_quote.value = random.choice(ENCOURAGEMENTS)
         else:
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
@@ -259,7 +261,7 @@ def main(page: ft.Page):
     btn_start_view.on_click = toggle_timer
 
     def stop_timer(e):
-        st.timer_active = False 
+        st.timer_active = False # 强制冻结时间
         page.update()
         
         if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
@@ -270,15 +272,22 @@ def main(page: ft.Page):
             trigger_success_dialog(is_dead=False)
             return
 
+        # 💡 漏洞修复：一次性弹窗，避免连续弹窗导致死锁！
         def on_confirm(save_dead):
             close_dlg(dlg)
-            if save_dead: trigger_success_dialog(is_dead=True)
-            else: reset_timer()
+            if save_dead:
+                db.add_record(sel_subject.value, st.elapsed, st.mode, True, "放弃番茄钟")
+                reset_timer()
+                refresh_forest()
+                refresh_stats()
+            else:
+                reset_timer()
 
         btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
         btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=lambda e: on_confirm(False))
 
         dlg = ft.AlertDialog(
+            modal=True,
             title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
             content=ft.Text(value=msg),
             actions=[ft.Row([btn_y, btn_n])]
@@ -286,11 +295,6 @@ def main(page: ft.Page):
         open_dlg(dlg)
 
     def trigger_success_dialog(is_dead=False):
-        if st.elapsed < 60:
-            db.add_record(sel_subject.value, st.elapsed, st.mode, is_dead, "")
-            reset_timer()
-            return
-            
         txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
         def on_save(e):
             close_dlg(dlg)
@@ -302,6 +306,7 @@ def main(page: ft.Page):
         btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
 
         dlg = ft.AlertDialog(
+            modal=True,
             title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
             content=ft.Column([ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), txt_note], tight=True),
             actions=[ft.Row([btn_save])]
@@ -324,9 +329,9 @@ def main(page: ft.Page):
             ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=15),
             ft.Column([
-                ft.Row([lbl_icon], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Row([lbl_time], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Row([lbl_quote], alignment=ft.MainAxisAlignment.CENTER),
+                lbl_icon,
+                lbl_time,
+                lbl_quote
             ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True, spacing=5),
             ft.Column([
                 lbl_goal, bar_goal,
@@ -362,14 +367,6 @@ def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
-        
-        # 💡 逻辑修复：最高优先级独立更新UI组件，强行突破线程拦截！
-        try:
-            lbl_time.update()
-            lbl_icon.update()
-            lbl_goal.update()
-            bar_goal.update()
-        except: pass
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
@@ -473,7 +470,7 @@ def main(page: ft.Page):
     # ----------------- 设置视图 (3) -----------------
     txt_goal = ft.TextField(value=str(db.data["dailyGoal"] // 3600), label="每日专注目标 (小时)", border_color="#D1D1D6")
     def on_goal_blur(e):
-        try: db.data["dailyGoal"] = float(txt_goal.value) * 3600; db.save(); update_focus_ui()
+        try: db.data["dailyGoal"] = float(txt_goal.value) * 3600; db.save(); update_focus_ui(); page.update()
         except: txt_goal.value = str(db.data["dailyGoal"] // 3600); page.update()
     txt_goal.on_blur = on_goal_blur
 
@@ -548,10 +545,10 @@ def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 💡 漏洞修复：重建独立后台时钟线程，彻底切断画面加载阻塞！
+    # 💡 核心漏洞修复：强制全屏实时刷新！
     def heart_beat():
         while True:
-            time.sleep(0.1) 
+            time.sleep(0.2) 
             if not st.timer_active: continue
             
             logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
@@ -564,11 +561,18 @@ def main(page: ft.Page):
             if st.mode == "pomodoro" and st.elapsed >= st.pomo_target:
                 st.timer_active = False 
                 st.elapsed = st.pomo_target
+                update_focus_ui()
+                try: page.update()
+                except: pass
                 try: import winsound; winsound.Beep(800, 500)
                 except: pass
                 trigger_success_dialog(is_dead=False)
+                continue
                 
             update_focus_ui()
+            # 强制主动推送更新，切断幽灵跳秒！
+            try: page.update() 
+            except: pass
 
     threading.Thread(target=heart_beat, daemon=True).start()
 
