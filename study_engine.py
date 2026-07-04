@@ -15,6 +15,16 @@ else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(application_path, "study_data.json")
 
+# 💡 修复：找回丢失的语录库！
+ENCOURAGEMENTS = [
+    "星光不问赶路人，时光不负有心人。",
+    "你做三四月的事，在十二月自有答案。",
+    "乾坤未定，你我皆是黑马。",
+    "当前的每一次咬牙坚持，都是为了初试的毫不费力。",
+    "那些看似不起波澜的日复一日，会突然在某天让人看到坚持的意义。",
+    "顶峰相见吧，在十二月最冷的冬日里拼出最热血的成绩。"
+]
+
 class DataManager:
     def __init__(self, path):
         self.path = path
@@ -88,7 +98,6 @@ def format_time(seconds):
         return f"{s//3600:02d}:{(s%3600)//60:02d}:{s%60:02d}"
     return f"{(s%3600)//60:02d}:{s%60:02d}"
 
-# 💡 安全定制：苹果风胶囊按钮生成器
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, height=None, padding=10):
     lbl = ft.Text(value=text, color=txt_color, weight="bold")
     cnt = ft.Container(
@@ -112,8 +121,8 @@ def main(page: ft.Page):
     page.scroll = "adaptive"
     
     try:
-        page.window.width = 450
-        page.window.height = 780
+        page.window.width = 460
+        page.window.height = 800
         page.window.min_width = 380
         page.window.min_height = 600
     except AttributeError: pass
@@ -153,7 +162,7 @@ def main(page: ft.Page):
 
     card_countdown = ft.Container(
         content=ft.Row([countdown_text], alignment="center"),
-        bgcolor="white", border_radius=12, padding=12, margin=5
+        bgcolor="white", border_radius=12, padding=15, margin=5 # 增加呼吸感
     )
 
     # ----------------- 优雅的 iOS 分段导航栏 -----------------
@@ -174,7 +183,7 @@ def main(page: ft.Page):
         page.update()
 
     def make_nav_btn(text, idx):
-        view, lbl = create_btn(text, on_click=lambda e, i=idx: switch_main_tab(i), txt_color="#8E8E93", radius=8, expand=True, padding=6)
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: switch_main_tab(i), txt_color="#8E8E93", radius=8, expand=True, padding=8)
         nav_buttons.append({"view": view, "lbl": lbl})
         return view
 
@@ -189,7 +198,7 @@ def main(page: ft.Page):
     # ----------------- 专注视图 (0) -----------------
     lbl_icon = ft.Text(value="🌰", size=90)
     lbl_time = ft.Text(value="25:00", size=72, weight="bold")
-    lbl_quote = ft.Text(value="乾坤未定，你我皆是黑马。", size=13, color="#8E8E93")
+    lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93")
     
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
@@ -204,7 +213,6 @@ def main(page: ft.Page):
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight="bold")
 
-    # 模式切换也是 iOS 分段器风格
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
     mode_pm_view, mode_pm_lbl = create_btn("🌱 种树 (番茄)", radius=8, expand=True, bgcolor="#FFFFFF", padding=8, on_click=lambda e: switch_mode("pomodoro"))
 
@@ -230,8 +238,8 @@ def main(page: ft.Page):
         update_focus_ui()
     sel_pomo.on_change = on_pomo_change
 
-    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=22, height=45, expand=True)
-    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=22, height=45, expand=True)
+    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
+    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True)
 
     def toggle_timer(e):
         if not st.timer_active:
@@ -243,8 +251,9 @@ def main(page: ft.Page):
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
             sel_subject.disabled = True
+            lbl_quote.value = random.choice(ENCOURAGEMENTS) # 每次点击开始都换一句鸡汤
         else:
-            st.timer_active = False # 💡 逻辑修复：准确暂停
+            st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
             btn_start_view.bgcolor = "#34C759"
         page.update()
@@ -252,7 +261,7 @@ def main(page: ft.Page):
     btn_start_view.on_click = toggle_timer
 
     def stop_timer(e):
-        st.timer_active = False # 💡 逻辑修复：点击结束必须冻结后台时间！
+        st.timer_active = False # 💡 逻辑修复：强制冻结后台计时器！
         page.update()
         
         if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
@@ -294,9 +303,10 @@ def main(page: ft.Page):
 
         btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
 
+        # 💡 逻辑修复：这里现在可以安全地调用 ENCOURAGEMENTS 了！
         dlg = ft.AlertDialog(
             title=ft.Text(value="🎉 专注完成！", weight="bold"),
-            content=ft.Column([ft.Text(value=random.choice(encouragements), color="#8E8E93"), txt_note], tight=True),
+            content=ft.Column([ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), txt_note], tight=True),
             actions=[ft.Row([btn_save])]
         )
         open_dlg(dlg)
@@ -315,18 +325,19 @@ def main(page: ft.Page):
     view_focus = ft.Container(
         content=ft.Column([
             ft.Row([sel_subject], alignment="center"),
-            # 💡 悬浮居中布局：让时钟永远保持在屏幕正中间
+            # 增加悬浮留白
+            ft.Container(height=15),
             ft.Column([lbl_icon, lbl_time, lbl_quote], alignment="center", horizontal_alignment="center", expand=True),
             ft.Column([
                 lbl_goal, bar_goal,
-                ft.Container(height=5),
+                ft.Container(height=10),
                 ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment="center", spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
                 ft.Row([sel_pomo], alignment="center"),
-                ft.Container(height=5),
+                ft.Container(height=10),
                 ft.Row([btn_start_view, btn_stop_view], alignment="center", spacing=15)
             ])
         ]),
-        bgcolor="white", border_radius=15, padding=20, expand=True, margin=5
+        bgcolor="white", border_radius=15, padding=25, expand=True, margin=5
     )
 
     def update_focus_ui():
@@ -347,7 +358,7 @@ def main(page: ft.Page):
         logical_today = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
         records = [item for item in db.data["studyData"] if item.get("date") == logical_today]
         total = sum(r["duration"] for r in records) + (st.elapsed if st.timer_active else 0)
-        goal = max(db.data["dailyGoal"], 1) # 防除0报错
+        goal = max(db.data["dailyGoal"], 1) 
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
@@ -366,7 +377,7 @@ def main(page: ft.Page):
         refresh_forest()
 
     def make_forest_btn(text, idx):
-        view, lbl = create_btn(text, on_click=lambda e, i=idx: sw_forest(i), txt_color="#8E8E93", radius=8, expand=True, padding=6)
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: sw_forest(i), txt_color="#8E8E93", radius=8, expand=True, padding=8)
         forest_nav_btns.append({"view": view, "lbl": lbl})
         return view
 
@@ -389,10 +400,11 @@ def main(page: ft.Page):
     view_forest = ft.Container(
         content=ft.Column([
             row_forest_nav,
+            ft.Container(height=5),
             ft.Row([lbl_forest_sum], alignment="center"),
             ft.Container(content=grid_forest, expand=True, bgcolor="#F2F2F7", padding=15, border_radius=10)
         ]),
-        bgcolor="white", border_radius=15, padding=20, expand=True, visible=False, margin=5
+        bgcolor="white", border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
     # ----------------- 统计视图 (2) -----------------
@@ -408,7 +420,7 @@ def main(page: ft.Page):
         refresh_stats()
 
     def make_stat_btn(text, idx):
-        view, lbl = create_btn(text, on_click=lambda e, i=idx: sw_stat(i), txt_color="#8E8E93", radius=8, expand=True, padding=6)
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: sw_stat(i), txt_color="#8E8E93", radius=8, expand=True, padding=8)
         stat_nav_btns.append({"view": view, "lbl": lbl})
         return view
 
@@ -435,18 +447,18 @@ def main(page: ft.Page):
             col_stats.controls.append(
                 ft.Column([
                     ft.Row([ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(value=format_dur(dur), color="#8E8E93")], alignment="spaceBetween"),
-                    ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=8, border_radius=4)
-                ], spacing=5)
+                    ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=10, border_radius=5)
+                ], spacing=8)
             )
         page.update()
 
     view_stats = ft.Container(
         content=ft.Column([
             row_stat_nav,
-            ft.Container(content=lbl_stat_total, padding=10),
+            ft.Container(content=lbl_stat_total, padding=ft.margin.only(top=15, bottom=15)),
             col_stats
         ]),
-        bgcolor="white", border_radius=15, padding=20, expand=True, visible=False, margin=5
+        bgcolor="white", border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
     # ----------------- 设置视图 (3) -----------------
@@ -456,7 +468,7 @@ def main(page: ft.Page):
         except: txt_goal.value = str(db.data["dailyGoal"] // 3600); page.update()
     txt_goal.on_blur = on_goal_blur
 
-    col_subs = ft.Column(spacing=5)
+    col_subs = ft.Column(spacing=8)
     txt_new_sub = ft.TextField(hint_text="新科目", expand=True, border_color="#D1D1D6")
 
     def render_subs():
@@ -466,7 +478,7 @@ def main(page: ft.Page):
             col_subs.controls.append(
                 ft.Container(
                     content=ft.Row([ft.Text(value=sub, weight="bold", expand=True), btn_del]),
-                    bgcolor="#F2F2F7", padding=5, border_radius=8
+                    bgcolor="#F2F2F7", padding=8, border_radius=10
                 )
             )
         page.update()
@@ -478,7 +490,7 @@ def main(page: ft.Page):
             sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
             txt_new_sub.value = ""; render_subs()
             
-    btn_add, _ = create_btn("添加", bgcolor="#34C759", txt_color="white", on_click=add_sub)
+    btn_add, _ = create_btn("添加", bgcolor="#34C759", txt_color="white", padding=12, on_click=add_sub)
 
     def del_sub(s):
         if len(db.data["subjects"]) > 1:
@@ -493,7 +505,7 @@ def main(page: ft.Page):
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
         except: pass
 
-    btn_exp, _ = create_btn("⬇ 导出本地备份 (同目录)", bgcolor="#E5E5EA", on_click=on_export)
+    btn_exp, _ = create_btn("⬇ 导出本地备份 (同目录)", bgcolor="#E5E5EA", padding=15, on_click=on_export)
 
     view_settings = ft.Container(
         content=ft.Column([
@@ -502,10 +514,11 @@ def main(page: ft.Page):
             ft.Text(value="🏷️ 科目管理", weight="bold"),
             col_subs,
             ft.Row([txt_new_sub, btn_add]),
+            ft.Container(height=10),
             ft.Text(value="💾 数据安全", weight="bold"),
             btn_exp
         ], scroll="adaptive"),
-        bgcolor="white", border_radius=15, padding=20, expand=True, visible=False, margin=5
+        bgcolor="white", border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
     # ----------------- 组装与循环 -----------------
@@ -526,16 +539,14 @@ def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 💡 逻辑修复：安全的跨天结转与专注完成机制
+    # 💡 逻辑修复：将刷新频率从 0.5s 提高到了 0.1s，彻底解决跳秒错觉！
     def loop():
         while True:
-            time.sleep(0.5)
+            time.sleep(0.1) 
             if not st.timer_active: continue
             
-            # 跨天安全检测
             logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
             if logical_now != st.last_date:
-                # 自动将昨天的记录存档，然后重新开始
                 db.add_record(sel_subject.value, st.elapsed, st.mode, False, "跨天自动结转")
                 st.elapsed = 0
                 st.start_tick = time.time()
@@ -544,13 +555,11 @@ def main(page: ft.Page):
             
             st.elapsed = time.time() - st.start_tick
             
-            # 番茄钟自然完成检测 (切断多弹窗 Bug)
             if st.mode == "pomodoro" and st.elapsed >= st.pomo_target:
-                st.timer_active = False # 先冻结计时器！
+                st.timer_active = False 
                 st.elapsed = st.pomo_target
                 try: import winsound; winsound.Beep(800, 500)
                 except: pass
-                # 唤起完成弹窗
                 trigger_success_dialog(is_dead=False)
                 
             update_focus_ui()
