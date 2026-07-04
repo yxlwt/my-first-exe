@@ -107,7 +107,7 @@ class DataManager:
 def main(page: ft.Page):
     page.title = "冲刺备考引擎"
     
-    # 💡 全版本兼容：容灾尺寸设定
+    # 💡 容灾尺寸设定
     try:
         page.window.width = 460
         page.window.height = 800
@@ -150,7 +150,7 @@ def main(page: ft.Page):
     encouragements = [
         "星光不问赶路人，时光不负有心人。",
         "你做三四月的事，在十二月自有答案。",
-        "当前的每一次咬牙坚持，都是为了初试的毫不费力。",
+        "当前的每一次咬坚持，都是为了初试的毫不费力。",
         "顶峰相见吧，在十二月最冷的冬日里拼出最热血的成绩。"
     ]
 
@@ -202,15 +202,15 @@ def main(page: ft.Page):
     quote_text = ft.Text(random.choice(encouragements), size=13, color="onSurfaceVariant")
     
     goal_label = ft.Text("🎯 今日进度: 0m / 6h", size=13, weight=ft.FontWeight.BOLD, color="onSurfaceVariant")
-    goal_bar = ft.ProgressBar(value=0, color="green", bgcolor="onInverseSurface", height=8) # 去除不稳定属性
+    goal_bar = ft.ProgressBar(value=0, color="green", bgcolor="onInverseSurface", height=8) 
     
     mode_tabs = ft.Tabs(
         selected_index=1,
         animation_duration=300,
-        # 💡 核心修复：坚决使用最基础的 text="名字"，绝不触发版本不兼容报错
+        # 💡 核心修复：坚决使用最基础的 API 属性 label="名字"，免疫版本不兼容
         tabs=[
-            ft.Tab(text="🧱 正向筑城"), 
-            ft.Tab(text="🌱 番茄种树")
+            ft.Tab(label="🧱 正向筑城"), 
+            ft.Tab(label="🌱 番茄种树")
         ]
     )
     
@@ -244,9 +244,9 @@ def main(page: ft.Page):
     forest_tabs = ft.Tabs(
         selected_index=0, 
         tabs=[
-            ft.Tab(text="今日战果"), 
-            ft.Tab(text="本周图鉴"), 
-            ft.Tab(text="本月图鉴")
+            ft.Tab(label="今日战果"), 
+            ft.Tab(label="本周图鉴"), 
+            ft.Tab(label="本月图鉴")
         ]
     )
     forest_summary = ft.Text("累计收获 0 个战果", size=14, weight=ft.FontWeight.BOLD, color="onSurfaceVariant")
@@ -263,9 +263,9 @@ def main(page: ft.Page):
     stats_tabs = ft.Tabs(
         selected_index=0, 
         tabs=[
-            ft.Tab(text="今日"), 
-            ft.Tab(text="本周"), 
-            ft.Tab(text="本月")
+            ft.Tab(label="今日"), 
+            ft.Tab(label="本周"), 
+            ft.Tab(label="本月")
         ]
     )
     stats_total = ft.Text("0s", size=36, weight=ft.FontWeight.BOLD)
@@ -312,10 +312,10 @@ def main(page: ft.Page):
         selected_index=0,
         expand=True,
         tabs=[
-            ft.Tab(text="专注", content=ft.Container(content=focus_col, padding=15)),
-            ft.Tab(text="图鉴", content=ft.Container(content=forest_col, padding=15)),
-            ft.Tab(text="统计", content=ft.Container(content=stats_col, padding=15)),
-            ft.Tab(text="设置", content=ft.Container(content=settings_col, padding=15))
+            ft.Tab(label="专注", content=ft.Container(content=focus_col, padding=15)),
+            ft.Tab(label="图鉴", content=ft.Container(content=forest_col, padding=15)),
+            ft.Tab(label="统计", content=ft.Container(content=stats_col, padding=15)),
+            ft.Tab(label="设置", content=ft.Container(content=settings_col, padding=15))
         ]
     )
 
@@ -515,7 +515,7 @@ def main(page: ft.Page):
                 stats_chart_col.controls.append(
                     ft.Column([
                         ft.Row([ft.Text(f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(format_dur(dur), color="onSurfaceVariant")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.ProgressBar(value=pct, height=8) # 消除隐患属性
+                        ft.ProgressBar(value=pct, height=8)
                     ], spacing=5)
                 )
         page.update()
