@@ -137,7 +137,6 @@ def main(page: ft.Page):
     st = State()
 
     # ================= UI 组件 =================
-    # 💡 核心修复：全面换用大写的 ft.Colors 及全新的颜色常量枚举
     def get_exam_text():
         try:
             today = datetime.now().date()
@@ -150,13 +149,14 @@ def main(page: ft.Page):
 
     exam_text, exam_color = get_exam_text()
     countdown_text = ft.Text(exam_text, size=18, weight=ft.FontWeight.BOLD, color=exam_color)
+    
+    # 💡 核心修复：彻底抛弃 ft.alignment，采用最安全的 ft.Row 居中排版，免疫所有版本报错
     countdown_container = ft.Container(
-        content=countdown_text,
-        alignment=ft.alignment.center,
+        content=ft.Row([countdown_text], alignment=ft.MainAxisAlignment.CENTER),
         padding=20,
         bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
         border_radius=15,
-        margin=ft.margin.all(15)
+        margin=15
     )
 
     # --- 专注 Tab ---
@@ -204,7 +204,7 @@ def main(page: ft.Page):
         ],
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         spacing=10,
-        scroll=ft.ScrollMode.ADAPTIVE 
+        scroll=ft.ScrollMode.ADAPTIVE
     )
 
     # --- 图鉴 Tab ---
@@ -213,9 +213,10 @@ def main(page: ft.Page):
     
     forest_grid = ft.Row(wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.START)
     
+    # 💡 核心修复：再次使用 ft.Row 替代 ft.alignment，切断报错源头
     forest_col = ft.Column([
         forest_tabs, 
-        ft.Container(content=forest_summary, alignment=ft.alignment.center, padding=5),
+        ft.Container(content=ft.Row([forest_summary], alignment=ft.MainAxisAlignment.CENTER), padding=5),
         ft.Container(content=forest_grid, padding=15, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST, border_radius=15, expand=True)
     ], expand=True)
 
@@ -259,7 +260,8 @@ def main(page: ft.Page):
         ft.Row([new_sub_input, ft.ElevatedButton("＋ 新增", on_click=lambda e: add_subject())]),
         ft.Divider(),
         ft.Text("💾 数据容灾", size=16, weight=ft.FontWeight.BOLD),
-        ft.ElevatedButton("⬇ 导出本地记录备份 (当前目录)", icon=ft.icons.DOWNLOAD, on_click=on_export)
+        # 💡 核心修复：用安全字符串替代图标对象枚举，绝不报错
+        ft.ElevatedButton("⬇ 导出本地记录备份 (当前目录)", icon="download", on_click=on_export)
     ], scroll=ft.ScrollMode.ADAPTIVE)
 
     # --- 主导航框架 ---
@@ -287,6 +289,7 @@ def main(page: ft.Page):
                 time_text.value = format_time(remain)
                 prog = st.elapsed_time / st.pomo_target
                 icon_text.value = "🌳" if prog >= 0.66 else "🌿" if prog >= 0.33 else "🌱" if st.elapsed_time >= 60 else "🌰"
+                
                 page.title = f"(🌱 {int(remain//60)}m) 冲刺备考引擎"
         else:
             time_text.value = format_time(st.elapsed_time)
@@ -504,7 +507,8 @@ def main(page: ft.Page):
                 
             row = ft.Row([
                 ft.Text(f"• {sub}", size=14, weight="bold", expand=True),
-                ft.TextButton("删除", icon=ft.icons.DELETE, icon_color=ft.Colors.RED, on_click=make_del_func(sub))
+                # 💡 核心修复：用安全字符串替代图标对象枚举，绝不报错
+                ft.TextButton("删除", icon="delete", icon_color=ft.Colors.RED, on_click=make_del_func(sub))
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
             sub_list_col.controls.append(row)
         page.update()
@@ -536,25 +540,4 @@ def main(page: ft.Page):
             if logical_now != st.last_logical_date:
                 st.last_logical_date = logical_now
                 if st.timer_active:
-                    process_termination(auto_save=True)
-                    handle_start_stop(None)
-            
-            if st.timer_active:
-                st.elapsed_time = time.time() - st.start_tick
-                if st.mode == "pomodoro" and (st.pomo_target - st.elapsed_time) <= 0:
-                    st.elapsed_time = st.pomo_target
-                    process_termination(auto_save=True)
-                    try:
-                        import winsound
-                        winsound.Beep(800, 500)
-                    except: pass
-                    
-            update_visuals()
-            time.sleep(0.5)
-
-    threading.Thread(target=timer_loop, daemon=True).start()
-    
-    refresh_forest()
-    refresh_stats()
-
-ft.app(target=main)
+                    process
