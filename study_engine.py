@@ -113,7 +113,7 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.SYSTEM
     page.padding = 0
     page.spacing = 0
-    page.scroll = ft.ScrollMode.ADAPTIVE # 💡 核心自适应：窗口太小自动出现滚动条，绝不裁切！
+    page.scroll = ft.ScrollMode.ADAPTIVE 
 
     db = DataManager()
     encouragements = [
@@ -137,16 +137,16 @@ def main(page: ft.Page):
     st = State()
 
     # ================= UI 组件 =================
-    # 顶部倒计时
+    # 💡 核心修复：全面换用大写的 ft.Colors 及全新的颜色常量枚举
     def get_exam_text():
         try:
             today = datetime.now().date()
             exam = datetime.strptime(db.data["examDate"], "%Y-%m-%d").date()
             diff = (exam - today).days
-            color = ft.colors.RED if diff < 150 else ft.colors.BLUE
+            color = ft.Colors.RED if diff < 150 else ft.Colors.BLUE
             return f"距离初试仅剩 {diff} 天", color
         except:
-            return "距离初试仅剩 -- 天", ft.colors.BLUE
+            return "距离初试仅剩 -- 天", ft.Colors.BLUE
 
     exam_text, exam_color = get_exam_text()
     countdown_text = ft.Text(exam_text, size=18, weight=ft.FontWeight.BOLD, color=exam_color)
@@ -154,7 +154,7 @@ def main(page: ft.Page):
         content=countdown_text,
         alignment=ft.alignment.center,
         padding=20,
-        bgcolor=ft.colors.SURFACE_VARIANT,
+        bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
         border_radius=15,
         margin=ft.margin.all(15)
     )
@@ -170,10 +170,10 @@ def main(page: ft.Page):
     
     icon_text = ft.Text("🌰", size=90)
     time_text = ft.Text("25:00", size=75, weight=ft.FontWeight.BOLD, font_family="Consolas")
-    quote_text = ft.Text(random.choice(encouragements), size=13, color=ft.colors.ON_SURFACE_VARIANT)
+    quote_text = ft.Text(random.choice(encouragements), size=13, color=ft.Colors.ON_SURFACE_VARIANT)
     
-    goal_label = ft.Text("🎯 今日进度: 0m / 6h", size=13, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE_VARIANT)
-    goal_bar = ft.ProgressBar(value=0, color=ft.colors.GREEN, bgcolor=ft.colors.ON_INVERSE_SURFACE, height=8, border_radius=4)
+    goal_label = ft.Text("🎯 今日进度: 0m / 6h", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
+    goal_bar = ft.ProgressBar(value=0, color=ft.Colors.GREEN, bgcolor=ft.Colors.ON_INVERSE_SURFACE, height=8, border_radius=4)
     
     mode_tabs = ft.Tabs(
         selected_index=1,
@@ -186,7 +186,7 @@ def main(page: ft.Page):
         value="25分钟", width=120, border_radius=10, dense=True
     )
 
-    btn_start = ft.ElevatedButton("▶ 开始专注", width=160, height=45, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22), bgcolor=ft.colors.GREEN, color=ft.colors.WHITE))
+    btn_start = ft.ElevatedButton("▶ 开始专注", width=160, height=45, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22), bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE))
     btn_stop = ft.ElevatedButton("⏹ 结束", width=160, height=45, disabled=True, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22)))
 
     focus_col = ft.Column(
@@ -204,26 +204,25 @@ def main(page: ft.Page):
         ],
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         spacing=10,
-        scroll=ft.ScrollMode.ADAPTIVE # 弹性滚动防变形
+        scroll=ft.ScrollMode.ADAPTIVE 
     )
 
     # --- 图鉴 Tab ---
     forest_tabs = ft.Tabs(selected_index=0, tabs=[ft.Tab(text="今日战果"), ft.Tab(text="本周图鉴"), ft.Tab(text="本月图鉴")])
-    forest_summary = ft.Text("累计收获 0 个战果", size=14, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE_VARIANT)
+    forest_summary = ft.Text("累计收获 0 个战果", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
     
-    # 💡 银弹：自动折行的流式网格！窗口多大，它自动排多少棵树，绝不报错裁切！
     forest_grid = ft.Row(wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.START)
     
     forest_col = ft.Column([
         forest_tabs, 
         ft.Container(content=forest_summary, alignment=ft.alignment.center, padding=5),
-        ft.Container(content=forest_grid, padding=15, bgcolor=ft.colors.SURFACE_VARIANT, border_radius=15, expand=True)
+        ft.Container(content=forest_grid, padding=15, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST, border_radius=15, expand=True)
     ], expand=True)
 
     # --- 统计 Tab ---
     stats_tabs = ft.Tabs(selected_index=0, tabs=[ft.Tab(text="今日"), ft.Tab(text="本周"), ft.Tab(text="本月")])
     stats_total = ft.Text("0s", size=36, weight=ft.FontWeight.BOLD)
-    stats_delta = ft.Text("无对比数据", size=13, weight=ft.FontWeight.BOLD, color=ft.colors.ON_SURFACE_VARIANT)
+    stats_delta = ft.Text("无对比数据", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
     
     stats_chart_col = ft.Column(spacing=15, scroll=ft.ScrollMode.ADAPTIVE)
     
@@ -231,7 +230,7 @@ def main(page: ft.Page):
         stats_tabs,
         ft.Container(
             content=ft.Row([stats_total, stats_delta], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            padding=20, bgcolor=ft.colors.SURFACE_VARIANT, border_radius=15
+            padding=20, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST, border_radius=15
         ),
         ft.Container(content=stats_chart_col, padding=15, expand=True)
     ], expand=True)
@@ -279,7 +278,6 @@ def main(page: ft.Page):
 
     # ================= 交互逻辑 =================
     def update_visuals():
-        # 更新时间与图标
         if st.mode == "pomodoro":
             remain = st.pomo_target - st.elapsed_time
             if remain <= 0:
@@ -289,14 +287,12 @@ def main(page: ft.Page):
                 time_text.value = format_time(remain)
                 prog = st.elapsed_time / st.pomo_target
                 icon_text.value = "🌳" if prog >= 0.66 else "🌿" if prog >= 0.33 else "🌱" if st.elapsed_time >= 60 else "🌰"
-                
-                # 💡 标题跳秒
                 page.title = f"(🌱 {int(remain//60)}m) 冲刺备考引擎"
         else:
             time_text.value = format_time(st.elapsed_time)
             if st.elapsed_time >= 3600: icon_text.value = "🏰"
             elif st.elapsed_time >= 2700: icon_text.value = "🏛️"
-            elif self.elapsed_time >= 1800: icon_text.value = "🏠"
+            elif st.elapsed_time >= 1800: icon_text.value = "🏠"
             elif st.elapsed_time >= 900: icon_text.value = "⛺"
             elif st.elapsed_time >= 60: icon_text.value = "🧱"
             else: icon_text.value = "🚧"
@@ -305,7 +301,6 @@ def main(page: ft.Page):
         if not st.timer_active:
             page.title = "冲刺备考引擎"
 
-        # 进度条
         logical_today = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
         records = [item for item in db.data["studyData"] if item.get("date") == logical_today]
         total = sum(r["duration"] for r in records) + (st.elapsed_time if st.timer_active else 0)
@@ -320,20 +315,19 @@ def main(page: ft.Page):
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed_time
             btn_start.text = "⏸ 暂停专注"
-            btn_start.style.bgcolor = ft.colors.ORANGE
+            btn_start.style.bgcolor = ft.Colors.ORANGE
             btn_stop.disabled = False
-            btn_stop.style.bgcolor = ft.colors.RED
-            btn_stop.style.color = ft.colors.WHITE
+            btn_stop.style.bgcolor = ft.Colors.RED
+            btn_stop.style.color = ft.Colors.WHITE
             subject_dropdown.disabled = True
             pomo_dropdown.disabled = True
         else:
             st.timer_active = False
             btn_start.text = "▶ 继续专注"
-            btn_start.style.bgcolor = ft.colors.GREEN
+            btn_start.style.bgcolor = ft.Colors.GREEN
         page.update()
 
     def process_termination(auto_save=False):
-        # 弹窗与中断逻辑 (Flet 异步弹窗处理)
         is_dead = False
         if not auto_save:
             if st.mode == "pomodoro" and st.elapsed_time < st.pomo_target:
@@ -411,9 +405,10 @@ def main(page: ft.Page):
         st.timer_active = False
         st.elapsed_time = 0
         btn_start.text = "▶ 开始专注"
-        btn_start.style.bgcolor = ft.colors.GREEN
+        btn_start.style.bgcolor = ft.Colors.GREEN
         btn_stop.disabled = True
         btn_stop.style.bgcolor = None
+        btn_stop.style.color = None
         subject_dropdown.disabled = False
         pomo_dropdown.disabled = False
         
@@ -454,7 +449,7 @@ def main(page: ft.Page):
         
         forest_grid.controls.clear()
         if not records:
-            forest_grid.controls.append(ft.Text("空空如也，快去专注吧 ✨", color=ft.colors.ON_SURFACE_VARIANT))
+            forest_grid.controls.append(ft.Text("空空如也，快去专注吧 ✨", color=ft.Colors.ON_SURFACE_VARIANT))
         else:
             for r in records:
                 note_str = f" [{r['note']}]" if r.get('note') else ""
@@ -473,7 +468,7 @@ def main(page: ft.Page):
         
         stats_chart_col.controls.clear()
         if not records:
-            stats_chart_col.controls.append(ft.Text("当前时段无专注数据", color=ft.colors.ON_SURFACE_VARIANT))
+            stats_chart_col.controls.append(ft.Text("当前时段无专注数据", color=ft.Colors.ON_SURFACE_VARIANT))
         else:
             subject_map = {}
             for r in records:
@@ -483,7 +478,7 @@ def main(page: ft.Page):
                 pct = dur / curr_total if curr_total > 0 else 0
                 stats_chart_col.controls.append(
                     ft.Column([
-                        ft.Row([ft.Text(f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(format_dur(dur), color=ft.colors.ON_SURFACE_VARIANT)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Row([ft.Text(f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(format_dur(dur), color=ft.Colors.ON_SURFACE_VARIANT)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         ft.ProgressBar(value=pct, height=8, border_radius=4)
                     ], spacing=5)
                 )
@@ -491,7 +486,6 @@ def main(page: ft.Page):
 
     stats_tabs.on_change = refresh_stats
 
-    # 设置页逻辑
     def update_goal(e):
         try:
             db.data["dailyGoal"] = float(goal_input.value) * 3600
@@ -510,7 +504,7 @@ def main(page: ft.Page):
                 
             row = ft.Row([
                 ft.Text(f"• {sub}", size=14, weight="bold", expand=True),
-                ft.TextButton("删除", icon=ft.icons.DELETE, icon_color=ft.colors.RED, on_click=make_del_func(sub))
+                ft.TextButton("删除", icon=ft.icons.DELETE, icon_color=ft.Colors.RED, on_click=make_del_func(sub))
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
             sub_list_col.controls.append(row)
         page.update()
@@ -536,10 +530,8 @@ def main(page: ft.Page):
 
     render_settings_subjects()
 
-    # --- 时钟守护线程 ---
     def timer_loop():
         while True:
-            # 跨天校验
             logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
             if logical_now != st.last_logical_date:
                 st.last_logical_date = logical_now
@@ -562,7 +554,6 @@ def main(page: ft.Page):
 
     threading.Thread(target=timer_loop, daemon=True).start()
     
-    # 初始渲染
     refresh_forest()
     refresh_stats()
 
