@@ -1,9 +1,9 @@
 import flet as ft
+import asyncio  # 🚀 引入原生异步引擎
 import json
 import os
 import sys
 import time
-import threading
 import random
 import traceback
 from datetime import datetime, timedelta
@@ -112,7 +112,8 @@ def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", 
     return cnt, lbl
 
 # ================= 3. 核心无极 UI 引擎 =================
-def main(page: ft.Page):
+# 🚀 极其关键的变动：将整个应用升级为异步环境
+async def main(page: ft.Page):
     db = DataManager(DATA_FILE)
     page.title = "冲刺备考引擎"
     page.bgcolor = "#F2F2F7"
@@ -133,21 +134,18 @@ def main(page: ft.Page):
             page.window_min_height = 600
         except: pass
 
-    # 🚀 坚如磐石的弹窗引擎：彻底兼容所有版本
+    # 🚀 霸道弹窗引擎：无视版本，直接强行塞入最高优先级图层
     def open_dlg(d):
-        if hasattr(page, "open"):
-            page.open(d)
-        else:
-            page.dialog = d
-            d.open = True
-            page.update()
+        if d not in page.overlay:
+            page.overlay.append(d)
+        d.open = True
+        page.update()
 
     def close_dlg(d):
-        if hasattr(page, "close"):
-            page.close(d)
-        else:
-            d.open = False
-            page.update()
+        d.open = False
+        page.update()
+        if d in page.overlay:
+            page.overlay.remove(d)
 
     class State:
         timer_active = False
@@ -332,29 +330,27 @@ def main(page: ft.Page):
         btn_stop_lbl.color = "#8E8E93"
         sel_subject.disabled = False
         update_focus_ui()
-        try: page.update()
-        except: pass
+        page.update()
 
-    # 🚀 核心修复点 1：排版强制居中对齐，修复因为撑开导致的上下错位
+    # 🚀 排版修复核心：内层 Column 强制开启 expand=True 撑满全屏，从而实现完美垂直居中
     view_focus = ft.Container(
         content=ft.Column([
             ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=15),
-            ft.Column([
-                lbl_icon,
-                lbl_time,
-                lbl_quote
-            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=5),
-            ft.Container(height=20), # 增加留白，让页面呼吸感更强
-            ft.Column([
-                lbl_goal, bar_goal,
-                ft.Container(height=10),
-                ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
-                ft.Row([sel_pomo], alignment=ft.MainAxisAlignment.CENTER),
-                ft.Container(height=10),
-                ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
-            ])
-        ], alignment=ft.MainAxisAlignment.CENTER), # 最外层强行垂直居中
+            lbl_icon,
+            lbl_time,
+            lbl_quote,
+            ft.Container(height=20),
+            lbl_goal, bar_goal,
+            ft.Container(height=10),
+            ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
+            ft.Row([sel_pomo], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Container(height=10),
+            ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
+        ],
+        alignment=ft.MainAxisAlignment.CENTER, 
+        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        expand=True), # 必须膨胀才能居中
         bgcolor="white", border_radius=15, padding=25, expand=True, margin=5
     )
 
@@ -413,8 +409,7 @@ def main(page: ft.Page):
         for r in records:
             tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
             grid_forest.controls.append(ft.Text(value=r.get("tree","🌲"), size=45, tooltip=tip))
-        try: page.update()
-        except: pass
+        page.update()
 
     view_forest = ft.Container(
         content=ft.Column([
@@ -469,8 +464,7 @@ def main(page: ft.Page):
                     ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=10, border_radius=5)
                 ], spacing=8)
             )
-        try: page.update()
-        except: pass
+        page.update()
 
     view_stats = ft.Container(
         content=ft.Column([
@@ -503,8 +497,7 @@ def main(page: ft.Page):
                     bgcolor="#F2F2F7", padding=8, border_radius=10
                 )
             )
-        try: page.update()
-        except: pass
+        page.update()
 
     def add_sub(e):
         v = txt_new_sub.value.strip()
@@ -564,10 +557,10 @@ def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 🚀 核心修复点 2：为心跳线程套上铁布衫防崩溃罩，并强制它每秒去唤醒一次屏幕
-    def heart_beat():
+    # 🚀 颠覆性修复：将心跳检测变为原生异步任务，交由 Flet 内部调度，彻底告别线程阻塞挂起！
+    async def heart_beat():
         while True:
-            time.sleep(0.5) 
+            await asyncio.sleep(0.5) # 使用 await 主动交出控制权，确保页面必定刷新
             if not st.timer_active: continue
             
             try:
@@ -583,23 +576,18 @@ def main(page: ft.Page):
                     st.timer_active = False 
                     st.elapsed = st.pomo_target
                     update_focus_ui()
-                    try: page.update()
-                    except: pass
                     try: import winsound; winsound.Beep(800, 500)
                     except: pass
                     trigger_success_dialog(is_dead=False)
                     continue
                     
                 update_focus_ui()
-                # 🚀 极度关键：强制主线程推送画面，解决“必须点击才走字”的幽灵挂起现象！
-                try: page.update() 
-                except: pass
-                
-            except Exception as e:
-                # 就算发生极端错误，线程也不会死掉，保障你点击“结束”时依然能弹出窗口
+                page.update() # 这一行现在终于能百分百奏效了
+            except Exception:
                 pass
 
-    threading.Thread(target=heart_beat, daemon=True).start()
+    # 将异步任务注入到 Flet 页面中
+    page.run_task(heart_beat)
 
 # ================= 4. 防崩沙盒入口 =================
 if __name__ == "__main__":
