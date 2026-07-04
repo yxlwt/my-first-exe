@@ -5,6 +5,7 @@ import sys
 import time
 import threading
 import random
+import traceback  # 💡 引入高级流异常追踪组件
 from datetime import datetime, timedelta
 
 # ================= 1. 环境与配置初始化 =================
@@ -104,7 +105,6 @@ class DataManager:
 
 # ================= 4. Flet 引擎主逻辑 =================
 def main(page: ft.Page):
-    # --- 窗口与主题设置 ---
     page.title = "冲刺备考引擎"
     page.window.width = 460
     page.window.height = 800
@@ -119,11 +119,11 @@ def main(page: ft.Page):
     encouragements = [
         "星光不问赶路人，时光不负有心人。",
         "你做三四月的事，在十二月自有答案。",
+        "那些看似不起波澜的日复一日，会突然在某天让人看到坚持的意义。",
         "当前的每一次咬牙坚持，都是为了初试的毫不费力。",
         "顶峰相见吧，在十二月最冷的冬日里拼出最热血的成绩。"
     ]
 
-    # 状态管理
     class State:
         timer_active = False
         mode = "pomodoro"
@@ -136,7 +136,7 @@ def main(page: ft.Page):
 
     st = State()
 
-    # ================= UI 组件 =================
+    # 数字化倒计时面板看板
     def get_exam_text():
         try:
             today = datetime.now().date()
@@ -150,7 +150,6 @@ def main(page: ft.Page):
     exam_text, exam_color = get_exam_text()
     countdown_text = ft.Text(exam_text, size=18, weight=ft.FontWeight.BOLD, color=exam_color)
     
-    # 💡 核心修复：彻底抛弃 ft.alignment，采用最安全的 ft.Row 居中排版，免疫所有版本报错
     countdown_container = ft.Container(
         content=ft.Row([countdown_text], alignment=ft.MainAxisAlignment.CENTER),
         padding=20,
@@ -213,7 +212,6 @@ def main(page: ft.Page):
     
     forest_grid = ft.Row(wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.START)
     
-    # 💡 核心修复：再次使用 ft.Row 替代 ft.alignment，切断报错源头
     forest_col = ft.Column([
         forest_tabs, 
         ft.Container(content=ft.Row([forest_summary], alignment=ft.MainAxisAlignment.CENTER), padding=5),
@@ -248,7 +246,7 @@ def main(page: ft.Page):
             page.snack_bar = ft.SnackBar(ft.Text("数据已导出为 StudyEngine_Backup.json！"))
             page.snack_bar.open = True
             page.update()
-        except Exception as ex:
+        except Exception:
             pass
 
     settings_col = ft.Column([
@@ -260,7 +258,6 @@ def main(page: ft.Page):
         ft.Row([new_sub_input, ft.ElevatedButton("＋ 新增", on_click=lambda e: add_subject())]),
         ft.Divider(),
         ft.Text("💾 数据容灾", size=16, weight=ft.FontWeight.BOLD),
-        # 💡 核心修复：用安全字符串替代图标对象枚举，绝不报错
         ft.ElevatedButton("⬇ 导出本地记录备份 (当前目录)", icon="download", on_click=on_export)
     ], scroll=ft.ScrollMode.ADAPTIVE)
 
@@ -289,7 +286,6 @@ def main(page: ft.Page):
                 time_text.value = format_time(remain)
                 prog = st.elapsed_time / st.pomo_target
                 icon_text.value = "🌳" if prog >= 0.66 else "🌿" if prog >= 0.33 else "🌱" if st.elapsed_time >= 60 else "🌰"
-                
                 page.title = f"(🌱 {int(remain//60)}m) 冲刺备考引擎"
         else:
             time_text.value = format_time(st.elapsed_time)
@@ -507,7 +503,6 @@ def main(page: ft.Page):
                 
             row = ft.Row([
                 ft.Text(f"• {sub}", size=14, weight="bold", expand=True),
-                # 💡 核心修复：用安全字符串替代图标对象枚举，绝不报错
                 ft.TextButton("删除", icon="delete", icon_color=ft.Colors.RED, on_click=make_del_func(sub))
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
             sub_list_col.controls.append(row)
@@ -540,4 +535,35 @@ def main(page: ft.Page):
             if logical_now != st.last_logical_date:
                 st.last_logical_date = logical_now
                 if st.timer_active:
-                    process
+                    process_termination(auto_save=True)
+                    handle_start_stop(None)
+            
+            if st.timer_active:
+                st.elapsed_time = time.time() - st.start_tick
+                if st.mode == "pomodoro" and (st.pomo_target - st.elapsed_time) <= 0:
+                    st.elapsed_time = st.pomo_target
+                    process_termination(auto_save=True)
+                    try:
+                        import winsound
+                        winsound.Beep(800, 500)
+                    except: pass
+                    
+            update_visuals()
+            time.sleep(0.5)
+
+    threading.Thread(target=timer_loop, daemon=True).start()
+    
+    refresh_forest()
+    refresh_stats()
+
+# ================= 5. 安全启动与容灾沙盒拦截器 =================
+if __name__ == "__main__":
+    try:
+        # 💡 核心锁定：在标准主线程主入口启动 Flet 核心架构，完美解决 Windows 闪退悖论
+        ft.app(target=main)
+    except Exception as e:
+        # 💡 终极容灾：如果遭遇任何突发性崩溃，自动在 .exe 同目录下生成日志，绝不无声闪退
+        with open("crash_log.txt", "w", encoding="utf-8") as f:
+            f.write(f"【备考引擎崩溃时间】: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write("【底层异常追踪堆栈 (Traceback)】:\n")
+            traceback.print_exc(file=f)
