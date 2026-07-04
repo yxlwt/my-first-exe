@@ -128,21 +128,17 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 🚀 彻底修复 1：使用 Flet 最官方原生 API，杜绝弹窗假死和狗皮膏药现象
+    # 🚀 弹窗护城河：永远留在 overlay 中只做显示/隐藏，避开一切内核崩溃Bug
     def open_dlg(d):
-        if hasattr(page, "open"):
-            page.open(d)
-        else:
-            page.dialog = d
-            d.open = True
-            page.update()
+        if d not in page.overlay:
+            page.overlay.append(d)
+        d.open = True
+        page.update()
 
     def close_dlg(d):
-        if hasattr(page, "close"):
-            page.close(d)
-        else:
-            d.open = False
-            page.update()
+        d.open = False
+        page.update()
+        # 绝对不执行 page.overlay.remove(d)，防止底层组件找不到而抛出异常报错
 
     class State:
         timer_active = False
@@ -230,48 +226,40 @@ async def main(page: ft.Page):
         mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
         sel_pomo.disabled = (m == "stopwatch")
         
-        st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
+        try: st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
+        except: st.pomo_target = 25 * 60
         reset_timer()
 
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90]],
         value="25分钟", width=120, dense=True, border_radius=10, border_color="#D1D1D6"
     )
+    
+    # 🚀 彻底修复 1：选择时间后，强行接管时间文本并强制全屏刷新！
     def on_pomo_change(e):
         if st.timer_active: return
-        st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
-        reset_timer()
+        try:
+            st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
+        except:
+            st.pomo_target = 25 * 60
+        
+        # 直接在这里刷新页面数据，所见即所得
+        st.elapsed = 0
+        update_focus_ui()
+        page.update()
         
     sel_pomo.on_change = on_pomo_change
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
-    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True)
-
-    def toggle_timer(e):
-        if not st.timer_active:
-            st.timer_active = True
-            st.start_tick = time.time() - st.elapsed
-            btn_start_lbl.value = "⏸ 暂停"
-            btn_start_view.bgcolor = "#FF9500"
-            btn_stop_view.on_click = stop_timer
-            btn_stop_view.bgcolor = "#FF3B30"
-            btn_stop_lbl.color = "white"
-            
-            # 🚀 彻底修复 2：一旦开始专注，立刻锁死所有下拉菜单，防止发生“视觉欺骗”
-            sel_subject.disabled = True
-            sel_pomo.disabled = True  
-            
-            lbl_quote.value = random.choice(ENCOURAGEMENTS)
-        else:
-            st.timer_active = False 
-            btn_start_lbl.value = "▶ 继续专注"
-            btn_start_view.bgcolor = "#34C759"
-        page.update()
     
-    btn_start_view.on_click = toggle_timer
-
-    def stop_timer(e):
-        st.timer_active = False
+    # 🚀 彻底修复 2：为了防止 Flet 丢失动态绑定的事件，直接在声明时把 on_click 写死！
+    # 下方的逻辑由内部的 st.elapsed 判断，不再通过 None 来开关按钮。
+    def stop_timer_handler(e):
+        # 防误触：如果还没开始专注（进度是0），点结束没反应
+        if not st.timer_active and st.elapsed == 0:
+            return
+            
+        st.timer_active = False # 先冻结时间
         page.update()
         
         elapsed_int = int(st.elapsed)
@@ -284,18 +272,19 @@ async def main(page: ft.Page):
             return
 
         def on_confirm(save_dead):
-            # 这里的 close_dlg 如今能够完美地将对话框消灭
             close_dlg(dlg)
             if save_dead:
                 db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
-                reset_timer()
-                refresh_forest()
-                refresh_stats()
-            else:
-                reset_timer()
+            reset_timer()
+            refresh_forest()
+            refresh_stats()
+
+        def on_cancel():
+            close_dlg(dlg)
+            reset_timer()
 
         btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
-        btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=lambda e: on_confirm(False))
+        btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=lambda e: on_cancel())
 
         dlg = ft.AlertDialog(
             modal=True,
@@ -304,6 +293,31 @@ async def main(page: ft.Page):
             actions=[ft.Row([btn_y, btn_n])]
         )
         open_dlg(dlg)
+
+    # 声明时就死死绑定 stop_timer_handler
+    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True, on_click=stop_timer_handler)
+
+    def toggle_timer(e):
+        if not st.timer_active:
+            st.timer_active = True
+            st.start_tick = time.time() - st.elapsed
+            btn_start_lbl.value = "⏸ 暂停"
+            btn_start_view.bgcolor = "#FF9500"
+            
+            # UI 高亮结束按钮
+            btn_stop_view.bgcolor = "#FF3B30"
+            btn_stop_lbl.color = "white"
+            
+            sel_subject.disabled = True
+            sel_pomo.disabled = True  # 锁死下拉菜单，防止误触
+            lbl_quote.value = random.choice(ENCOURAGEMENTS)
+        else:
+            st.timer_active = False 
+            btn_start_lbl.value = "▶ 继续专注"
+            btn_start_view.bgcolor = "#34C759"
+        page.update()
+    
+    btn_start_view.on_click = toggle_timer
 
     def trigger_success_dialog(is_dead=False):
         txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
@@ -329,11 +343,10 @@ async def main(page: ft.Page):
         st.elapsed = 0
         btn_start_lbl.value = "▶ 开始专注"
         btn_start_view.bgcolor = "#34C759"
-        btn_stop_view.on_click = None # 锁死结束按钮
+        
         btn_stop_view.bgcolor = "#F2F2F7"
         btn_stop_lbl.color = "#8E8E93"
         
-        # 重置后，解锁下拉菜单
         sel_subject.disabled = False
         sel_pomo.disabled = (st.mode == "stopwatch") 
         
