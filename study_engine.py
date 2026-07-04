@@ -91,10 +91,12 @@ def format_time(seconds):
 def main(page: ft.Page):
     db = DataManager(DATA_FILE)
     page.title = "冲刺备考引擎"
-    page.bgcolor = "#F4F5F7" # 极简浅灰背景
+    page.bgcolor = "#F4F5F7" 
+    # 💡 核心修复：彻底抛弃 margin 和 padding 对象，全篇采用绝对安全的整数边距！
     page.padding = 15
+    page.theme_mode = "system"
+    page.scroll = "adaptive"
     
-    # 尺寸容灾保护
     try:
         page.window.width = 460
         page.window.height = 800
@@ -122,13 +124,13 @@ def main(page: ft.Page):
         countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
     except: pass
 
+    # 💡 整数安全边距
     card_countdown = ft.Container(
         content=ft.Row([countdown_text], alignment="center"),
-        bgcolor="white", border_radius=15, padding=15, margin=ft.margin.only(bottom=10)
+        bgcolor="white", border_radius=15, padding=15, margin=10
     )
 
     # ----------------- 自定义防崩溃导航栏 -----------------
-    # 💡 彻底取代导致报错的 ft.Tabs 组件，使用原生控件手搓导航栏，100%免疫报错！
     nav_buttons = []
     
     def switch_main_tab(index):
@@ -149,7 +151,6 @@ def main(page: ft.Page):
         btn = ft.TextButton(
             text=text,
             on_click=lambda e, i=idx: switch_main_tab(i),
-            style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10))
         )
         nav_buttons.append(btn)
         return btn
@@ -161,7 +162,7 @@ def main(page: ft.Page):
             create_nav_btn("统计", 2),
             create_nav_btn("设置", 3)
         ], alignment="center", spacing=5),
-        bgcolor="white", border_radius=15, padding=5, margin=ft.margin.only(bottom=10)
+        bgcolor="white", border_radius=15, padding=5, margin=10
     )
 
     # ----------------- 专注视图 (0) -----------------
@@ -179,11 +180,11 @@ def main(page: ft.Page):
         db.save()
     sel_subject.on_change = on_sub_change
 
-    bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
+    bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8)
     lbl_goal = ft.Text("今日进度: 0 / 6h", size=12, color="#8E8E93", weight="bold")
 
-    mode_sw_btn = ft.TextButton("🧱 正向筑城", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)))
-    mode_pm_btn = ft.TextButton("🌱 番茄种树", style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=10)))
+    mode_sw_btn = ft.TextButton("🧱 正向筑城")
+    mode_pm_btn = ft.TextButton("🌱 番茄种树")
 
     def switch_mode(m):
         if st.timer_active: return
@@ -210,8 +211,8 @@ def main(page: ft.Page):
         update_focus_ui()
     sel_pomo.on_change = on_pomo_change
 
-    btn_start = ft.ElevatedButton("▶ 开始专注", bgcolor="#34C759", color="white", height=45, expand=True, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22)))
-    btn_stop = ft.ElevatedButton("⏹ 结束", bgcolor="#F4F5F7", color="#8E8E93", height=45, expand=True, disabled=True, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22)))
+    btn_start = ft.ElevatedButton("▶ 开始专注", bgcolor="#34C759", color="white", height=45, expand=True)
+    btn_stop = ft.ElevatedButton("⏹ 结束", bgcolor="#F4F5F7", color="#8E8E93", height=45, expand=True, disabled=True)
 
     def toggle_timer(e):
         if not st.timer_active:
@@ -410,7 +411,7 @@ def main(page: ft.Page):
             col_stats.controls.append(
                 ft.Column([
                     ft.Row([ft.Text(f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(format_dur(dur), color="#8E8E93")], alignment="spaceBetween"),
-                    ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=8, border_radius=4)
+                    ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=8)
                 ], spacing=5)
             )
         page.update()
@@ -418,7 +419,7 @@ def main(page: ft.Page):
     view_stats = ft.Container(
         content=ft.Column([
             ft.Row(stat_nav, alignment="center"),
-            ft.Container(content=lbl_stat_total, padding=ft.margin.only(top=10, bottom=10)),
+            ft.Container(content=lbl_stat_total, padding=10),
             col_stats
         ]),
         bgcolor="white", border_radius=15, padding=20, expand=True, visible=False
@@ -466,11 +467,9 @@ def main(page: ft.Page):
         content=ft.Column([
             ft.Text("🎯 目标设置", weight="bold"),
             txt_goal,
-            ft.Divider(color="#E5E5EA"),
             ft.Text("🏷️ 科目管理", weight="bold"),
             col_subs,
             ft.Row([txt_new_sub, ft.ElevatedButton("添加", on_click=add_sub, bgcolor="#34C759", color="white")]),
-            ft.Divider(color="#E5E5EA"),
             ft.Text("💾 数据安全", weight="bold"),
             ft.ElevatedButton("⬇ 导出本地备份", bgcolor="#E5E5EA", color="#1C1C1E")
         ], scroll="adaptive"),
@@ -489,7 +488,6 @@ def main(page: ft.Page):
         ], expand=True)
     )
 
-    # 初始化显示
     switch_main_tab(0)
     switch_mode("pomodoro")
     sw_forest(0)
