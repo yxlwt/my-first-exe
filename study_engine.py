@@ -126,12 +126,12 @@ def main(page: ft.Page):
         page.window.min_height = 600
     except AttributeError: pass
 
-    # 💡 漏洞修复 1：安全的弹窗引擎，切断内存泄漏
+    # 安全弹窗引擎
     def open_dlg(d):
         try: page.open(d)
         except AttributeError:
             try: 
-                page.overlay.clear() # 弹出前先清空旧垃圾
+                page.overlay.clear() 
                 page.overlay.append(d); d.open = True; page.update()
             except Exception: page.dialog = d; d.open = True; page.update()
 
@@ -281,7 +281,6 @@ def main(page: ft.Page):
         btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
         btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=lambda e: on_confirm(False))
 
-        # 💡 漏洞修复 2：modal=True 防误触外侧关闭弹窗
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="确认结束", weight="bold"),
@@ -306,7 +305,6 @@ def main(page: ft.Page):
 
         btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
 
-        # 💡 漏洞修复 2：modal=True 保护专注成果不被误关丢失
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="🎉 专注完成！", weight="bold"),
@@ -455,10 +453,13 @@ def main(page: ft.Page):
             )
         page.update()
 
+    # 💡 彻底修复 padding bug，改用 ft.Container 的 height 做物理隔断
     view_stats = ft.Container(
         content=ft.Column([
             row_stat_nav,
-            ft.Container(content=lbl_stat_total, padding=ft.margin.only(top=15, bottom=15)),
+            ft.Container(height=15),
+            ft.Row([lbl_stat_total], alignment="center"),
+            ft.Container(height=15),
             col_stats
         ]),
         bgcolor="white", border_radius=15, padding=25, expand=True, visible=False, margin=5
@@ -547,7 +548,6 @@ def main(page: ft.Page):
             time.sleep(0.1) 
             if not st.timer_active: continue
             
-            # 💡 漏洞修复 3：跨天时不重置当前倒计时，只静默刷新数据版面
             logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
             if logical_now != st.last_date:
                 st.last_date = logical_now
