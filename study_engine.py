@@ -5,7 +5,7 @@ import sys
 import time
 import threading
 import random
-import traceback  # 💡 引入高级流异常追踪组件
+import traceback
 from datetime import datetime, timedelta
 
 # ================= 1. 环境与配置初始化 =================
@@ -119,7 +119,6 @@ def main(page: ft.Page):
     encouragements = [
         "星光不问赶路人，时光不负有心人。",
         "你做三四月的事，在十二月自有答案。",
-        "那些看似不起波澜的日复一日，会突然在某天让人看到坚持的意义。",
         "当前的每一次咬牙坚持，都是为了初试的毫不费力。",
         "顶峰相见吧，在十二月最冷的冬日里拼出最热血的成绩。"
     ]
@@ -136,7 +135,7 @@ def main(page: ft.Page):
 
     st = State()
 
-    # 数字化倒计时面板看板
+    # ================= UI 组件 =================
     def get_exam_text():
         try:
             today = datetime.now().date()
@@ -174,10 +173,14 @@ def main(page: ft.Page):
     goal_label = ft.Text("🎯 今日进度: 0m / 6h", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
     goal_bar = ft.ProgressBar(value=0, color=ft.Colors.GREEN, bgcolor=ft.Colors.ON_INVERSE_SURFACE, height=8, border_radius=4)
     
+    # 💡 核心修复 1：将旧版 text="名字" 全部替换为 tab_content=ft.Text("名字")
     mode_tabs = ft.Tabs(
         selected_index=1,
         animation_duration=300,
-        tabs=[ft.Tab(text="🧱 正向筑城"), ft.Tab(text="🌱 番茄种树")]
+        tabs=[
+            ft.Tab(tab_content=ft.Text("🧱 正向筑城")), 
+            ft.Tab(tab_content=ft.Text("🌱 番茄种树"))
+        ]
     )
     
     pomo_dropdown = ft.Dropdown(
@@ -185,8 +188,9 @@ def main(page: ft.Page):
         value="25分钟", width=120, border_radius=10, dense=True
     )
 
-    btn_start = ft.ElevatedButton("▶ 开始专注", width=160, height=45, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22), bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE))
-    btn_stop = ft.ElevatedButton("⏹ 结束", width=160, height=45, disabled=True, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22)))
+    # 💡 统一按钮文本参数的规范
+    btn_start = ft.ElevatedButton(text="▶ 开始专注", width=160, height=45, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22), bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE))
+    btn_stop = ft.ElevatedButton(text="⏹ 结束", width=160, height=45, disabled=True, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22)))
 
     focus_col = ft.Column(
         controls=[
@@ -207,7 +211,14 @@ def main(page: ft.Page):
     )
 
     # --- 图鉴 Tab ---
-    forest_tabs = ft.Tabs(selected_index=0, tabs=[ft.Tab(text="今日战果"), ft.Tab(text="本周图鉴"), ft.Tab(text="本月图鉴")])
+    forest_tabs = ft.Tabs(
+        selected_index=0, 
+        tabs=[
+            ft.Tab(tab_content=ft.Text("今日战果")), 
+            ft.Tab(tab_content=ft.Text("本周图鉴")), 
+            ft.Tab(tab_content=ft.Text("本月图鉴"))
+        ]
+    )
     forest_summary = ft.Text("累计收获 0 个战果", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
     
     forest_grid = ft.Row(wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.START)
@@ -219,7 +230,14 @@ def main(page: ft.Page):
     ], expand=True)
 
     # --- 统计 Tab ---
-    stats_tabs = ft.Tabs(selected_index=0, tabs=[ft.Tab(text="今日"), ft.Tab(text="本周"), ft.Tab(text="本月")])
+    stats_tabs = ft.Tabs(
+        selected_index=0, 
+        tabs=[
+            ft.Tab(tab_content=ft.Text("今日")), 
+            ft.Tab(tab_content=ft.Text("本周")), 
+            ft.Tab(tab_content=ft.Text("本月"))
+        ]
+    )
     stats_total = ft.Text("0s", size=36, weight=ft.FontWeight.BOLD)
     stats_delta = ft.Text("无对比数据", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
     
@@ -243,9 +261,8 @@ def main(page: ft.Page):
         try:
             with open("StudyEngine_Backup.json", "w", encoding="utf-8") as f:
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
-            page.snack_bar = ft.SnackBar(ft.Text("数据已导出为 StudyEngine_Backup.json！"))
-            page.snack_bar.open = True
-            page.update()
+            # 💡 核心修复 2：采用最新的 page.open 规范唤出提示条
+            page.open(ft.SnackBar(content=ft.Text("数据已导出为 StudyEngine_Backup.json！")))
         except Exception:
             pass
 
@@ -255,10 +272,10 @@ def main(page: ft.Page):
         ft.Divider(),
         ft.Text("🏷️ 科目管理", size=16, weight=ft.FontWeight.BOLD),
         sub_list_col,
-        ft.Row([new_sub_input, ft.ElevatedButton("＋ 新增", on_click=lambda e: add_subject())]),
+        ft.Row([new_sub_input, ft.ElevatedButton(text="＋ 新增", on_click=lambda e: add_subject())]),
         ft.Divider(),
         ft.Text("💾 数据容灾", size=16, weight=ft.FontWeight.BOLD),
-        ft.ElevatedButton("⬇ 导出本地记录备份 (当前目录)", icon="download", on_click=on_export)
+        ft.ElevatedButton(text="⬇ 导出本地记录备份 (当前目录)", icon="download", on_click=on_export)
     ], scroll=ft.ScrollMode.ADAPTIVE)
 
     # --- 主导航框架 ---
@@ -266,10 +283,10 @@ def main(page: ft.Page):
         selected_index=0,
         expand=True,
         tabs=[
-            ft.Tab(text="专注", content=ft.Container(content=focus_col, padding=15)),
-            ft.Tab(text="图鉴", content=ft.Container(content=forest_col, padding=15)),
-            ft.Tab(text="统计", content=ft.Container(content=stats_col, padding=15)),
-            ft.Tab(text="设置", content=ft.Container(content=settings_col, padding=15))
+            ft.Tab(tab_content=ft.Text("专注"), content=ft.Container(content=focus_col, padding=15)),
+            ft.Tab(tab_content=ft.Text("图鉴"), content=ft.Container(content=forest_col, padding=15)),
+            ft.Tab(tab_content=ft.Text("统计"), content=ft.Container(content=stats_col, padding=15)),
+            ft.Tab(tab_content=ft.Text("设置"), content=ft.Container(content=settings_col, padding=15))
         ]
     )
 
@@ -331,30 +348,27 @@ def main(page: ft.Page):
         if not auto_save:
             if st.mode == "pomodoro" and st.elapsed_time < st.pomo_target:
                 def confirm_pomo(e, yes):
-                    dlg.open = False
-                    page.update()
+                    page.close(dlg)
                     if yes: 
                         ask_for_note(is_dead=True)
                     else:
                         abort_run()
 
+                # 💡 核心修复 3：适配最新版弹窗逻辑
                 dlg = ft.AlertDialog(
                     title=ft.Text("放弃警告"),
                     content=ft.Text("番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if st.elapsed_time >= 60 else "不足 1 分钟，直接放弃不会枯死。\n强行保存将记入枯树 🥀。"),
                     actions=[
-                        ft.TextButton("是 (保存枯树)", on_click=lambda e: confirm_pomo(e, True)),
-                        ft.TextButton("否 (销毁记录)", on_click=lambda e: confirm_pomo(e, False)),
+                        ft.TextButton(text="是 (保存)", on_click=lambda e: confirm_pomo(e, True)),
+                        ft.TextButton(text="否 (销毁)", on_click=lambda e: confirm_pomo(e, False)),
                     ]
                 )
-                page.overlay.append(dlg)
-                dlg.open = True
-                page.update()
+                page.open(dlg)
                 return
 
             elif st.mode == "stopwatch" and st.elapsed_time < 60:
                 def confirm_sw(e, yes):
-                    dlg.open = False
-                    page.update()
+                    page.close(dlg)
                     if yes: ask_for_note(is_dead=False)
                     else: abort_run()
 
@@ -362,13 +376,11 @@ def main(page: ft.Page):
                     title=ft.Text("时间极短"),
                     content=ft.Text("筑城不足 1 分钟，只留下了废料 🚧。\n是否仍要保存？"),
                     actions=[
-                        ft.TextButton("是", on_click=lambda e: confirm_sw(e, True)),
-                        ft.TextButton("否", on_click=lambda e: confirm_sw(e, False)),
+                        ft.TextButton(text="是", on_click=lambda e: confirm_sw(e, True)),
+                        ft.TextButton(text="否", on_click=lambda e: confirm_sw(e, False)),
                     ]
                 )
-                page.overlay.append(dlg)
-                dlg.open = True
-                page.update()
+                page.open(dlg)
                 return
 
         ask_for_note(is_dead=False)
@@ -381,18 +393,15 @@ def main(page: ft.Page):
         note_field = ft.TextField(label="复盘便签 (选填)", width=300)
         
         def finish_save(e):
-            dlg.open = False
-            page.update()
+            page.close(dlg)
             save_and_reset(is_dead, note_field.value)
 
         dlg = ft.AlertDialog(
             title=ft.Text("专注完成！"),
             content=ft.Column([ft.Text(f"💡 {random.choice(encouragements)}"), note_field], tight=True),
-            actions=[ft.ElevatedButton("保存战果", on_click=finish_save)]
+            actions=[ft.ElevatedButton(text="保存战果", on_click=finish_save)]
         )
-        page.overlay.append(dlg)
-        dlg.open = True
-        page.update()
+        page.open(dlg)
 
     def save_and_reset(is_dead, note):
         db.add_record(subject_dropdown.value, st.elapsed_time, st.mode, is_dead, note[:50])
@@ -410,7 +419,6 @@ def main(page: ft.Page):
         btn_stop.style.color = None
         subject_dropdown.disabled = False
         pomo_dropdown.disabled = False
-        
         update_visuals()
 
     btn_start.on_click = handle_start_stop
@@ -503,7 +511,7 @@ def main(page: ft.Page):
                 
             row = ft.Row([
                 ft.Text(f"• {sub}", size=14, weight="bold", expand=True),
-                ft.TextButton("删除", icon="delete", icon_color=ft.Colors.RED, on_click=make_del_func(sub))
+                ft.TextButton(text="删除", icon=ft.icons.DELETE, icon_color=ft.Colors.RED, on_click=make_del_func(sub))
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
             sub_list_col.controls.append(row)
         page.update()
@@ -559,10 +567,8 @@ def main(page: ft.Page):
 # ================= 5. 安全启动与容灾沙盒拦截器 =================
 if __name__ == "__main__":
     try:
-        # 💡 核心锁定：在标准主线程主入口启动 Flet 核心架构，完美解决 Windows 闪退悖论
         ft.app(target=main)
     except Exception as e:
-        # 💡 终极容灾：如果遭遇任何突发性崩溃，自动在 .exe 同目录下生成日志，绝不无声闪退
         with open("crash_log.txt", "w", encoding="utf-8") as f:
             f.write(f"【备考引擎崩溃时间】: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write("【底层异常追踪堆栈 (Traceback)】:\n")
