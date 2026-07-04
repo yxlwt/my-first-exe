@@ -1,5 +1,5 @@
 import flet as ft
-import asyncio  # 🚀 引入原生异步引擎
+import asyncio  
 import json
 import os
 import sys
@@ -112,7 +112,6 @@ def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", 
     return cnt, lbl
 
 # ================= 3. 核心无极 UI 引擎 =================
-# 🚀 极其关键的变动：将整个应用升级为异步环境
 async def main(page: ft.Page):
     db = DataManager(DATA_FILE)
     page.title = "冲刺备考引擎"
@@ -127,25 +126,23 @@ async def main(page: ft.Page):
         page.window.min_width = 380
         page.window.min_height = 600
     except AttributeError:
-        try:
-            page.window_width = 460
-            page.window_height = 800
-            page.window_min_width = 380
-            page.window_min_height = 600
-        except: pass
+        pass
 
-    # 🚀 霸道弹窗引擎：无视版本，直接强行塞入最高优先级图层
+    # 🚀 彻底修复 1：使用 Flet 最官方原生 API，杜绝弹窗假死和狗皮膏药现象
     def open_dlg(d):
-        if d not in page.overlay:
-            page.overlay.append(d)
-        d.open = True
-        page.update()
+        if hasattr(page, "open"):
+            page.open(d)
+        else:
+            page.dialog = d
+            d.open = True
+            page.update()
 
     def close_dlg(d):
-        d.open = False
-        page.update()
-        if d in page.overlay:
-            page.overlay.remove(d)
+        if hasattr(page, "close"):
+            page.close(d)
+        else:
+            d.open = False
+            page.update()
 
     class State:
         timer_active = False
@@ -232,6 +229,8 @@ async def main(page: ft.Page):
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
         mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
         sel_pomo.disabled = (m == "stopwatch")
+        
+        st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
         reset_timer()
 
     sel_pomo = ft.Dropdown(
@@ -257,7 +256,11 @@ async def main(page: ft.Page):
             btn_stop_view.on_click = stop_timer
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
+            
+            # 🚀 彻底修复 2：一旦开始专注，立刻锁死所有下拉菜单，防止发生“视觉欺骗”
             sel_subject.disabled = True
+            sel_pomo.disabled = True  
+            
             lbl_quote.value = random.choice(ENCOURAGEMENTS)
         else:
             st.timer_active = False 
@@ -281,6 +284,7 @@ async def main(page: ft.Page):
             return
 
         def on_confirm(save_dead):
+            # 这里的 close_dlg 如今能够完美地将对话框消灭
             close_dlg(dlg)
             if save_dead:
                 db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
@@ -325,14 +329,17 @@ async def main(page: ft.Page):
         st.elapsed = 0
         btn_start_lbl.value = "▶ 开始专注"
         btn_start_view.bgcolor = "#34C759"
-        btn_stop_view.on_click = None
+        btn_stop_view.on_click = None # 锁死结束按钮
         btn_stop_view.bgcolor = "#F2F2F7"
         btn_stop_lbl.color = "#8E8E93"
+        
+        # 重置后，解锁下拉菜单
         sel_subject.disabled = False
+        sel_pomo.disabled = (st.mode == "stopwatch") 
+        
         update_focus_ui()
         page.update()
 
-    # 🚀 排版修复核心：内层 Column 强制开启 expand=True 撑满全屏，从而实现完美垂直居中
     view_focus = ft.Container(
         content=ft.Column([
             ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
@@ -350,7 +357,7 @@ async def main(page: ft.Page):
         ],
         alignment=ft.MainAxisAlignment.CENTER, 
         horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        expand=True), # 必须膨胀才能居中
+        expand=True), 
         bgcolor="white", border_radius=15, padding=25, expand=True, margin=5
     )
 
@@ -557,10 +564,9 @@ async def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 🚀 颠覆性修复：将心跳检测变为原生异步任务，交由 Flet 内部调度，彻底告别线程阻塞挂起！
     async def heart_beat():
         while True:
-            await asyncio.sleep(0.5) # 使用 await 主动交出控制权，确保页面必定刷新
+            await asyncio.sleep(0.5) 
             if not st.timer_active: continue
             
             try:
@@ -582,11 +588,10 @@ async def main(page: ft.Page):
                     continue
                     
                 update_focus_ui()
-                page.update() # 这一行现在终于能百分百奏效了
+                page.update() 
             except Exception:
                 pass
 
-    # 将异步任务注入到 Flet 页面中
     page.run_task(heart_beat)
 
 # ================= 4. 防崩沙盒入口 =================
