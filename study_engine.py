@@ -120,7 +120,6 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.SYSTEM
     page.scroll = ft.ScrollMode.ADAPTIVE
     
-    # 修复点：自适应兼容旧版和新版的窗口属性设定
     try:
         page.window.width = 460
         page.window.height = 800
@@ -134,7 +133,7 @@ def main(page: ft.Page):
             page.window_min_height = 600
         except: pass
 
-    # 修复点：全环境自适应弹窗引擎（彻底解决 'open' 报错）
+    # 🚀 修复点 1：最完美的双端兼容弹窗，老版本必定进 dialog，新版本必定进 open
     def open_dlg(d):
         try:
             page.open(d)
@@ -177,7 +176,6 @@ def main(page: ft.Page):
         bgcolor="white", border_radius=12, padding=15, margin=5 
     )
 
-    # ----------------- 优雅的 iOS 分段导航栏 -----------------
     nav_buttons = []
     
     def switch_main_tab(index):
@@ -209,7 +207,7 @@ def main(page: ft.Page):
 
     # ----------------- 专注视图 (0) -----------------
     lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
-    lbl_time = ft.Text(value="25:00", size=80, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+    lbl_time = ft.Text(value="25:00", size=70, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
     
     sel_subject = ft.Dropdown(
@@ -236,8 +234,6 @@ def main(page: ft.Page):
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
         mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
         sel_pomo.disabled = (m == "stopwatch")
-        
-        # 修复点：彻底掐断状态残留引发的幽灵跳秒
         reset_timer()
 
     sel_pomo = ft.Dropdown(
@@ -247,7 +243,6 @@ def main(page: ft.Page):
     def on_pomo_change(e):
         if st.timer_active: return
         st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
-        # 修复点：修改目标时必须重置状态，防止错乱
         reset_timer()
         
     sel_pomo.on_change = on_pomo_change
@@ -278,9 +273,10 @@ def main(page: ft.Page):
         st.timer_active = False
         page.update()
         
-        if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
-            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if st.elapsed >= 60 else "不足 1 分钟，放弃不留记录。"
-        elif st.mode == "stopwatch" and st.elapsed < 60:
+        elapsed_int = int(st.elapsed)
+        if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
+            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if elapsed_int >= 60 else "不足 1 分钟，放弃不留记录。"
+        elif st.mode == "stopwatch" and elapsed_int < 60:
             msg = "筑城不足 1 分钟，只留下废料 🚧。确定保存吗？"
         else:
             trigger_success_dialog(is_dead=False)
@@ -289,7 +285,7 @@ def main(page: ft.Page):
         def on_confirm(save_dead):
             close_dlg(dlg)
             if save_dead:
-                db.add_record(sel_subject.value, st.elapsed, st.mode, True, "放弃番茄钟")
+                db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
                 reset_timer()
                 refresh_forest()
                 refresh_stats()
@@ -311,7 +307,7 @@ def main(page: ft.Page):
         txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
         def on_save(e):
             close_dlg(dlg)
-            db.add_record(sel_subject.value, st.elapsed, st.mode, is_dead, txt_note.value)
+            db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value)
             reset_timer()
             refresh_forest()
             refresh_stats()
@@ -326,7 +322,6 @@ def main(page: ft.Page):
         )
         open_dlg(dlg)
 
-    # 修复点：加入了页面刷新指令，确保重置时画面无延迟跟进
     def reset_timer():
         st.timer_active = False
         st.elapsed = 0
@@ -362,27 +357,37 @@ def main(page: ft.Page):
     )
 
     def update_focus_ui():
+        elapsed_int = int(st.elapsed)
         if st.mode == "pomodoro":
-            remain = max(0, st.pomo_target - st.elapsed)
+            remain = max(0, st.pomo_target - elapsed_int)
             lbl_time.value = format_time(remain)
             if remain <= 0: lbl_icon.value = "🌲"
             else:
-                prog = st.elapsed / st.pomo_target
-                lbl_icon.value = "🌳" if prog >= 0.66 else "🌿" if prog >= 0.33 else "🌱" if st.elapsed >= 60 else "🌰"
+                prog = elapsed_int / max(1, st.pomo_target)
+                lbl_icon.value = "🌳" if prog >= 0.66 else "🌿" if prog >= 0.33 else "🌱" if elapsed_int >= 60 else "🌰"
         else:
-            lbl_time.value = format_time(st.elapsed)
-            if st.elapsed >= 3600: lbl_icon.value = "🏰"
-            elif st.elapsed >= 1800: lbl_icon.value = "🏠"
-            elif st.elapsed >= 60: lbl_icon.value = "🧱"
+            lbl_time.value = format_time(elapsed_int)
+            if elapsed_int >= 3600: lbl_icon.value = "🏰"
+            elif elapsed_int >= 1800: lbl_icon.value = "🏠"
+            elif elapsed_int >= 60: lbl_icon.value = "🧱"
             else: lbl_icon.value = "🚧"
 
         logical_today = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
         records = [item for item in db.data["studyData"] if item.get("date") == logical_today]
-        total = sum(r["duration"] for r in records) + (st.elapsed if st.timer_active else 0)
+        total = sum(r["duration"] for r in records) + (elapsed_int if st.timer_active or elapsed_int > 0 else 0)
         goal = max(db.data["dailyGoal"], 1) 
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
+
+        # 🚀 修复点 2：直接点对点刷新控件！突破底层 Flet 全局刷新的阻塞问题
+        try:
+            lbl_time.update()
+            lbl_icon.update()
+            lbl_goal.update()
+            bar_goal.update()
+        except Exception:
+            pass
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
@@ -521,7 +526,6 @@ def main(page: ft.Page):
         if len(db.data["subjects"]) > 1:
             db.data["subjects"].remove(s); db.save()
             sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-            # 修复点：删除当前选中的科目时，同步更新顶部的当前科目
             sel_subject.value = db.data["subjects"][0]
             db.data["currentSubject"] = sel_subject.value
             db.save()
@@ -569,7 +573,8 @@ def main(page: ft.Page):
 
     def heart_beat():
         while True:
-            time.sleep(0.2) 
+            # 🚀 修复点 3：放慢刷新频率 (0.2s -> 0.5s)，降低 WebSocket 拥堵概率
+            time.sleep(0.5) 
             if not st.timer_active: continue
             
             logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
@@ -579,20 +584,16 @@ def main(page: ft.Page):
             
             st.elapsed = time.time() - st.start_tick
             
-            if st.mode == "pomodoro" and st.elapsed >= st.pomo_target:
+            if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
                 st.timer_active = False 
                 st.elapsed = st.pomo_target
                 update_focus_ui()
-                try: page.update()
-                except: pass
                 try: import winsound; winsound.Beep(800, 500)
                 except: pass
                 trigger_success_dialog(is_dead=False)
                 continue
                 
             update_focus_ui()
-            try: page.update() 
-            except: pass
 
     threading.Thread(target=heart_beat, daemon=True).start()
 
