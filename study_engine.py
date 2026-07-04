@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import threading
+import random
 import traceback
 from datetime import datetime, timedelta
 
@@ -87,12 +88,25 @@ def format_time(seconds):
         return f"{s//3600:02d}:{(s%3600)//60:02d}:{s%60:02d}"
     return f"{(s%3600)//60:02d}:{s%60:02d}"
 
+# 💡 核心防御黑科技：我们自己手搓一个“绝对安全”的按钮，不用官方的 Button！
+def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, height=None, padding=10):
+    lbl = ft.Text(value=text, color=txt_color, weight="bold")
+    cnt = ft.Container(
+        content=ft.Row([lbl], alignment="center"),
+        bgcolor=bgcolor,
+        border_radius=radius,
+        padding=padding,
+        on_click=on_click,
+        expand=expand,
+        height=height
+    )
+    return cnt, lbl
+
 # ================= 3. 核心无极 UI 引擎 =================
 def main(page: ft.Page):
     db = DataManager(DATA_FILE)
     page.title = "冲刺备考引擎"
     page.bgcolor = "#F4F5F7" 
-    # 💡 核心修复：彻底抛弃 margin 和 padding 对象，全篇采用绝对安全的整数边距！
     page.padding = 15
     page.theme_mode = "system"
     page.scroll = "adaptive"
@@ -115,7 +129,7 @@ def main(page: ft.Page):
     st = State()
 
     # ----------------- 顶部倒计时看板 -----------------
-    countdown_text = ft.Text("距离初试仅剩 -- 天", size=18, weight="bold", color="#007AFF")
+    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=18, weight="bold", color="#007AFF")
     try:
         today = datetime.now().date()
         exam = datetime.strptime(db.data["examDate"], "%Y-%m-%d").date()
@@ -124,7 +138,6 @@ def main(page: ft.Page):
         countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
     except: pass
 
-    # 💡 整数安全边距
     card_countdown = ft.Container(
         content=ft.Row([countdown_text], alignment="center"),
         bgcolor="white", border_radius=15, padding=15, margin=10
@@ -134,9 +147,9 @@ def main(page: ft.Page):
     nav_buttons = []
     
     def switch_main_tab(index):
-        for i, btn in enumerate(nav_buttons):
-            btn.bgcolor = "#1C1C1E" if i == index else "transparent"
-            btn.color = "white" if i == index else "#8E8E93"
+        for i, item in enumerate(nav_buttons):
+            item["view"].bgcolor = "#1C1C1E" if i == index else "transparent"
+            item["lbl"].color = "white" if i == index else "#8E8E93"
         
         view_focus.visible = (index == 0)
         view_forest.visible = (index == 1)
@@ -147,33 +160,31 @@ def main(page: ft.Page):
         if index == 2: refresh_stats()
         page.update()
 
-    def create_nav_btn(text, idx):
-        btn = ft.TextButton(
-            text=text,
-            on_click=lambda e, i=idx: switch_main_tab(i),
-        )
-        nav_buttons.append(btn)
-        return btn
+    def make_nav_btn(text, idx):
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: switch_main_tab(i), txt_color="#8E8E93", radius=10, expand=True, padding=8)
+        nav_buttons.append({"view": view, "lbl": lbl})
+        return view
 
     nav_bar = ft.Container(
         content=ft.Row([
-            create_nav_btn("专注", 0),
-            create_nav_btn("图鉴", 1),
-            create_nav_btn("统计", 2),
-            create_nav_btn("设置", 3)
+            make_nav_btn("专注", 0),
+            make_nav_btn("图鉴", 1),
+            make_nav_btn("统计", 2),
+            make_nav_btn("设置", 3)
         ], alignment="center", spacing=5),
         bgcolor="white", border_radius=15, padding=5, margin=10
     )
 
     # ----------------- 专注视图 (0) -----------------
-    lbl_icon = ft.Text("🌰", size=90)
-    lbl_time = ft.Text("25:00", size=70, weight="bold")
-    lbl_quote = ft.Text("乾坤未定，你我皆是黑马。", size=13, color="#8E8E93")
+    lbl_icon = ft.Text(value="🌰", size=90)
+    lbl_time = ft.Text(value="25:00", size=70, weight="bold")
+    lbl_quote = ft.Text(value="乾坤未定，你我皆是黑马。", size=13, color="#8E8E93")
     
+    # Dropdown 也是安全的
     sel_subject = ft.Dropdown(
-        options=[ft.dropdown.Option(s) for s in db.data["subjects"]],
+        options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"],
-        width=150, dense=True, border_radius=10, border_width=1, border_color="#D1D1D6"
+        width=150, border_radius=10, border_color="#D1D1D6"
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -181,28 +192,25 @@ def main(page: ft.Page):
     sel_subject.on_change = on_sub_change
 
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8)
-    lbl_goal = ft.Text("今日进度: 0 / 6h", size=12, color="#8E8E93", weight="bold")
+    lbl_goal = ft.Text(value="今日进度: 0 / 6h", size=12, color="#8E8E93", weight="bold")
 
-    mode_sw_btn = ft.TextButton("🧱 正向筑城")
-    mode_pm_btn = ft.TextButton("🌱 番茄种树")
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 正向筑城", radius=10, expand=True, txt_color="#8E8E93", on_click=lambda e: switch_mode("stopwatch"))
+    mode_pm_view, mode_pm_lbl = create_btn("🌱 番茄种树", radius=10, expand=True, bgcolor="#E5E5EA", on_click=lambda e: switch_mode("pomodoro"))
 
     def switch_mode(m):
         if st.timer_active: return
         st.mode = m
-        mode_sw_btn.bgcolor = "#E5E5EA" if m == "stopwatch" else "transparent"
-        mode_sw_btn.color = "#1C1C1E" if m == "stopwatch" else "#8E8E93"
-        mode_pm_btn.bgcolor = "#E5E5EA" if m == "pomodoro" else "transparent"
-        mode_pm_btn.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
+        mode_sw_view.bgcolor = "#E5E5EA" if m == "stopwatch" else "transparent"
+        mode_sw_lbl.color = "#1C1C1E" if m == "stopwatch" else "#8E8E93"
+        mode_pm_view.bgcolor = "#E5E5EA" if m == "pomodoro" else "transparent"
+        mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
         sel_pomo.disabled = (m == "stopwatch")
         st.elapsed = 0
         update_focus_ui()
     
-    mode_sw_btn.on_click = lambda e: switch_mode("stopwatch")
-    mode_pm_btn.on_click = lambda e: switch_mode("pomodoro")
-
     sel_pomo = ft.Dropdown(
-        options=[ft.dropdown.Option(f"{m}分钟") for m in [15, 25, 35, 45, 60, 90]],
-        value="25分钟", width=120, dense=True, border_radius=10, border_width=1, border_color="#D1D1D6"
+        options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90]],
+        value="25分钟", width=120, border_radius=10, border_color="#D1D1D6"
     )
     def on_pomo_change(e):
         if st.timer_active: return
@@ -211,24 +219,27 @@ def main(page: ft.Page):
         update_focus_ui()
     sel_pomo.on_change = on_pomo_change
 
-    btn_start = ft.ElevatedButton("▶ 开始专注", bgcolor="#34C759", color="white", height=45, expand=True)
-    btn_stop = ft.ElevatedButton("⏹ 结束", bgcolor="#F4F5F7", color="#8E8E93", height=45, expand=True, disabled=True)
+    # 用手搓容器替代按钮
+    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=22, height=45, expand=True)
+    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F4F5F7", txt_color="#8E8E93", radius=22, height=45, expand=True)
 
     def toggle_timer(e):
         if not st.timer_active:
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed
-            btn_start.text = "⏸ 暂停"
-            btn_start.bgcolor = "#FF9500"
-            btn_stop.disabled = False
-            btn_stop.bgcolor = "#FF3B30"
-            btn_stop.color = "white"
+            btn_start_lbl.value = "⏸ 暂停"
+            btn_start_view.bgcolor = "#FF9500"
+            btn_stop_view.on_click = stop_timer # 激活结束按钮
+            btn_stop_view.bgcolor = "#FF3B30"
+            btn_stop_lbl.color = "white"
             sel_subject.disabled = True
         else:
             st.timer_active = False
-            btn_start.text = "▶ 继续专注"
-            btn_start.bgcolor = "#34C759"
+            btn_start_lbl.value = "▶ 继续专注"
+            btn_start_view.bgcolor = "#34C759"
         page.update()
+    
+    btn_start_view.on_click = toggle_timer
 
     def stop_timer(e):
         if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
@@ -245,13 +256,13 @@ def main(page: ft.Page):
             if save_dead: finish_and_save(is_dead=True)
             else: reset_timer()
 
+        btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", on_click=lambda e: on_confirm(True))
+        btn_n, _ = create_btn("否 (销毁)", bgcolor="#F4F5F7", on_click=lambda e: on_confirm(False))
+
         dlg = ft.AlertDialog(
-            title=ft.Text("确认结束", weight="bold"),
-            content=ft.Text(msg),
-            actions=[
-                ft.TextButton("是 (保存)", on_click=lambda e: on_confirm(True)),
-                ft.TextButton("否 (销毁)", on_click=lambda e: on_confirm(False))
-            ]
+            title=ft.Text(value="确认结束", weight="bold"),
+            content=ft.Text(value=msg),
+            actions=[btn_y, btn_n]
         )
         page.overlay.append(dlg)
         dlg.open = True
@@ -270,10 +281,12 @@ def main(page: ft.Page):
             reset_timer()
             page.update()
 
+        btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", on_click=on_save)
+
         dlg = ft.AlertDialog(
-            title=ft.Text("专注完成！", weight="bold"),
+            title=ft.Text(value="专注完成！", weight="bold"),
             content=txt_note,
-            actions=[ft.ElevatedButton("保存战果", bgcolor="#34C759", color="white", on_click=on_save)]
+            actions=[btn_save]
         )
         page.overlay.append(dlg)
         dlg.open = True
@@ -282,16 +295,13 @@ def main(page: ft.Page):
     def reset_timer():
         st.timer_active = False
         st.elapsed = 0
-        btn_start.text = "▶ 开始专注"
-        btn_start.bgcolor = "#34C759"
-        btn_stop.disabled = True
-        btn_stop.bgcolor = "#F4F5F7"
-        btn_stop.color = "#8E8E93"
+        btn_start_lbl.value = "▶ 开始专注"
+        btn_start_view.bgcolor = "#34C759"
+        btn_stop_view.on_click = None
+        btn_stop_view.bgcolor = "#F4F5F7"
+        btn_stop_lbl.color = "#8E8E93"
         sel_subject.disabled = False
         update_focus_ui()
-
-    btn_start.on_click = toggle_timer
-    btn_stop.on_click = stop_timer
 
     view_focus = ft.Container(
         content=ft.Column([
@@ -303,10 +313,10 @@ def main(page: ft.Page):
             ft.Container(height=10),
             ft.Column([lbl_goal, bar_goal], spacing=5),
             ft.Container(height=10),
-            ft.Row([mode_sw_btn, mode_pm_btn], alignment="center"),
+            ft.Row([mode_sw_view, mode_pm_view], alignment="center"),
             ft.Row([sel_pomo], alignment="center"),
             ft.Container(height=10),
-            ft.Row([btn_start, btn_stop], alignment="center", spacing=15)
+            ft.Row([btn_start_view, btn_stop_view], alignment="center", spacing=15)
         ]),
         bgcolor="white", border_radius=15, padding=20, expand=True
     )
@@ -338,37 +348,38 @@ def main(page: ft.Page):
         page.update()
 
     # ----------------- 图鉴视图 (1) -----------------
-    lbl_forest_sum = ft.Text("共收获 0 个战果", weight="bold", color="#8E8E93")
+    lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight="bold", color="#8E8E93")
     grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15)
     
-    forest_nav = []
+    forest_nav_btns = []
     def sw_forest(idx):
-        for i, b in enumerate(forest_nav):
-            b.bgcolor = "#1C1C1E" if i == idx else "transparent"
-            b.color = "white" if i == idx else "#8E8E93"
+        for i, item in enumerate(forest_nav_btns):
+            item["view"].bgcolor = "#1C1C1E" if i == idx else "transparent"
+            item["lbl"].color = "white" if i == idx else "#8E8E93"
         st.forest_scope = ["day", "week", "month"][idx]
         refresh_forest()
 
-    forest_nav = [
-        ft.TextButton("今日", on_click=lambda e: sw_forest(0)),
-        ft.TextButton("本周", on_click=lambda e: sw_forest(1)),
-        ft.TextButton("本月", on_click=lambda e: sw_forest(2)),
-    ]
+    def make_forest_btn(text, idx):
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: sw_forest(i), txt_color="#8E8E93")
+        forest_nav_btns.append({"view": view, "lbl": lbl})
+        return view
+
+    row_forest_nav = ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2)], alignment="center")
 
     def refresh_forest():
         records = db.get_filtered(st.forest_scope)
         lbl_forest_sum.value = f"共收获 {len(records)} 个战果"
         grid_forest.controls.clear()
         if not records:
-            grid_forest.controls.append(ft.Text("空空如也，快去专注吧 ✨", color="#8E8E93"))
+            grid_forest.controls.append(ft.Text(value="空空如也，快去专注吧 ✨", color="#8E8E93"))
         for r in records:
             tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
-            grid_forest.controls.append(ft.Text(r.get("tree","🌲"), size=42, tooltip=tip))
+            grid_forest.controls.append(ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip))
         page.update()
 
     view_forest = ft.Container(
         content=ft.Column([
-            ft.Row(forest_nav, alignment="center"),
+            row_forest_nav,
             ft.Row([lbl_forest_sum], alignment="center"),
             ft.Container(content=grid_forest, expand=True, bgcolor="#F4F5F7", padding=15, border_radius=10)
         ]),
@@ -376,22 +387,23 @@ def main(page: ft.Page):
     )
 
     # ----------------- 统计视图 (2) -----------------
-    lbl_stat_total = ft.Text("0s", size=42, weight="bold")
+    lbl_stat_total = ft.Text(value="0s", size=42, weight="bold")
     col_stats = ft.Column(scroll="adaptive")
 
-    stat_nav = []
+    stat_nav_btns = []
     def sw_stat(idx):
-        for i, b in enumerate(stat_nav):
-            b.bgcolor = "#1C1C1E" if i == idx else "transparent"
-            b.color = "white" if i == idx else "#8E8E93"
+        for i, item in enumerate(stat_nav_btns):
+            item["view"].bgcolor = "#1C1C1E" if i == idx else "transparent"
+            item["lbl"].color = "white" if i == idx else "#8E8E93"
         st.stats_scope = ["day", "week", "month"][idx]
         refresh_stats()
 
-    stat_nav = [
-        ft.TextButton("今日", on_click=lambda e: sw_stat(0)),
-        ft.TextButton("本周", on_click=lambda e: sw_stat(1)),
-        ft.TextButton("本月", on_click=lambda e: sw_stat(2)),
-    ]
+    def make_stat_btn(text, idx):
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: sw_stat(i), txt_color="#8E8E93")
+        stat_nav_btns.append({"view": view, "lbl": lbl})
+        return view
+
+    row_stat_nav = ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment="center")
 
     def refresh_stats():
         records = db.get_filtered(st.stats_scope)
@@ -400,7 +412,7 @@ def main(page: ft.Page):
         
         col_stats.controls.clear()
         if not records:
-            col_stats.controls.append(ft.Text("当前时段无专注数据", color="#8E8E93"))
+            col_stats.controls.append(ft.Text(value="当前时段无专注数据", color="#8E8E93"))
         
         smap = {}
         for r in records:
@@ -410,16 +422,16 @@ def main(page: ft.Page):
             pct = dur / total if total > 0 else 0
             col_stats.controls.append(
                 ft.Column([
-                    ft.Row([ft.Text(f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(format_dur(dur), color="#8E8E93")], alignment="spaceBetween"),
-                    ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=8)
+                    ft.Row([ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(value=format_dur(dur), color="#8E8E93")], alignment="spaceBetween"),
+                    ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=8, border_radius=4)
                 ], spacing=5)
             )
         page.update()
 
     view_stats = ft.Container(
         content=ft.Column([
-            ft.Row(stat_nav, alignment="center"),
-            ft.Container(content=lbl_stat_total, padding=10),
+            row_stat_nav,
+            ft.Container(content=lbl_stat_total, padding=ft.margin.only(top=10, bottom=10)),
             col_stats
         ]),
         bgcolor="white", border_radius=15, padding=20, expand=True, visible=False
@@ -438,13 +450,11 @@ def main(page: ft.Page):
     def render_subs():
         col_subs.controls.clear()
         for sub in db.data["subjects"]:
+            btn_del, _ = create_btn("删除", txt_color="red", on_click=lambda e, s=sub: del_sub(s))
             col_subs.controls.append(
                 ft.Container(
-                    content=ft.Row([
-                        ft.Text(sub, weight="bold", expand=True),
-                        ft.TextButton("删除", on_click=lambda e, s=sub: del_sub(s))
-                    ]),
-                    bgcolor="#F4F5F7", padding=10, border_radius=8
+                    content=ft.Row([ft.Text(value=sub, weight="bold", expand=True), btn_del]),
+                    bgcolor="#F4F5F7", padding=5, border_radius=8
                 )
             )
         page.update()
@@ -453,25 +463,37 @@ def main(page: ft.Page):
         v = txt_new_sub.value.strip()
         if v and v not in db.data["subjects"]:
             db.data["subjects"].append(v); db.save()
-            sel_subject.options = [ft.dropdown.Option(x) for x in db.data["subjects"]]
+            sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
             txt_new_sub.value = ""; render_subs()
+            
+    btn_add, _ = create_btn("添加", bgcolor="#34C759", txt_color="white", on_click=add_sub)
 
     def del_sub(s):
         if len(db.data["subjects"]) > 1:
             db.data["subjects"].remove(s); db.save()
-            sel_subject.options = [ft.dropdown.Option(x) for x in db.data["subjects"]]
+            sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
             sel_subject.value = db.data["subjects"][0]
             render_subs()
 
+    def on_export(e):
+        try:
+            with open("StudyEngine_Backup.json", "w", encoding="utf-8") as f:
+                json.dump(db.data, f, ensure_ascii=False, indent=4)
+        except: pass
+
+    btn_exp, _ = create_btn("⬇ 导出本地备份 (当前目录)", bgcolor="#E5E5EA", on_click=on_export)
+
     view_settings = ft.Container(
         content=ft.Column([
-            ft.Text("🎯 目标设置", weight="bold"),
+            ft.Text(value="🎯 目标设置", weight="bold"),
             txt_goal,
-            ft.Text("🏷️ 科目管理", weight="bold"),
+            ft.Divider(),
+            ft.Text(value="🏷️ 科目管理", weight="bold"),
             col_subs,
-            ft.Row([txt_new_sub, ft.ElevatedButton("添加", on_click=add_sub, bgcolor="#34C759", color="white")]),
-            ft.Text("💾 数据安全", weight="bold"),
-            ft.ElevatedButton("⬇ 导出本地备份", bgcolor="#E5E5EA", color="#1C1C1E")
+            ft.Row([txt_new_sub, btn_add]),
+            ft.Divider(),
+            ft.Text(value="💾 数据安全", weight="bold"),
+            btn_exp
         ], scroll="adaptive"),
         bgcolor="white", border_radius=15, padding=20, expand=True, visible=False
     )
