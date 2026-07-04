@@ -72,7 +72,7 @@ class DataManager:
             return [i for i in self.data["studyData"] if str(i.get("date")).startswith(prefix)]
         return []
 
-# ================= 2. 辅助函数 =================
+# ================= 2. 辅助函数与自研组件 =================
 def format_dur(seconds):
     s = max(0, int(seconds))
     h = s // 3600
@@ -88,7 +88,7 @@ def format_time(seconds):
         return f"{s//3600:02d}:{(s%3600)//60:02d}:{s%60:02d}"
     return f"{(s%3600)//60:02d}:{s%60:02d}"
 
-# 💡 核心防御黑科技：我们自己手搓一个“绝对安全”的按钮，不用官方的 Button！
+# 自制安全按钮，免疫官方 Button 更新导致的崩溃
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, height=None, padding=10):
     lbl = ft.Text(value=text, color=txt_color, weight="bold")
     cnt = ft.Container(
@@ -116,6 +116,17 @@ def main(page: ft.Page):
         page.window.height = 800
         page.window.min_width = 350
     except AttributeError: pass
+
+    # 自适应弹窗修复器（兼容最新与最老版本 Flet）
+    def open_dlg(d):
+        try: page.open(d)
+        except AttributeError:
+            try: page.overlay.append(d); d.open = True; page.update()
+            except Exception: page.dialog = d; d.open = True; page.update()
+
+    def close_dlg(d):
+        try: page.close(d)
+        except AttributeError: d.open = False; page.update()
 
     class State:
         timer_active = False
@@ -180,11 +191,10 @@ def main(page: ft.Page):
     lbl_time = ft.Text(value="25:00", size=70, weight="bold")
     lbl_quote = ft.Text(value="乾坤未定，你我皆是黑马。", size=13, color="#8E8E93")
     
-    # Dropdown 也是安全的
     sel_subject = ft.Dropdown(
-        options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
+        options=[ft.dropdown.Option(s) for s in db.data["subjects"]],
         value=db.data["currentSubject"],
-        width=150, border_radius=10, border_color="#D1D1D6"
+        width=150, dense=True, border_radius=10, border_color="#D1D1D6"
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -209,8 +219,8 @@ def main(page: ft.Page):
         update_focus_ui()
     
     sel_pomo = ft.Dropdown(
-        options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90]],
-        value="25分钟", width=120, border_radius=10, border_color="#D1D1D6"
+        options=[ft.dropdown.Option(f"{m}分钟") for m in [15, 25, 35, 45, 60, 90]],
+        value="25分钟", width=120, dense=True, border_radius=10, border_color="#D1D1D6"
     )
     def on_pomo_change(e):
         if st.timer_active: return
@@ -219,7 +229,6 @@ def main(page: ft.Page):
         update_focus_ui()
     sel_pomo.on_change = on_pomo_change
 
-    # 用手搓容器替代按钮
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=22, height=45, expand=True)
     btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F4F5F7", txt_color="#8E8E93", radius=22, height=45, expand=True)
 
@@ -229,7 +238,7 @@ def main(page: ft.Page):
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
             btn_start_view.bgcolor = "#FF9500"
-            btn_stop_view.on_click = stop_timer # 激活结束按钮
+            btn_stop_view.on_click = stop_timer
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
             sel_subject.disabled = True
@@ -251,8 +260,7 @@ def main(page: ft.Page):
             return
 
         def on_confirm(save_dead):
-            dlg.open = False
-            page.update()
+            close_dlg(dlg)
             if save_dead: finish_and_save(is_dead=True)
             else: reset_timer()
 
@@ -264,9 +272,7 @@ def main(page: ft.Page):
             content=ft.Text(value=msg),
             actions=[btn_y, btn_n]
         )
-        page.overlay.append(dlg)
-        dlg.open = True
-        page.update()
+        open_dlg(dlg)
 
     def finish_and_save(is_dead=False):
         if st.elapsed < 60:
@@ -276,7 +282,7 @@ def main(page: ft.Page):
             
         txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
         def on_save(e):
-            dlg.open = False
+            close_dlg(dlg)
             db.add_record(sel_subject.value, st.elapsed, st.mode, is_dead, txt_note.value)
             reset_timer()
             page.update()
@@ -288,9 +294,7 @@ def main(page: ft.Page):
             content=txt_note,
             actions=[btn_save]
         )
-        page.overlay.append(dlg)
-        dlg.open = True
-        page.update()
+        open_dlg(dlg)
 
     def reset_timer():
         st.timer_active = False
@@ -428,10 +432,11 @@ def main(page: ft.Page):
             )
         page.update()
 
+    # 💡 核心修复：清理了上一版中因为遗漏导致的 padding 报错，全部采用安全的整数！
     view_stats = ft.Container(
         content=ft.Column([
             row_stat_nav,
-            ft.Container(content=lbl_stat_total, padding=ft.margin.only(top=10, bottom=10)),
+            ft.Container(content=lbl_stat_total, padding=10),
             col_stats
         ]),
         bgcolor="white", border_radius=15, padding=20, expand=True, visible=False
@@ -463,7 +468,7 @@ def main(page: ft.Page):
         v = txt_new_sub.value.strip()
         if v and v not in db.data["subjects"]:
             db.data["subjects"].append(v); db.save()
-            sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+            sel_subject.options = [ft.dropdown.Option(x) for x in db.data["subjects"]]
             txt_new_sub.value = ""; render_subs()
             
     btn_add, _ = create_btn("添加", bgcolor="#34C759", txt_color="white", on_click=add_sub)
@@ -471,7 +476,7 @@ def main(page: ft.Page):
     def del_sub(s):
         if len(db.data["subjects"]) > 1:
             db.data["subjects"].remove(s); db.save()
-            sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+            sel_subject.options = [ft.dropdown.Option(x) for x in db.data["subjects"]]
             sel_subject.value = db.data["subjects"][0]
             render_subs()
 
