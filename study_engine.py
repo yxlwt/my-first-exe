@@ -106,14 +106,45 @@ class DataManager:
 # ================= 4. Flet 引擎主逻辑 =================
 def main(page: ft.Page):
     page.title = "冲刺备考引擎"
-    page.window.width = 460
-    page.window.height = 800
-    page.window.min_width = 350
-    page.window.min_height = 500
+    
+    # 💡 全版本兼容：容灾尺寸设定
+    try:
+        page.window.width = 460
+        page.window.height = 800
+        page.window.min_width = 350
+        page.window.min_height = 500
+    except AttributeError:
+        page.window_width = 460
+        page.window_height = 800
+        page.window_min_width = 350
+        page.window_min_height = 500
+        
     page.theme_mode = ft.ThemeMode.SYSTEM
     page.padding = 0
     page.spacing = 0
     page.scroll = ft.ScrollMode.ADAPTIVE 
+
+    # 💡 弹窗兼容性守护器
+    def show_dialog(dlg):
+        try: page.open(dlg)
+        except AttributeError:
+            page.dialog = dlg
+            dlg.open = True
+            page.update()
+
+    def hide_dialog(dlg):
+        try: page.close(dlg)
+        except AttributeError:
+            dlg.open = False
+            page.update()
+
+    def show_snack(txt):
+        snack = ft.SnackBar(content=ft.Text(txt))
+        try: page.open(snack)
+        except AttributeError:
+            page.snack_bar = snack
+            snack.open = True
+            page.update()
 
     db = DataManager()
     encouragements = [
@@ -141,10 +172,10 @@ def main(page: ft.Page):
             today = datetime.now().date()
             exam = datetime.strptime(db.data["examDate"], "%Y-%m-%d").date()
             diff = (exam - today).days
-            color = ft.Colors.RED if diff < 150 else ft.Colors.BLUE
+            color = "red" if diff < 150 else "blue"
             return f"距离初试仅剩 {diff} 天", color
         except:
-            return "距离初试仅剩 -- 天", ft.Colors.BLUE
+            return "距离初试仅剩 -- 天", "blue"
 
     exam_text, exam_color = get_exam_text()
     countdown_text = ft.Text(exam_text, size=18, weight=ft.FontWeight.BOLD, color=exam_color)
@@ -152,7 +183,7 @@ def main(page: ft.Page):
     countdown_container = ft.Container(
         content=ft.Row([countdown_text], alignment=ft.MainAxisAlignment.CENTER),
         padding=20,
-        bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST,
+        bgcolor="surfaceVariant",
         border_radius=15,
         margin=15
     )
@@ -168,18 +199,18 @@ def main(page: ft.Page):
     
     icon_text = ft.Text("🌰", size=90)
     time_text = ft.Text("25:00", size=75, weight=ft.FontWeight.BOLD, font_family="Consolas")
-    quote_text = ft.Text(random.choice(encouragements), size=13, color=ft.Colors.ON_SURFACE_VARIANT)
+    quote_text = ft.Text(random.choice(encouragements), size=13, color="onSurfaceVariant")
     
-    goal_label = ft.Text("🎯 今日进度: 0m / 6h", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
-    goal_bar = ft.ProgressBar(value=0, color=ft.Colors.GREEN, bgcolor=ft.Colors.ON_INVERSE_SURFACE, height=8, border_radius=4)
+    goal_label = ft.Text("🎯 今日进度: 0m / 6h", size=13, weight=ft.FontWeight.BOLD, color="onSurfaceVariant")
+    goal_bar = ft.ProgressBar(value=0, color="green", bgcolor="onInverseSurface", height=8) # 去除不稳定属性
     
-    # 💡 核心修复 1：将旧版 text="名字" 全部替换为 tab_content=ft.Text("名字")
     mode_tabs = ft.Tabs(
         selected_index=1,
         animation_duration=300,
+        # 💡 核心修复：坚决使用最基础的 text="名字"，绝不触发版本不兼容报错
         tabs=[
-            ft.Tab(tab_content=ft.Text("🧱 正向筑城")), 
-            ft.Tab(tab_content=ft.Text("🌱 番茄种树"))
+            ft.Tab(text="🧱 正向筑城"), 
+            ft.Tab(text="🌱 番茄种树")
         ]
     )
     
@@ -188,9 +219,8 @@ def main(page: ft.Page):
         value="25分钟", width=120, border_radius=10, dense=True
     )
 
-    # 💡 统一按钮文本参数的规范
-    btn_start = ft.ElevatedButton(text="▶ 开始专注", width=160, height=45, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22), bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE))
-    btn_stop = ft.ElevatedButton(text="⏹ 结束", width=160, height=45, disabled=True, style=ft.ButtonStyle(shape=ft.RoundedRectangleBorder(radius=22)))
+    btn_start = ft.ElevatedButton(text="▶ 开始专注", width=160, height=45, bgcolor="green", color="white")
+    btn_stop = ft.ElevatedButton(text="⏹ 结束", width=160, height=45, disabled=True)
 
     focus_col = ft.Column(
         controls=[
@@ -214,32 +244,32 @@ def main(page: ft.Page):
     forest_tabs = ft.Tabs(
         selected_index=0, 
         tabs=[
-            ft.Tab(tab_content=ft.Text("今日战果")), 
-            ft.Tab(tab_content=ft.Text("本周图鉴")), 
-            ft.Tab(tab_content=ft.Text("本月图鉴"))
+            ft.Tab(text="今日战果"), 
+            ft.Tab(text="本周图鉴"), 
+            ft.Tab(text="本月图鉴")
         ]
     )
-    forest_summary = ft.Text("累计收获 0 个战果", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
+    forest_summary = ft.Text("累计收获 0 个战果", size=14, weight=ft.FontWeight.BOLD, color="onSurfaceVariant")
     
     forest_grid = ft.Row(wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.START)
     
     forest_col = ft.Column([
         forest_tabs, 
         ft.Container(content=ft.Row([forest_summary], alignment=ft.MainAxisAlignment.CENTER), padding=5),
-        ft.Container(content=forest_grid, padding=15, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST, border_radius=15, expand=True)
+        ft.Container(content=forest_grid, padding=15, bgcolor="surfaceVariant", border_radius=15, expand=True)
     ], expand=True)
 
     # --- 统计 Tab ---
     stats_tabs = ft.Tabs(
         selected_index=0, 
         tabs=[
-            ft.Tab(tab_content=ft.Text("今日")), 
-            ft.Tab(tab_content=ft.Text("本周")), 
-            ft.Tab(tab_content=ft.Text("本月"))
+            ft.Tab(text="今日"), 
+            ft.Tab(text="本周"), 
+            ft.Tab(text="本月")
         ]
     )
     stats_total = ft.Text("0s", size=36, weight=ft.FontWeight.BOLD)
-    stats_delta = ft.Text("无对比数据", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE_VARIANT)
+    stats_delta = ft.Text("无对比数据", size=13, weight=ft.FontWeight.BOLD, color="onSurfaceVariant")
     
     stats_chart_col = ft.Column(spacing=15, scroll=ft.ScrollMode.ADAPTIVE)
     
@@ -247,7 +277,7 @@ def main(page: ft.Page):
         stats_tabs,
         ft.Container(
             content=ft.Row([stats_total, stats_delta], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-            padding=20, bgcolor=ft.Colors.SURFACE_CONTAINER_HIGHEST, border_radius=15
+            padding=20, bgcolor="surfaceVariant", border_radius=15
         ),
         ft.Container(content=stats_chart_col, padding=15, expand=True)
     ], expand=True)
@@ -261,8 +291,7 @@ def main(page: ft.Page):
         try:
             with open("StudyEngine_Backup.json", "w", encoding="utf-8") as f:
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
-            # 💡 核心修复 2：采用最新的 page.open 规范唤出提示条
-            page.open(ft.SnackBar(content=ft.Text("数据已导出为 StudyEngine_Backup.json！")))
+            show_snack("数据已导出为 StudyEngine_Backup.json！")
         except Exception:
             pass
 
@@ -275,7 +304,7 @@ def main(page: ft.Page):
         ft.Row([new_sub_input, ft.ElevatedButton(text="＋ 新增", on_click=lambda e: add_subject())]),
         ft.Divider(),
         ft.Text("💾 数据容灾", size=16, weight=ft.FontWeight.BOLD),
-        ft.ElevatedButton(text="⬇ 导出本地记录备份 (当前目录)", icon="download", on_click=on_export)
+        ft.ElevatedButton(text="⬇ 导出备份 (当前目录)", icon="download", on_click=on_export)
     ], scroll=ft.ScrollMode.ADAPTIVE)
 
     # --- 主导航框架 ---
@@ -283,10 +312,10 @@ def main(page: ft.Page):
         selected_index=0,
         expand=True,
         tabs=[
-            ft.Tab(tab_content=ft.Text("专注"), content=ft.Container(content=focus_col, padding=15)),
-            ft.Tab(tab_content=ft.Text("图鉴"), content=ft.Container(content=forest_col, padding=15)),
-            ft.Tab(tab_content=ft.Text("统计"), content=ft.Container(content=stats_col, padding=15)),
-            ft.Tab(tab_content=ft.Text("设置"), content=ft.Container(content=settings_col, padding=15))
+            ft.Tab(text="专注", content=ft.Container(content=focus_col, padding=15)),
+            ft.Tab(text="图鉴", content=ft.Container(content=forest_col, padding=15)),
+            ft.Tab(text="统计", content=ft.Container(content=stats_col, padding=15)),
+            ft.Tab(text="设置", content=ft.Container(content=settings_col, padding=15))
         ]
     )
 
@@ -331,16 +360,16 @@ def main(page: ft.Page):
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed_time
             btn_start.text = "⏸ 暂停专注"
-            btn_start.style.bgcolor = ft.Colors.ORANGE
+            btn_start.bgcolor = "orange"
             btn_stop.disabled = False
-            btn_stop.style.bgcolor = ft.Colors.RED
-            btn_stop.style.color = ft.Colors.WHITE
+            btn_stop.bgcolor = "red"
+            btn_stop.color = "white"
             subject_dropdown.disabled = True
             pomo_dropdown.disabled = True
         else:
             st.timer_active = False
             btn_start.text = "▶ 继续专注"
-            btn_start.style.bgcolor = ft.Colors.GREEN
+            btn_start.bgcolor = "green"
         page.update()
 
     def process_termination(auto_save=False):
@@ -348,27 +377,26 @@ def main(page: ft.Page):
         if not auto_save:
             if st.mode == "pomodoro" and st.elapsed_time < st.pomo_target:
                 def confirm_pomo(e, yes):
-                    page.close(dlg)
+                    hide_dialog(dlg)
                     if yes: 
                         ask_for_note(is_dead=True)
                     else:
                         abort_run()
 
-                # 💡 核心修复 3：适配最新版弹窗逻辑
                 dlg = ft.AlertDialog(
                     title=ft.Text("放弃警告"),
                     content=ft.Text("番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if st.elapsed_time >= 60 else "不足 1 分钟，直接放弃不会枯死。\n强行保存将记入枯树 🥀。"),
                     actions=[
-                        ft.TextButton(text="是 (保存)", on_click=lambda e: confirm_pomo(e, True)),
-                        ft.TextButton(text="否 (销毁)", on_click=lambda e: confirm_pomo(e, False)),
+                        ft.TextButton(text="是 (保存枯树)", on_click=lambda e: confirm_pomo(e, True)),
+                        ft.TextButton(text="否 (销毁记录)", on_click=lambda e: confirm_pomo(e, False)),
                     ]
                 )
-                page.open(dlg)
+                show_dialog(dlg)
                 return
 
             elif st.mode == "stopwatch" and st.elapsed_time < 60:
                 def confirm_sw(e, yes):
-                    page.close(dlg)
+                    hide_dialog(dlg)
                     if yes: ask_for_note(is_dead=False)
                     else: abort_run()
 
@@ -380,7 +408,7 @@ def main(page: ft.Page):
                         ft.TextButton(text="否", on_click=lambda e: confirm_sw(e, False)),
                     ]
                 )
-                page.open(dlg)
+                show_dialog(dlg)
                 return
 
         ask_for_note(is_dead=False)
@@ -393,7 +421,7 @@ def main(page: ft.Page):
         note_field = ft.TextField(label="复盘便签 (选填)", width=300)
         
         def finish_save(e):
-            page.close(dlg)
+            hide_dialog(dlg)
             save_and_reset(is_dead, note_field.value)
 
         dlg = ft.AlertDialog(
@@ -401,7 +429,7 @@ def main(page: ft.Page):
             content=ft.Column([ft.Text(f"💡 {random.choice(encouragements)}"), note_field], tight=True),
             actions=[ft.ElevatedButton(text="保存战果", on_click=finish_save)]
         )
-        page.open(dlg)
+        show_dialog(dlg)
 
     def save_and_reset(is_dead, note):
         db.add_record(subject_dropdown.value, st.elapsed_time, st.mode, is_dead, note[:50])
@@ -413,12 +441,13 @@ def main(page: ft.Page):
         st.timer_active = False
         st.elapsed_time = 0
         btn_start.text = "▶ 开始专注"
-        btn_start.style.bgcolor = ft.Colors.GREEN
+        btn_start.bgcolor = "green"
         btn_stop.disabled = True
-        btn_stop.style.bgcolor = None
-        btn_stop.style.color = None
+        btn_stop.bgcolor = None
+        btn_stop.color = None
         subject_dropdown.disabled = False
         pomo_dropdown.disabled = False
+        
         update_visuals()
 
     btn_start.on_click = handle_start_stop
@@ -456,7 +485,7 @@ def main(page: ft.Page):
         
         forest_grid.controls.clear()
         if not records:
-            forest_grid.controls.append(ft.Text("空空如也，快去专注吧 ✨", color=ft.Colors.ON_SURFACE_VARIANT))
+            forest_grid.controls.append(ft.Text("空空如也，快去专注吧 ✨", color="onSurfaceVariant"))
         else:
             for r in records:
                 note_str = f" [{r['note']}]" if r.get('note') else ""
@@ -475,7 +504,7 @@ def main(page: ft.Page):
         
         stats_chart_col.controls.clear()
         if not records:
-            stats_chart_col.controls.append(ft.Text("当前时段无专注数据", color=ft.Colors.ON_SURFACE_VARIANT))
+            stats_chart_col.controls.append(ft.Text("当前时段无专注数据", color="onSurfaceVariant"))
         else:
             subject_map = {}
             for r in records:
@@ -485,8 +514,8 @@ def main(page: ft.Page):
                 pct = dur / curr_total if curr_total > 0 else 0
                 stats_chart_col.controls.append(
                     ft.Column([
-                        ft.Row([ft.Text(f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(format_dur(dur), color=ft.Colors.ON_SURFACE_VARIANT)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.ProgressBar(value=pct, height=8, border_radius=4)
+                        ft.Row([ft.Text(f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(format_dur(dur), color="onSurfaceVariant")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.ProgressBar(value=pct, height=8) # 消除隐患属性
                     ], spacing=5)
                 )
         page.update()
@@ -511,7 +540,7 @@ def main(page: ft.Page):
                 
             row = ft.Row([
                 ft.Text(f"• {sub}", size=14, weight="bold", expand=True),
-                ft.TextButton(text="删除", icon=ft.icons.DELETE, icon_color=ft.Colors.RED, on_click=make_del_func(sub))
+                ft.TextButton(text="删除", icon="delete", icon_color="red", on_click=make_del_func(sub))
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
             sub_list_col.controls.append(row)
         page.update()
