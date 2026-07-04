@@ -126,7 +126,7 @@ def main(page: ft.Page):
         page.window.min_height = 600
     except AttributeError: pass
 
-    # 安全弹窗引擎
+    # 安全的弹窗引擎
     def open_dlg(d):
         try: page.open(d)
         except AttributeError:
@@ -324,11 +324,16 @@ def main(page: ft.Page):
         sel_subject.disabled = False
         update_focus_ui()
 
+    # 💡 布局修复：嵌套 Row 满宽强制居中，终结视觉偏移
     view_focus = ft.Container(
         content=ft.Column([
             ft.Row([sel_subject], alignment="center"),
             ft.Container(height=15),
-            ft.Column([lbl_icon, lbl_time, lbl_quote], alignment="center", horizontal_alignment="center", expand=True),
+            ft.Column([
+                ft.Row([lbl_icon], alignment="center"),
+                ft.Row([lbl_time], alignment="center"),
+                ft.Row([lbl_quote], alignment="center"),
+            ], alignment="center", expand=True, spacing=5),
             ft.Column([
                 lbl_goal, bar_goal,
                 ft.Container(height=10),
@@ -363,7 +368,14 @@ def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
-        page.update()
+        
+        # 💡 逻辑修复：强制只推这两个核心元素的数据，彻底告别幽灵跳秒
+        try:
+            lbl_time.update()
+            lbl_icon.update()
+            lbl_goal.update()
+            bar_goal.update()
+        except: pass
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight="bold", color="#8E8E93")
@@ -453,7 +465,6 @@ def main(page: ft.Page):
             )
         page.update()
 
-    # 💡 彻底修复 padding bug，改用 ft.Container 的 height 做物理隔断
     view_stats = ft.Container(
         content=ft.Column([
             row_stat_nav,
@@ -545,7 +556,7 @@ def main(page: ft.Page):
 
     def loop():
         while True:
-            time.sleep(0.1) 
+            time.sleep(0.5) 
             if not st.timer_active: continue
             
             logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
