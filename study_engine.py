@@ -3,7 +3,6 @@ import json
 import os
 import sys
 import time
-import threading
 import random
 import traceback
 from datetime import datetime, timedelta
@@ -126,18 +125,24 @@ def main(page: ft.Page):
         page.window.min_height = 600
     except AttributeError: pass
 
-    # 安全的弹窗引擎
-    def open_dlg(d):
-        try: page.open(d)
-        except AttributeError:
-            try: 
-                page.overlay.clear() 
-                page.overlay.append(d); d.open = True; page.update()
-            except Exception: page.dialog = d; d.open = True; page.update()
+    # 💡 逻辑修复 2：全局独占的绝对安全弹窗引擎
+    global_dlg = ft.AlertDialog(modal=True)
 
-    def close_dlg(d):
-        try: page.close(d)
-        except AttributeError: d.open = False; page.update()
+    def show_dialog(title_txt, content_ctrl, actions_list):
+        global_dlg.title = ft.Text(value=title_txt, weight="bold")
+        global_dlg.content = content_ctrl
+        global_dlg.actions = actions_list
+        try: page.open(global_dlg)
+        except AttributeError:
+            page.dialog = global_dlg
+            global_dlg.open = True
+            page.update()
+
+    def hide_dialog():
+        try: page.close(global_dlg)
+        except AttributeError:
+            global_dlg.open = False
+            page.update()
 
     class State:
         timer_active = False
@@ -197,8 +202,8 @@ def main(page: ft.Page):
     )
 
     # ----------------- 专注视图 (0) -----------------
-    lbl_icon = ft.Text(value="🌰", size=90)
-    lbl_time = ft.Text(value="25:00", size=72, weight="bold")
+    lbl_icon = ft.Text(value="🌰", size=100)
+    lbl_time = ft.Text(value="25:00", size=80, weight="bold")
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93")
     
     sel_subject = ft.Dropdown(
@@ -265,39 +270,38 @@ def main(page: ft.Page):
         st.timer_active = False 
         page.update()
         
-        if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
-            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if st.elapsed >= 60 else "不足 1 分钟，放弃不留记录。"
-        elif st.mode == "stopwatch" and st.elapsed < 60:
-            msg = "筑城不足 1 分钟，只留下废料 🚧。确定保存吗？"
+        def on_confirm_save(evt):
+            hide_dialog()
+            trigger_success_dialog(is_dead=True)
+
+        def on_confirm_discard(evt):
+            hide_dialog()
+            reset_timer()
+
+        # 逻辑修复 2：极其清晰、不会被污染的弹窗判定逻辑
+        if st.elapsed < 60:
+            btn_discard, _ = create_btn("确定销毁", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=on_confirm_discard)
+            show_dialog(
+                "时间过短", 
+                ft.Text(value="专注不足 1 分钟，无法形成有效记录。"), 
+                [ft.Row([btn_discard])]
+            )
         else:
-            trigger_success_dialog(is_dead=False)
-            return
-
-        def on_confirm(save_dead):
-            close_dlg(dlg)
-            if save_dead: trigger_success_dialog(is_dead=True)
-            else: reset_timer()
-
-        btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
-        btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=lambda e: on_confirm(False))
-
-        dlg = ft.AlertDialog(
-            modal=True,
-            title=ft.Text(value="确认结束", weight="bold"),
-            content=ft.Text(value=msg),
-            actions=[ft.Row([btn_y, btn_n])]
-        )
-        open_dlg(dlg)
+            if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
+                btn_save_dead, _ = create_btn("保存枯树", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=on_confirm_save)
+                btn_discard, _ = create_btn("直接销毁", bgcolor="#F2F2F7", expand=True, on_click=on_confirm_discard)
+                show_dialog(
+                    "放弃番茄钟", 
+                    ft.Text(value="番茄钟未完成，放弃将留下枯树 🥀。"), 
+                    [ft.Row([btn_save_dead, btn_discard])]
+                )
+            else:
+                trigger_success_dialog(is_dead=False)
 
     def trigger_success_dialog(is_dead=False):
-        if st.elapsed < 60:
-            db.add_record(sel_subject.value, st.elapsed, st.mode, is_dead, "")
-            reset_timer()
-            return
-            
         txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
         def on_save(e):
-            close_dlg(dlg)
+            hide_dialog()
             db.add_record(sel_subject.value, st.elapsed, st.mode, is_dead, txt_note.value)
             reset_timer()
             refresh_forest()
@@ -305,13 +309,14 @@ def main(page: ft.Page):
 
         btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
 
-        dlg = ft.AlertDialog(
-            modal=True,
-            title=ft.Text(value="🎉 专注完成！", weight="bold"),
-            content=ft.Column([ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), txt_note], tight=True),
-            actions=[ft.Row([btn_save])]
+        title_text = "🥀 专注中断" if is_dead else "🎉 专注完成！"
+        msg_text = "虽然失败了，但也要总结经验。" if is_dead else random.choice(ENCOURAGEMENTS)
+
+        show_dialog(
+            title_text,
+            ft.Column([ft.Text(value=msg_text, color="#8E8E93"), txt_note], tight=True),
+            [ft.Row([btn_save])]
         )
-        open_dlg(dlg)
 
     def reset_timer():
         st.timer_active = False
@@ -324,7 +329,7 @@ def main(page: ft.Page):
         sel_subject.disabled = False
         update_focus_ui()
 
-    # 💡 布局修复：嵌套 Row 满宽强制居中，终结视觉偏移
+    # 💡 布局修复：强行使用 ft.Row(alignment="center") 保证每一行都绝对居中对齐
     view_focus = ft.Container(
         content=ft.Column([
             ft.Row([sel_subject], alignment="center"),
@@ -368,14 +373,7 @@ def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
-        
-        # 💡 逻辑修复：强制只推这两个核心元素的数据，彻底告别幽灵跳秒
-        try:
-            lbl_time.update()
-            lbl_icon.update()
-            lbl_goal.update()
-            bar_goal.update()
-        except: pass
+        page.update()
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight="bold", color="#8E8E93")
@@ -554,28 +552,26 @@ def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    def loop():
-        while True:
-            time.sleep(0.5) 
-            if not st.timer_active: continue
+    # 💡 逻辑修复 1：将心跳挂载到 Flet 主事件循环，打破“不点不刷”的魔咒
+    while True:
+        time.sleep(0.1) 
+        if not st.timer_active: continue
+        
+        logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
+        if logical_now != st.last_date:
+            st.last_date = logical_now
+            refresh_forest(); refresh_stats()
+        
+        st.elapsed = time.time() - st.start_tick
+        
+        if st.mode == "pomodoro" and st.elapsed >= st.pomo_target:
+            st.timer_active = False 
+            st.elapsed = st.pomo_target
+            try: import winsound; winsound.Beep(800, 500)
+            except: pass
+            trigger_success_dialog(is_dead=False)
             
-            logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
-            if logical_now != st.last_date:
-                st.last_date = logical_now
-                refresh_forest(); refresh_stats()
-            
-            st.elapsed = time.time() - st.start_tick
-            
-            if st.mode == "pomodoro" and st.elapsed >= st.pomo_target:
-                st.timer_active = False 
-                st.elapsed = st.pomo_target
-                try: import winsound; winsound.Beep(800, 500)
-                except: pass
-                trigger_success_dialog(is_dead=False)
-                
-            update_focus_ui()
-
-    threading.Thread(target=loop, daemon=True).start()
+        update_focus_ui()
 
 # ================= 4. 防崩沙盒入口 =================
 if __name__ == "__main__":
