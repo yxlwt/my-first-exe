@@ -115,11 +115,12 @@ def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", 
 def main(page: ft.Page):
     db = DataManager(DATA_FILE)
     page.title = "冲刺备考引擎"
-    page.bgcolor = "#F2F2F7" 
+    page.bgcolor = "#F2F2F7"
     page.padding = 15
     page.theme_mode = ft.ThemeMode.SYSTEM
     page.scroll = ft.ScrollMode.ADAPTIVE
     
+    # 🚀 修复点：适配最新 Flet 版本的窗口设置属性
     try:
         page.window.width = 460
         page.window.height = 800
@@ -127,15 +128,12 @@ def main(page: ft.Page):
         page.window.min_height = 600
     except AttributeError: pass
 
-    # 安全的单一弹窗引擎
+    # 🚀 修复点：适配最新版 Flet (0.22+) 的弹窗 API
     def open_dlg(d):
-        page.dialog = d
-        d.open = True
-        page.update()
+        page.open(d)
 
     def close_dlg(d):
-        d.open = False
-        page.update()
+        page.close(d)
 
     class State:
         timer_active = False
@@ -195,7 +193,6 @@ def main(page: ft.Page):
     )
 
     # ----------------- 专注视图 (0) -----------------
-    # 💡 布局修复：自带原生居中属性，告别漂移
     lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
     lbl_time = ft.Text(value="25:00", size=80, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
@@ -261,7 +258,7 @@ def main(page: ft.Page):
     btn_start_view.on_click = toggle_timer
 
     def stop_timer(e):
-        st.timer_active = False # 强制冻结时间
+        st.timer_active = False
         page.update()
         
         if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
@@ -272,7 +269,6 @@ def main(page: ft.Page):
             trigger_success_dialog(is_dead=False)
             return
 
-        # 💡 漏洞修复：一次性弹窗，避免连续弹窗导致死锁！
         def on_confirm(save_dead):
             close_dlg(dlg)
             if save_dead:
@@ -545,7 +541,6 @@ def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 💡 核心漏洞修复：强制全屏实时刷新！
     def heart_beat():
         while True:
             time.sleep(0.2) 
@@ -570,7 +565,6 @@ def main(page: ft.Page):
                 continue
                 
             update_focus_ui()
-            # 强制主动推送更新，切断幽灵跳秒！
             try: page.update() 
             except: pass
 
