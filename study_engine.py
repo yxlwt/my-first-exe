@@ -120,20 +120,35 @@ def main(page: ft.Page):
     page.theme_mode = ft.ThemeMode.SYSTEM
     page.scroll = ft.ScrollMode.ADAPTIVE
     
-    # 🚀 修复点：适配最新 Flet 版本的窗口设置属性
+    # 修复点：自适应兼容旧版和新版的窗口属性设定
     try:
         page.window.width = 460
         page.window.height = 800
         page.window.min_width = 380
         page.window.min_height = 600
-    except AttributeError: pass
+    except AttributeError:
+        try:
+            page.window_width = 460
+            page.window_height = 800
+            page.window_min_width = 380
+            page.window_min_height = 600
+        except: pass
 
-    # 🚀 修复点：适配最新版 Flet (0.22+) 的弹窗 API
+    # 修复点：全环境自适应弹窗引擎（彻底解决 'open' 报错）
     def open_dlg(d):
-        page.open(d)
+        try:
+            page.open(d)
+        except AttributeError:
+            page.dialog = d
+            d.open = True
+            page.update()
 
     def close_dlg(d):
-        page.close(d)
+        try:
+            page.close(d)
+        except AttributeError:
+            d.open = False
+            page.update()
 
     class State:
         timer_active = False
@@ -221,9 +236,10 @@ def main(page: ft.Page):
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
         mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
         sel_pomo.disabled = (m == "stopwatch")
-        st.elapsed = 0
-        update_focus_ui()
-    
+        
+        # 修复点：彻底掐断状态残留引发的幽灵跳秒
+        reset_timer()
+
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90]],
         value="25分钟", width=120, dense=True, border_radius=10, border_color="#D1D1D6"
@@ -231,8 +247,9 @@ def main(page: ft.Page):
     def on_pomo_change(e):
         if st.timer_active: return
         st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
-        st.elapsed = 0
-        update_focus_ui()
+        # 修复点：修改目标时必须重置状态，防止错乱
+        reset_timer()
+        
     sel_pomo.on_change = on_pomo_change
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
@@ -309,6 +326,7 @@ def main(page: ft.Page):
         )
         open_dlg(dlg)
 
+    # 修复点：加入了页面刷新指令，确保重置时画面无延迟跟进
     def reset_timer():
         st.timer_active = False
         st.elapsed = 0
@@ -319,6 +337,8 @@ def main(page: ft.Page):
         btn_stop_lbl.color = "#8E8E93"
         sel_subject.disabled = False
         update_focus_ui()
+        try: page.update()
+        except: pass
 
     view_focus = ft.Container(
         content=ft.Column([
@@ -395,7 +415,8 @@ def main(page: ft.Page):
         for r in records:
             tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
             grid_forest.controls.append(ft.Text(value=r.get("tree","🌲"), size=45, tooltip=tip))
-        page.update()
+        try: page.update()
+        except: pass
 
     view_forest = ft.Container(
         content=ft.Column([
@@ -450,7 +471,8 @@ def main(page: ft.Page):
                     ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=10, border_radius=5)
                 ], spacing=8)
             )
-        page.update()
+        try: page.update()
+        except: pass
 
     view_stats = ft.Container(
         content=ft.Column([
@@ -483,7 +505,8 @@ def main(page: ft.Page):
                     bgcolor="#F2F2F7", padding=8, border_radius=10
                 )
             )
-        page.update()
+        try: page.update()
+        except: pass
 
     def add_sub(e):
         v = txt_new_sub.value.strip()
@@ -498,7 +521,10 @@ def main(page: ft.Page):
         if len(db.data["subjects"]) > 1:
             db.data["subjects"].remove(s); db.save()
             sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+            # 修复点：删除当前选中的科目时，同步更新顶部的当前科目
             sel_subject.value = db.data["subjects"][0]
+            db.data["currentSubject"] = sel_subject.value
+            db.save()
             render_subs()
 
     def on_export(e):
