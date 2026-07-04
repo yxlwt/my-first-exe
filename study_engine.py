@@ -15,7 +15,6 @@ else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(application_path, "study_data.json")
 
-# 💡 修复：找回丢失的语录库！
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
     "你做三四月的事，在十二月自有答案。",
@@ -127,11 +126,13 @@ def main(page: ft.Page):
         page.window.min_height = 600
     except AttributeError: pass
 
-    # 自适应弹窗修复器
+    # 💡 漏洞修复 1：安全的弹窗引擎，切断内存泄漏
     def open_dlg(d):
         try: page.open(d)
         except AttributeError:
-            try: page.overlay.append(d); d.open = True; page.update()
+            try: 
+                page.overlay.clear() # 弹出前先清空旧垃圾
+                page.overlay.append(d); d.open = True; page.update()
             except Exception: page.dialog = d; d.open = True; page.update()
 
     def close_dlg(d):
@@ -162,7 +163,7 @@ def main(page: ft.Page):
 
     card_countdown = ft.Container(
         content=ft.Row([countdown_text], alignment="center"),
-        bgcolor="white", border_radius=12, padding=15, margin=5 # 增加呼吸感
+        bgcolor="white", border_radius=12, padding=15, margin=5 
     )
 
     # ----------------- 优雅的 iOS 分段导航栏 -----------------
@@ -251,7 +252,7 @@ def main(page: ft.Page):
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
             sel_subject.disabled = True
-            lbl_quote.value = random.choice(ENCOURAGEMENTS) # 每次点击开始都换一句鸡汤
+            lbl_quote.value = random.choice(ENCOURAGEMENTS) 
         else:
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
@@ -261,7 +262,7 @@ def main(page: ft.Page):
     btn_start_view.on_click = toggle_timer
 
     def stop_timer(e):
-        st.timer_active = False # 💡 逻辑修复：强制冻结后台计时器！
+        st.timer_active = False 
         page.update()
         
         if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
@@ -280,7 +281,9 @@ def main(page: ft.Page):
         btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
         btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=lambda e: on_confirm(False))
 
+        # 💡 漏洞修复 2：modal=True 防误触外侧关闭弹窗
         dlg = ft.AlertDialog(
+            modal=True,
             title=ft.Text(value="确认结束", weight="bold"),
             content=ft.Text(value=msg),
             actions=[ft.Row([btn_y, btn_n])]
@@ -303,8 +306,9 @@ def main(page: ft.Page):
 
         btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
 
-        # 💡 逻辑修复：这里现在可以安全地调用 ENCOURAGEMENTS 了！
+        # 💡 漏洞修复 2：modal=True 保护专注成果不被误关丢失
         dlg = ft.AlertDialog(
+            modal=True,
             title=ft.Text(value="🎉 专注完成！", weight="bold"),
             content=ft.Column([ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), txt_note], tight=True),
             actions=[ft.Row([btn_save])]
@@ -325,7 +329,6 @@ def main(page: ft.Page):
     view_focus = ft.Container(
         content=ft.Column([
             ft.Row([sel_subject], alignment="center"),
-            # 增加悬浮留白
             ft.Container(height=15),
             ft.Column([lbl_icon, lbl_time, lbl_quote], alignment="center", horizontal_alignment="center", expand=True),
             ft.Column([
@@ -539,17 +542,14 @@ def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 💡 逻辑修复：将刷新频率从 0.5s 提高到了 0.1s，彻底解决跳秒错觉！
     def loop():
         while True:
             time.sleep(0.1) 
             if not st.timer_active: continue
             
+            # 💡 漏洞修复 3：跨天时不重置当前倒计时，只静默刷新数据版面
             logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
             if logical_now != st.last_date:
-                db.add_record(sel_subject.value, st.elapsed, st.mode, False, "跨天自动结转")
-                st.elapsed = 0
-                st.start_tick = time.time()
                 st.last_date = logical_now
                 refresh_forest(); refresh_stats()
             
