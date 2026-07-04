@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+import threading
 import random
 import traceback
 from datetime import datetime, timedelta
@@ -97,9 +98,9 @@ def format_time(seconds):
     return f"{(s%3600)//60:02d}:{s%60:02d}"
 
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, height=None, padding=10):
-    lbl = ft.Text(value=text, color=txt_color, weight="bold")
+    lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD)
     cnt = ft.Container(
-        content=ft.Row([lbl], alignment="center"),
+        content=ft.Row([lbl], alignment=ft.MainAxisAlignment.CENTER),
         bgcolor=bgcolor,
         border_radius=radius,
         padding=padding,
@@ -115,8 +116,8 @@ def main(page: ft.Page):
     page.title = "冲刺备考引擎"
     page.bgcolor = "#F2F2F7" 
     page.padding = 15
-    page.theme_mode = "system"
-    page.scroll = "adaptive"
+    page.theme_mode = ft.ThemeMode.SYSTEM
+    page.scroll = ft.ScrollMode.ADAPTIVE
     
     try:
         page.window.width = 460
@@ -125,24 +126,15 @@ def main(page: ft.Page):
         page.window.min_height = 600
     except AttributeError: pass
 
-    # 💡 逻辑修复 2：全局独占的绝对安全弹窗引擎
-    global_dlg = ft.AlertDialog(modal=True)
+    # 💡 绝对安全弹窗引擎
+    def open_dlg(d):
+        page.dialog = d
+        d.open = True
+        page.update()
 
-    def show_dialog(title_txt, content_ctrl, actions_list):
-        global_dlg.title = ft.Text(value=title_txt, weight="bold")
-        global_dlg.content = content_ctrl
-        global_dlg.actions = actions_list
-        try: page.open(global_dlg)
-        except AttributeError:
-            page.dialog = global_dlg
-            global_dlg.open = True
-            page.update()
-
-    def hide_dialog():
-        try: page.close(global_dlg)
-        except AttributeError:
-            global_dlg.open = False
-            page.update()
+    def close_dlg(d):
+        d.open = False
+        page.update()
 
     class State:
         timer_active = False
@@ -157,7 +149,7 @@ def main(page: ft.Page):
     st = State()
 
     # ----------------- 顶部倒计时看板 -----------------
-    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=16, weight="bold", color="#007AFF")
+    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=16, weight=ft.FontWeight.BOLD, color="#007AFF")
     try:
         today = datetime.now().date()
         exam = datetime.strptime(db.data["examDate"], "%Y-%m-%d").date()
@@ -167,7 +159,7 @@ def main(page: ft.Page):
     except: pass
 
     card_countdown = ft.Container(
-        content=ft.Row([countdown_text], alignment="center"),
+        content=ft.Row([countdown_text], alignment=ft.MainAxisAlignment.CENTER),
         bgcolor="white", border_radius=12, padding=15, margin=5 
     )
 
@@ -197,13 +189,13 @@ def main(page: ft.Page):
         content=ft.Row([
             make_nav_btn("专注", 0), make_nav_btn("图鉴", 1),
             make_nav_btn("统计", 2), make_nav_btn("设置", 3)
-        ], alignment="center", spacing=0),
+        ], alignment=ft.MainAxisAlignment.CENTER, spacing=0),
         bgcolor="#E5E5EA", border_radius=10, padding=4, margin=5
     )
 
     # ----------------- 专注视图 (0) -----------------
-    lbl_icon = ft.Text(value="🌰", size=100)
-    lbl_time = ft.Text(value="25:00", size=80, weight="bold")
+    lbl_icon = ft.Text(value="🌰", size=90)
+    lbl_time = ft.Text(value="25:00", size=72, weight=ft.FontWeight.BOLD)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93")
     
     sel_subject = ft.Dropdown(
@@ -217,7 +209,7 @@ def main(page: ft.Page):
     sel_subject.on_change = on_sub_change
 
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
-    lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight="bold")
+    lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
     mode_pm_view, mode_pm_lbl = create_btn("🌱 种树 (番茄)", radius=8, expand=True, bgcolor="#FFFFFF", padding=8, on_click=lambda e: switch_mode("pomodoro"))
@@ -270,38 +262,38 @@ def main(page: ft.Page):
         st.timer_active = False 
         page.update()
         
-        def on_confirm_save(evt):
-            hide_dialog()
-            trigger_success_dialog(is_dead=True)
-
-        def on_confirm_discard(evt):
-            hide_dialog()
-            reset_timer()
-
-        # 逻辑修复 2：极其清晰、不会被污染的弹窗判定逻辑
-        if st.elapsed < 60:
-            btn_discard, _ = create_btn("确定销毁", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=on_confirm_discard)
-            show_dialog(
-                "时间过短", 
-                ft.Text(value="专注不足 1 分钟，无法形成有效记录。"), 
-                [ft.Row([btn_discard])]
-            )
+        if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
+            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if st.elapsed >= 60 else "不足 1 分钟，放弃不留记录。"
+        elif st.mode == "stopwatch" and st.elapsed < 60:
+            msg = "筑城不足 1 分钟，只留下废料 🚧。确定保存吗？"
         else:
-            if st.mode == "pomodoro" and st.elapsed < st.pomo_target:
-                btn_save_dead, _ = create_btn("保存枯树", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=on_confirm_save)
-                btn_discard, _ = create_btn("直接销毁", bgcolor="#F2F2F7", expand=True, on_click=on_confirm_discard)
-                show_dialog(
-                    "放弃番茄钟", 
-                    ft.Text(value="番茄钟未完成，放弃将留下枯树 🥀。"), 
-                    [ft.Row([btn_save_dead, btn_discard])]
-                )
-            else:
-                trigger_success_dialog(is_dead=False)
+            trigger_success_dialog(is_dead=False)
+            return
+
+        def on_confirm(save_dead):
+            close_dlg(dlg)
+            if save_dead: trigger_success_dialog(is_dead=True)
+            else: reset_timer()
+
+        btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
+        btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=lambda e: on_confirm(False))
+
+        dlg = ft.AlertDialog(
+            title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
+            content=ft.Text(value=msg),
+            actions=[ft.Row([btn_y, btn_n])]
+        )
+        open_dlg(dlg)
 
     def trigger_success_dialog(is_dead=False):
+        if st.elapsed < 60:
+            db.add_record(sel_subject.value, st.elapsed, st.mode, is_dead, "")
+            reset_timer()
+            return
+            
         txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
         def on_save(e):
-            hide_dialog()
+            close_dlg(dlg)
             db.add_record(sel_subject.value, st.elapsed, st.mode, is_dead, txt_note.value)
             reset_timer()
             refresh_forest()
@@ -309,14 +301,12 @@ def main(page: ft.Page):
 
         btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
 
-        title_text = "🥀 专注中断" if is_dead else "🎉 专注完成！"
-        msg_text = "虽然失败了，但也要总结经验。" if is_dead else random.choice(ENCOURAGEMENTS)
-
-        show_dialog(
-            title_text,
-            ft.Column([ft.Text(value=msg_text, color="#8E8E93"), txt_note], tight=True),
-            [ft.Row([btn_save])]
+        dlg = ft.AlertDialog(
+            title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
+            content=ft.Column([ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), txt_note], tight=True),
+            actions=[ft.Row([btn_save])]
         )
+        open_dlg(dlg)
 
     def reset_timer():
         st.timer_active = False
@@ -329,23 +319,22 @@ def main(page: ft.Page):
         sel_subject.disabled = False
         update_focus_ui()
 
-    # 💡 布局修复：强行使用 ft.Row(alignment="center") 保证每一行都绝对居中对齐
     view_focus = ft.Container(
         content=ft.Column([
-            ft.Row([sel_subject], alignment="center"),
+            ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=15),
             ft.Column([
-                ft.Row([lbl_icon], alignment="center"),
-                ft.Row([lbl_time], alignment="center"),
-                ft.Row([lbl_quote], alignment="center"),
-            ], alignment="center", expand=True, spacing=5),
+                ft.Row([lbl_icon], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([lbl_time], alignment=ft.MainAxisAlignment.CENTER),
+                ft.Row([lbl_quote], alignment=ft.MainAxisAlignment.CENTER),
+            ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True, spacing=5),
             ft.Column([
                 lbl_goal, bar_goal,
                 ft.Container(height=10),
-                ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment="center", spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
-                ft.Row([sel_pomo], alignment="center"),
+                ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
+                ft.Row([sel_pomo], alignment=ft.MainAxisAlignment.CENTER),
                 ft.Container(height=10),
-                ft.Row([btn_start_view, btn_stop_view], alignment="center", spacing=15)
+                ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
             ])
         ]),
         bgcolor="white", border_radius=15, padding=25, expand=True, margin=5
@@ -373,10 +362,17 @@ def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
-        page.update()
+        
+        # 💡 逻辑修复：最高优先级独立更新UI组件，强行突破线程拦截！
+        try:
+            lbl_time.update()
+            lbl_icon.update()
+            lbl_goal.update()
+            bar_goal.update()
+        except: pass
 
     # ----------------- 图鉴视图 (1) -----------------
-    lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight="bold", color="#8E8E93")
+    lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
     grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15)
     
     forest_nav_btns = []
@@ -393,7 +389,7 @@ def main(page: ft.Page):
         return view
 
     row_forest_nav = ft.Container(
-        content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2)], alignment="center", spacing=0),
+        content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0),
         bgcolor="#E5E5EA", border_radius=10, padding=4
     )
 
@@ -412,15 +408,15 @@ def main(page: ft.Page):
         content=ft.Column([
             row_forest_nav,
             ft.Container(height=5),
-            ft.Row([lbl_forest_sum], alignment="center"),
+            ft.Row([lbl_forest_sum], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(content=grid_forest, expand=True, bgcolor="#F2F2F7", padding=15, border_radius=10)
         ]),
         bgcolor="white", border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
     # ----------------- 统计视图 (2) -----------------
-    lbl_stat_total = ft.Text(value="0s", size=42, weight="bold")
-    col_stats = ft.Column(scroll="adaptive")
+    lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
+    col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE)
 
     stat_nav_btns = []
     def sw_stat(idx):
@@ -436,7 +432,7 @@ def main(page: ft.Page):
         return view
 
     row_stat_nav = ft.Container(
-        content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment="center", spacing=0),
+        content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0),
         bgcolor="#E5E5EA", border_radius=10, padding=4
     )
 
@@ -457,7 +453,7 @@ def main(page: ft.Page):
             pct = dur / total if total > 0 else 0
             col_stats.controls.append(
                 ft.Column([
-                    ft.Row([ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight="bold"), ft.Text(value=format_dur(dur), color="#8E8E93")], alignment="spaceBetween"),
+                    ft.Row([ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight=ft.FontWeight.BOLD), ft.Text(value=format_dur(dur), color="#8E8E93")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#E5E5EA", height=10, border_radius=5)
                 ], spacing=8)
             )
@@ -467,7 +463,7 @@ def main(page: ft.Page):
         content=ft.Column([
             row_stat_nav,
             ft.Container(height=15),
-            ft.Row([lbl_stat_total], alignment="center"),
+            ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER),
             ft.Container(height=15),
             col_stats
         ]),
@@ -490,7 +486,7 @@ def main(page: ft.Page):
             btn_del, _ = create_btn("删除", txt_color="#FF3B30", on_click=lambda e, s=sub: del_sub(s))
             col_subs.controls.append(
                 ft.Container(
-                    content=ft.Row([ft.Text(value=sub, weight="bold", expand=True), btn_del]),
+                    content=ft.Row([ft.Text(value=sub, weight=ft.FontWeight.BOLD, expand=True), btn_del]),
                     bgcolor="#F2F2F7", padding=8, border_radius=10
                 )
             )
@@ -522,15 +518,15 @@ def main(page: ft.Page):
 
     view_settings = ft.Container(
         content=ft.Column([
-            ft.Text(value="🎯 目标设置", weight="bold"),
+            ft.Text(value="🎯 目标设置", weight=ft.FontWeight.BOLD),
             txt_goal,
-            ft.Text(value="🏷️ 科目管理", weight="bold"),
+            ft.Text(value="🏷️ 科目管理", weight=ft.FontWeight.BOLD),
             col_subs,
             ft.Row([txt_new_sub, btn_add]),
             ft.Container(height=10),
-            ft.Text(value="💾 数据安全", weight="bold"),
+            ft.Text(value="💾 数据安全", weight=ft.FontWeight.BOLD),
             btn_exp
-        ], scroll="adaptive"),
+        ], scroll=ft.ScrollMode.ADAPTIVE),
         bgcolor="white", border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
@@ -552,26 +548,29 @@ def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 💡 逻辑修复 1：将心跳挂载到 Flet 主事件循环，打破“不点不刷”的魔咒
-    while True:
-        time.sleep(0.1) 
-        if not st.timer_active: continue
-        
-        logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
-        if logical_now != st.last_date:
-            st.last_date = logical_now
-            refresh_forest(); refresh_stats()
-        
-        st.elapsed = time.time() - st.start_tick
-        
-        if st.mode == "pomodoro" and st.elapsed >= st.pomo_target:
-            st.timer_active = False 
-            st.elapsed = st.pomo_target
-            try: import winsound; winsound.Beep(800, 500)
-            except: pass
-            trigger_success_dialog(is_dead=False)
+    # 💡 漏洞修复：重建独立后台时钟线程，彻底切断画面加载阻塞！
+    def heart_beat():
+        while True:
+            time.sleep(0.1) 
+            if not st.timer_active: continue
             
-        update_focus_ui()
+            logical_now = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
+            if logical_now != st.last_date:
+                st.last_date = logical_now
+                refresh_forest(); refresh_stats()
+            
+            st.elapsed = time.time() - st.start_tick
+            
+            if st.mode == "pomodoro" and st.elapsed >= st.pomo_target:
+                st.timer_active = False 
+                st.elapsed = st.pomo_target
+                try: import winsound; winsound.Beep(800, 500)
+                except: pass
+                trigger_success_dialog(is_dead=False)
+                
+            update_focus_ui()
+
+    threading.Thread(target=heart_beat, daemon=True).start()
 
 # ================= 4. 防崩沙盒入口 =================
 if __name__ == "__main__":
