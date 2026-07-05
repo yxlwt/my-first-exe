@@ -95,7 +95,6 @@ def format_time(seconds):
     s = max(0, int(seconds))
     return f"{s//60:02d}:{s%60:02d}"
 
-# 🚀 增加 width 参数，防止弹窗因宽度计算失败而彻底崩溃
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, width=None, height=None, padding=10):
     lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD)
     cnt = ft.Container(
@@ -127,21 +126,30 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 🚀 最稳妥的弹窗挂载法，彻底杜绝 page.open() 在不同版本的兼容性异常
+    # 🚀 彻底修复：无论你用最新版还是旧版 Flet，强制拉起弹窗，绝不静默卡死！
     def open_dlg(d):
-        page.dialog = d
-        d.open = True
-        page.update()
+        if hasattr(page, "open"):
+            page.open(d)
+        else:
+            page.dialog = d
+            d.open = True
+            page.update()
 
     def close_dlg(d):
-        d.open = False
-        page.update()
+        if hasattr(page, "close"):
+            page.close(d)
+        else:
+            d.open = False
+            page.update()
 
     def show_warning(msg):
         snack = ft.SnackBar(content=ft.Text(msg, color="white", weight=ft.FontWeight.BOLD), bgcolor="#FF3B30")
-        page.snack_bar = snack
-        snack.open = True
-        page.update()
+        if hasattr(page, "open"):
+            page.open(snack)
+        else:
+            page.snack_bar = snack
+            snack.open = True
+            page.update()
 
     class State:
         session_active = False  
@@ -296,7 +304,7 @@ async def main(page: ft.Page):
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
     # ========================================================
-    # 🚀🚀 核心修复区：物理定宽，彻底杜绝排版隐形崩溃 🚀🚀
+    # 🚀🚀 核心重构区：改用 Flet 原生 TextButton，永不排版崩溃 🚀🚀
     # ========================================================
     def stop_timer_handler(e):
         if not st.session_active:
@@ -334,31 +342,22 @@ async def main(page: ft.Page):
                 st.start_tick = time.time() - st.elapsed
             page.update()
 
-        # 🚨 绝对不允许使用 expand=True！全部指定固定 width 以防弹窗内排版死锁
-        btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", width=130, on_click=on_confirm_save)
-        btn_n, _ = create_btn("直接销毁", bgcolor="#F2F2F7", txt_color="#8E8E93", width=130, on_click=on_discard)
-        btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", width=270, on_click=on_cancel_dialog)
-
+        # 🚨 强制使用 Flet 原生标准按钮，框架自动接管宽度，不留任何崩溃死角
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
             content=ft.Text(value=msg),
             actions=[
-                ft.Container(
-                    width=270, 
-                    content=ft.Column([
-                        ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Container(height=5),
-                        btn_c
-                    ], tight=True)
-                )
+                ft.TextButton("保存战果", on_click=on_confirm_save, style=ft.ButtonStyle(color="#FF3B30")),
+                ft.TextButton("直接销毁", on_click=on_discard, style=ft.ButtonStyle(color="#8E8E93")),
+                ft.TextButton("取消(继续)", on_click=on_cancel_dialog, style=ft.ButtonStyle(color="#34C759"))
             ],
-            actions_alignment=ft.MainAxisAlignment.CENTER
+            actions_alignment=ft.MainAxisAlignment.END
         )
         open_dlg(dlg)
 
     def trigger_success_dialog(is_dead=False):
-        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6", width=270)
+        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
         def on_save(e):
             close_dlg(dlg)
             db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value)
@@ -366,18 +365,17 @@ async def main(page: ft.Page):
             refresh_forest()
             refresh_stats()
 
-        # 🚨 同样必须设置固定宽度 width=270
-        btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", width=270, on_click=on_save)
-
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
             content=ft.Column([
-                ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93", width=270),
+                ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"),
                 txt_note
             ], tight=True),
-            actions=[btn_save],
-            actions_alignment=ft.MainAxisAlignment.CENTER
+            actions=[
+                ft.TextButton("保存战果", on_click=on_save, style=ft.ButtonStyle(color="#34C759"))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
         )
         open_dlg(dlg)
     # ========================================================
