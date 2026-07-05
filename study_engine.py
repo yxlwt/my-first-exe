@@ -151,7 +151,7 @@ async def main(page: ft.Page):
             page.update()
 
     class State:
-        session_active = False  # 🚀 新增：会话级防误触锁 (只要开始了专注，哪怕是暂停，它也是True)
+        session_active = False  # 🚀 会话级防误触锁 (只要点了开始，哪怕暂停，它也是True)
         timer_active = False    # 倒计时是否正在流动
         mode = "pomodoro"
         pomo_target = 60 * 60
@@ -233,7 +233,6 @@ async def main(page: ft.Page):
             return
             
         st.mode = m
-        
         mode_sw_view.bgcolor = "#FFFFFF" if m == "stopwatch" else "transparent"
         mode_sw_lbl.color = "#1C1C1E" if m == "stopwatch" else "#8E8E93"
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
@@ -259,7 +258,7 @@ async def main(page: ft.Page):
         bgcolor="transparent"
     )
 
-    # 🚀 时间修改拦截盾：Dropdown 本身
+    # 🚀 时间修改拦截盾
     def on_pomo_change(e):
         if st.session_active:
             show_warning("🚨 专注期间禁止修改目标时间！")
@@ -284,6 +283,7 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
+    # ✅ 修复报错核心点：去掉了 __init__ 中的 on_change，改为下面绑定
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", 
@@ -292,9 +292,9 @@ async def main(page: ft.Page):
         content_padding=10,
         text_size=13,
         border_color="transparent", 
-        bgcolor="transparent",
-        on_change=on_pomo_change
+        bgcolor="transparent"
     )
+    sel_pomo.on_change = on_pomo_change # 兼容全版本 Flet
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
@@ -305,7 +305,7 @@ async def main(page: ft.Page):
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
-    # 🚀 彻底重写的安全结算弹窗
+    # 🚀 安全结算弹窗
     def stop_timer_handler(e):
         if not st.session_active:
             return
@@ -392,7 +392,6 @@ async def main(page: ft.Page):
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
             btn_start_view.bgcolor = "#34C759"
-            # 🚨 关键修复：不要在这里解开 sel_pomo 和 sel_subject 的物理禁用！必须等彻底结算才解开。
 
         update_focus_ui()
         page.update()
@@ -671,12 +670,15 @@ async def main(page: ft.Page):
         while True:
             await asyncio.sleep(0.2) 
             
-            # 扫描下拉框变化 (仅在非专注会话时放行)
+            # 扫描下拉框变化
             current_pomo_val = str(sel_pomo.value)
             if current_pomo_val != st.last_pomo_val:
-                st.last_pomo_val = current_pomo_val
-                # 🚀 核心修复：检查 session_active，而不是 timer_active
-                if not st.session_active:
+                # 🚀 深度拦截：只要属于会话期间，不仅不执行更新，还要强行拉回旧值！
+                if st.session_active:
+                    sel_pomo.value = st.last_pomo_val
+                    page.update()
+                else:
+                    st.last_pomo_val = current_pomo_val
                     try:
                         st.pomo_target = int(current_pomo_val) * 60
                     except:
