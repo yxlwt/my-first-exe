@@ -283,7 +283,6 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    # ✅ 修复报错核心点：去掉了 __init__ 中的 on_change，改为下面绑定
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", 
@@ -294,7 +293,7 @@ async def main(page: ft.Page):
         border_color="transparent", 
         bgcolor="transparent"
     )
-    sel_pomo.on_change = on_pomo_change # 兼容全版本 Flet
+    sel_pomo.on_change = on_pomo_change
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
@@ -305,7 +304,9 @@ async def main(page: ft.Page):
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
-    # 🚀 安全结算弹窗
+    # ========================================================
+    # 🚀🚀🚀 核心修复区：彻底重写防崩弹窗架构 🚀🚀🚀
+    # ========================================================
     def stop_timer_handler(e):
         if not st.session_active:
             return
@@ -344,18 +345,52 @@ async def main(page: ft.Page):
 
         btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=on_confirm_save)
         btn_n, _ = create_btn("直接销毁", bgcolor="#F2F2F7", txt_color="#8E8E93", expand=True, on_click=on_discard)
-        btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_cancel_dialog)
+        btn_c, _ = create_btn("取消 (手滑点错)", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_cancel_dialog)
 
+        # 🚨 重点修复：摒弃原生的 actions 数组排版，将所有按钮锁在 content 容器中，杜绝无边界报错
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
-            content=ft.Text(value=msg),
-            actions=[ft.Column([
-                ft.Row([btn_y, btn_n]),
-                ft.Row([btn_c])
-            ])]
+            content=ft.Container(
+                width=320, # 强行锁定边界，绝不崩溃
+                content=ft.Column([
+                    ft.Text(value=msg),
+                    ft.Container(height=15),
+                    ft.Row([btn_y, btn_n]),
+                    ft.Container(height=5),
+                    ft.Row([btn_c])
+                ], tight=True)
+            )
         )
         open_dlg(dlg)
+
+    def trigger_success_dialog(is_dead=False):
+        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
+        def on_save(e):
+            close_dlg(dlg)
+            db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value)
+            reset_timer()
+            refresh_forest()
+            refresh_stats()
+
+        btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
+
+        # 🚨 同步修复：完成结算弹窗的安全包裹
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
+            content=ft.Container(
+                width=320,
+                content=ft.Column([
+                    ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), 
+                    txt_note,
+                    ft.Container(height=15),
+                    ft.Row([btn_save])
+                ], tight=True)
+            )
+        )
+        open_dlg(dlg)
+    # ========================================================
 
     btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True, on_click=stop_timer_handler)
 
@@ -397,25 +432,6 @@ async def main(page: ft.Page):
         page.update()
     
     btn_start_view.on_click = toggle_timer
-
-    def trigger_success_dialog(is_dead=False):
-        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
-        def on_save(e):
-            close_dlg(dlg)
-            db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value)
-            reset_timer()
-            refresh_forest()
-            refresh_stats()
-
-        btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
-
-        dlg = ft.AlertDialog(
-            modal=True,
-            title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
-            content=ft.Column([ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), txt_note], tight=True),
-            actions=[ft.Row([btn_save])]
-        )
-        open_dlg(dlg)
 
     def reset_timer():
         st.session_active = False # 彻底释放底层锁
