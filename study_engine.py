@@ -101,7 +101,7 @@ def create_btn(text, on_click=None, bgcolor="transparent", txt_color=None, radiu
         content=ft.Row([lbl], alignment=ft.MainAxisAlignment.CENTER),
         bgcolor=bgcolor,
         border_radius=radius,
-        padding=padding,
+        padding=padding, # 纯数字赋值
         on_click=on_click,
         expand=expand,
         width=width,
@@ -178,7 +178,7 @@ async def main(page: ft.Page):
     st = State()
 
     # ========================================================
-    # 🚀 主题色调度中心 (绝对安全，不调用 ft.colors)
+    # 🚀 主题色调度中心 (绝对安全，只使用 Hex 字符串)
     # ========================================================
     def apply_theme_colors():
         is_dark = page.theme_mode == "dark"
@@ -281,10 +281,10 @@ async def main(page: ft.Page):
         countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
     except: pass
 
-    # 置顶、倒计时、黑夜模式完美融合在同一行！
+    # 🚨 绝对安全修改：这里废除了 padding=ft.padding.symmetric，换成纯数字 padding=12
     card_countdown = ft.Container(
         content=ft.Row([btn_pin, countdown_text, btn_theme], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        border_radius=12, padding=ft.padding.symmetric(horizontal=10, vertical=12), margin=5 
+        border_radius=12, padding=12, margin=5 
     )
 
     # ----------------- 导航栏 -----------------
@@ -327,16 +327,15 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=65, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, text_align=ft.TextAlign.CENTER)
     
-    # 🎯 美化重构：高级圆角胶囊下拉框 (Pill UI)
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
         width=180, 
         dense=True, 
-        border_radius=25, # 极度圆润的胶囊形
+        border_radius=25, 
         border_color="transparent",
         text_size=15,
-        content_padding=15, # 充裕的内边距显得非常高级
+        content_padding=15, 
         alignment=ft.alignment.center
     )
     def on_sub_change(e):
@@ -358,26 +357,22 @@ async def main(page: ft.Page):
             except: st.pomo_target = 60 * 60
         st.elapsed = 0
         
-        # 🎯 美化重构：强制秒切图标和时间！拒绝延迟！
         lbl_icon.value = "🌰" if m == "pomodoro" else "🚧"
         lbl_time.value = format_time(st.pomo_target) if m == "pomodoro" else "00:00"
         
-        apply_theme_colors() # 触发 UI 全局变色与刷新
+        apply_theme_colors() 
 
-    # 🎯 美化重构：彻底解决背景高度错位，锁定绝对高度 42！
-    mode_sw_lbl = ft.Text("🧱 筑城 (正向)", weight=ft.FontWeight.BOLD)
-    mode_sw_view = ft.Container(
-        content=ft.Row([mode_sw_lbl], alignment=ft.MainAxisAlignment.CENTER),
-        height=42, # 强锁高度
-        border_radius=8, expand=True, on_click=lambda e: switch_mode("stopwatch")
-    )
-    
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=8, on_click=lambda e: switch_mode("stopwatch"))
+    mode_sw_view.height = 42
+
     mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD)
+    # 🚨 绝对安全修改：这里废除了 padding=ft.padding.symmetric，换成纯数字 padding=10
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=ft.padding.symmetric(horizontal=10), 
-        bgcolor="transparent", alignment=ft.alignment.center
+        padding=10, 
+        bgcolor="transparent", 
+        alignment=ft.alignment.center
     )
 
     def on_pomo_change(e):
@@ -393,7 +388,6 @@ async def main(page: ft.Page):
         sel_pomo.disabled = False
         st.elapsed = 0
         
-        # 同步秒切时间
         lbl_time.value = format_time(st.pomo_target)
         apply_theme_colors()
 
@@ -406,7 +400,7 @@ async def main(page: ft.Page):
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
-        height=42, # 强锁高度，与左侧绝对对齐
+        height=42, 
         border_radius=8, expand=True
     )
 
@@ -606,7 +600,6 @@ async def main(page: ft.Page):
         
         is_compact = h < 550 or w < 360
         
-        # 缩小到悬浮窗时，隐藏顶栏、导航和部分组件
         card_countdown.visible = not is_compact
         nav_bar.visible = not is_compact
         subject_container.visible = not is_compact
@@ -667,7 +660,7 @@ async def main(page: ft.Page):
         refresh_forest()
 
     def make_forest_btn(text, idx):
-        view, lbl = create_btn(text, on_click=lambda e, i=idx: sw_forest(i), radius=8, expand=True, padding=8)
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: (sw_forest(i), page.update()), radius=8, expand=True, padding=8)
         forest_nav_btns.append({"view": view, "lbl": lbl})
         return view
 
@@ -703,7 +696,7 @@ async def main(page: ft.Page):
         refresh_stats()
 
     def make_stat_btn(text, idx):
-        view, lbl = create_btn(text, on_click=lambda e, i=idx: sw_stat(i), radius=8, expand=True, padding=8)
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: (sw_stat(i), page.update()), radius=8, expand=True, padding=8)
         stat_nav_btns.append({"view": view, "lbl": lbl})
         return view
 
@@ -795,7 +788,7 @@ async def main(page: ft.Page):
         ], expand=True)
     )
 
-    # 初始化启动排版
+    # 初始化启动
     apply_responsive_layout()
 
     async def heart_beat():
@@ -814,9 +807,6 @@ async def main(page: ft.Page):
                     st.mode = "pomodoro"
                     sel_pomo.disabled = False
                     st.elapsed = 0
-                    
-                    # 同步时间并刷新颜色
-                    lbl_time.value = format_time(st.pomo_target)
                     apply_theme_colors()
             
             if not st.timer_active: continue
