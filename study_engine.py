@@ -214,14 +214,14 @@ async def main(page: ft.Page):
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
     
-    # 🚀 修复点：已移除引起版本冲突的 alignment 属性
+    # 🚀 修复点 1：加宽宽度到 120，增加 padding，让文字完整显示绝不拥挤！
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60分钟", 
-        width=95,
+        width=120, 
         dense=True,
-        content_padding=5,
-        text_size=13,
+        content_padding=10,
+        text_size=14,
         border_color="transparent", 
         bgcolor="#F2F2F7"
     )
@@ -231,7 +231,7 @@ async def main(page: ft.Page):
         content=ft.Row([
             mode_pm_lbl,
             sel_pomo
-        ], alignment=ft.MainAxisAlignment.CENTER, spacing=2),
+        ], alignment=ft.MainAxisAlignment.CENTER, spacing=5),
         bgcolor="#FFFFFF",
         border_radius=8,
         padding=4,
@@ -254,19 +254,11 @@ async def main(page: ft.Page):
             
         reset_timer()
 
+    # 🚀 修复点 2：只要修改下拉框，强行触发 switch_mode 重置底层，并定向刷新大字时间！
     def on_pomo_change(e):
         if st.timer_active: return
-        try:
-            st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
-        except:
-            st.pomo_target = 60 * 60 
-            
-        if st.mode != "pomodoro":
-            switch_mode("pomodoro")
-        else:
-            st.elapsed = 0
-            update_focus_ui()
-            page.update()
+        # 直接调用 switch_mode，它会负责读取新时间、归零 elapsed、以及更新 UI
+        switch_mode("pomodoro")
 
     sel_pomo.on_change = on_pomo_change
 
@@ -410,6 +402,13 @@ async def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
+        
+        # 🚀 修复点 3：强行单独刷新时间文本，绕过框架偷懒！
+        try:
+            lbl_time.update()
+            lbl_icon.update()
+        except Exception:
+            pass
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
