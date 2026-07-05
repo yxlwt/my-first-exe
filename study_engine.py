@@ -138,7 +138,7 @@ async def main(page: ft.Page):
     class State:
         session_active = False  
         timer_active = False 
-        was_active = False # 记录暂停前状态
+        was_active = False 
         mode = "pomodoro"
         pomo_target = 60 * 60
         elapsed = 0
@@ -254,11 +254,13 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
+    # ✅ 彻底修复：括号内坚决不留 on_change
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=115, dense=True, content_padding=10, text_size=13,
-        border_color="transparent", bgcolor="transparent", on_change=on_pomo_change 
+        border_color="transparent", bgcolor="transparent"
     )
+    sel_pomo.on_change = on_pomo_change  # 绑定操作移到括号外！
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
