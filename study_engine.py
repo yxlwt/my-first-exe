@@ -125,27 +125,30 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 🚀 修复 Bug 1：全版本通吃、绝对不会静默失败的弹窗与提示引擎
+    # 🚀 修复点 1：彻底重写弹窗引擎，使用官方原生 API，杜绝卡死崩溃
     def open_dlg(d):
-        if d not in page.overlay:
-            page.overlay.append(d)
-        d.open = True
-        page.update()
+        if hasattr(page, "open"):
+            page.open(d)
+        else:
+            page.dialog = d
+            d.open = True
+            page.update()
 
     def close_dlg(d):
-        d.open = False
-        page.update()
-        # 延迟清理，防止闪烁
-        if d in page.overlay:
-            page.overlay.remove(d)
+        if hasattr(page, "close"):
+            page.close(d)
+        else:
+            d.open = False
             page.update()
             
     def show_snack(text, color="#FF3B30"):
         sb = ft.SnackBar(content=ft.Text(text, weight=ft.FontWeight.BOLD), bgcolor=color)
-        if sb not in page.overlay:
-            page.overlay.append(sb)
-        sb.open = True
-        page.update()
+        if hasattr(page, "open"):
+            page.open(sb)
+        else:
+            page.snack_bar = sb
+            sb.open = True
+            page.update()
 
     class State:
         timer_active = False
@@ -159,8 +162,6 @@ async def main(page: ft.Page):
 
     st = State()
     
-    # 🚀 修复 Bug 2 & Bug 3：极其严密的“会话锁”
-    # 哪怕你点了暂停 (timer_active=False)，只要 elapsed > 0，依然属于专注会话中，绝对不许修改设置！
     def is_session_active():
         return st.timer_active or st.elapsed > 0
 
@@ -255,7 +256,6 @@ async def main(page: ft.Page):
     )
 
     def switch_mode(m):
-        # 🚀 拦截锁生效区
         if is_session_active():
             show_snack("⚠️ 当前专注尚未结算！禁止切换模式。")
             return
@@ -278,11 +278,11 @@ async def main(page: ft.Page):
         page.update()
 
     def on_pomo_change(e):
-        # 🚀 拦截锁生效区
         if is_session_active():
-            sel_pomo.value = str(int(st.pomo_target / 60)) # 回滚值
+            sel_pomo.value = str(int(st.pomo_target / 60)) 
+            try: sel_pomo.update() # 强制回滚视觉显示
+            except: pass
             show_snack("⚠️ 专注期间禁止修改时间！已强行回滚。")
-            page.update()
             return
             
         try:
@@ -306,7 +306,6 @@ async def main(page: ft.Page):
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
     def stop_timer_handler(e):
-        # 修复逻辑判断：只要不在会话中（未走时），点结束直接返回。
         if not is_session_active():
             return
             
@@ -322,10 +321,9 @@ async def main(page: ft.Page):
             trigger_success_dialog(is_dead=False)
             return
 
-        def on_confirm(save_dead):
+        def on_confirm(e):
             close_dlg(dlg)
-            if save_dead:
-                db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
+            db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
             reset_timer()
             refresh_forest()
             refresh_stats()
@@ -334,7 +332,7 @@ async def main(page: ft.Page):
             close_dlg(dlg)
             reset_timer()
 
-        btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
+        btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=on_confirm)
         btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=on_cancel)
 
         dlg = ft.AlertDialog(
@@ -452,6 +450,14 @@ async def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
+        
+        # 🚀 修复点 2：强制组件进行视觉重绘，彻底解决下拉框选了时间但大字不更新的问题
+        try:
+            lbl_time.update()
+            lbl_icon.update()
+            lbl_goal.update()
+            bar_goal.update()
+        except: pass
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
