@@ -15,7 +15,6 @@ else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(application_path, "study_data.json")
 
-# 励志语录库
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
     "你做三四月的事，在十二月自有答案。",
@@ -92,11 +91,10 @@ def format_dur(seconds):
     if m > 0: return f"{m}m {sec}s"
     return f"{sec}s"
 
+# 🚀 视觉修复：废除时分秒的转换，统统变成大写的 MM:SS！
 def format_time(seconds):
     s = max(0, int(seconds))
-    if s >= 3600:
-        return f"{s//3600:02d}:{(s%3600)//60:02d}:{s%60:02d}"
-    return f"{(s%3600)//60:02d}:{s%60:02d}"
+    return f"{s//60:02d}:{s%60:02d}"
 
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, height=None, padding=10):
     lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD)
@@ -129,14 +127,19 @@ async def main(page: ft.Page):
         pass
 
     def open_dlg(d):
-        if d not in page.overlay:
-            page.overlay.append(d)
-        d.open = True
-        page.update()
+        if hasattr(page, "open"):
+            page.open(d)
+        else:
+            page.dialog = d
+            d.open = True
+            page.update()
 
     def close_dlg(d):
-        d.open = False
-        page.update()
+        if hasattr(page, "close"):
+            page.close(d)
+        else:
+            d.open = False
+            page.update()
 
     class State:
         timer_active = False
@@ -196,7 +199,7 @@ async def main(page: ft.Page):
 
     # ----------------- 专注视图 (0) -----------------
     lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
-    lbl_time = ft.Text(value="01:00:00", size=70, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+    lbl_time = ft.Text(value="60:00", size=70, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
     
     sel_subject = ft.Dropdown(
@@ -212,51 +215,62 @@ async def main(page: ft.Page):
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
+    # 🚀 极致美学 + 安全架构：拼装而成的胶囊按钮
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
+    
+    # 种树的文字点击区（它只负责切换模式）
+    mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
+    mode_pm_click_area = ft.Container(
+        content=mode_pm_lbl,
+        on_click=lambda e: switch_mode("pomodoro"),
+        padding=ft.padding.only(left=15, right=5, top=8, bottom=8),
+        bgcolor="transparent"
+    )
+
+    # 下拉框区域（它只负责选时间，不会被外层吞噬点击事件）
+    sel_pomo = ft.Dropdown(
+        options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
+        value="60", 
+        width=85, 
+        dense=True,
+        content_padding=5,
+        text_size=13,
+        border_color="transparent", 
+        bgcolor="transparent"
+    )
+
+    # 将它们组合在一个完美的白色胶囊里
+    mode_pm_view = ft.Container(
+        content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
+        bgcolor="#FFFFFF",
+        border_radius=8,
+        expand=True
+    )
+
     def switch_mode(m):
         if st.timer_active: return
         st.mode = m
+        
+        # UI颜色同步切换
         mode_sw_view.bgcolor = "#FFFFFF" if m == "stopwatch" else "transparent"
         mode_sw_lbl.color = "#1C1C1E" if m == "stopwatch" else "#8E8E93"
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
         mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
         
-        if m == "stopwatch":
-            sel_pomo.disabled = True
-            sel_pomo.bgcolor = "transparent"
-        else:
-            sel_pomo.disabled = False
-            sel_pomo.bgcolor = "#FFFFFF"
+        sel_pomo.disabled = (m == "stopwatch")
         
-        try: st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
-        except: st.pomo_target = 60 * 60
+        if m == "pomodoro":
+            try: st.pomo_target = int(sel_pomo.value) * 60
+            except: st.pomo_target = 60 * 60
             
         st.elapsed = 0
         update_focus_ui()
         page.update()
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
-    mode_pm_view, mode_pm_lbl = create_btn("🌱 种树", radius=8, expand=True, bgcolor="#FFFFFF", padding=8, on_click=lambda e: switch_mode("pomodoro"))
-
-    # 🚀 彻底移除初始化里的 on_change 属性，避开框架崩溃陷阱
-    sel_pomo = ft.Dropdown(
-        options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60分钟", 
-        width=115, 
-        dense=True,
-        content_padding=10,
-        text_size=13,
-        border_color="transparent", 
-        bgcolor="#FFFFFF",
-        border_radius=8
-    )
-
-    # 🚀 在创建完毕后，再进行极其安全的数据绑定！
     def on_pomo_change(e):
         if st.timer_active: return
         try:
-            # 绝对安全的数据流读取方式，规避旧版变量未刷新的情况
-            new_val = str(e.control.value).replace("分钟", "")
-            st.pomo_target = int(new_val) * 60
+            st.pomo_target = int(sel_pomo.value) * 60
         except:
             st.pomo_target = 60 * 60 
             
@@ -266,13 +280,11 @@ async def main(page: ft.Page):
         mode_pm_view.bgcolor = "#FFFFFF"
         mode_pm_lbl.color = "#1C1C1E"
         sel_pomo.disabled = False
-        sel_pomo.bgcolor = "#FFFFFF"
         
         st.elapsed = 0
         update_focus_ui()
         page.update()
 
-    # 声明完毕后再赋给组件，安全通过底层校验！
     sel_pomo.on_change = on_pomo_change
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
@@ -320,6 +332,11 @@ async def main(page: ft.Page):
 
     def toggle_timer(e):
         if not st.timer_active:
+            # 🚀 JIT 防御读取：在开始的一瞬间，强行抓取框里的数字作为时间！无视所有Bug！
+            if st.mode == "pomodoro":
+                try: st.pomo_target = int(sel_pomo.value) * 60
+                except: pass
+                
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
@@ -334,6 +351,8 @@ async def main(page: ft.Page):
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
             btn_start_view.bgcolor = "#34C759"
+            
+        update_focus_ui()
         page.update()
     
     btn_start_view.on_click = toggle_timer
@@ -367,12 +386,7 @@ async def main(page: ft.Page):
         btn_stop_lbl.color = "#8E8E93"
         
         sel_subject.disabled = False
-        if st.mode == "stopwatch":
-            sel_pomo.disabled = True
-            sel_pomo.bgcolor = "transparent"
-        else:
-            sel_pomo.disabled = False
-            sel_pomo.bgcolor = "#FFFFFF"
+        sel_pomo.disabled = (st.mode == "stopwatch") 
             
         update_focus_ui()
         page.update()
@@ -387,7 +401,10 @@ async def main(page: ft.Page):
             ft.Container(height=20),
             lbl_goal, bar_goal,
             ft.Container(height=10),
-            ft.Container(content=ft.Row([mode_sw_view, mode_pm_view, sel_pomo], alignment=ft.MainAxisAlignment.CENTER, spacing=5), bgcolor="#E5E5EA", border_radius=10, padding=4),
+            
+            # 美观对称的底座
+            ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=5), bgcolor="#E5E5EA", border_radius=10, padding=4),
+            
             ft.Container(height=10),
             ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
         ],
