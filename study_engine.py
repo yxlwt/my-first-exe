@@ -125,7 +125,7 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 🚀 规范化弹窗方法，彻底杜绝卡死
+    # 规范化弹窗方法，兼容多版本 Flet
     def open_dlg(d):
         if hasattr(page, "open"):
             page.open(d)
@@ -141,7 +141,7 @@ async def main(page: ft.Page):
             d.open = False
             page.update()
 
-    # 🚀 钢铁级状态防御弹窗
+    # 状态防御弹窗
     def open_warning_dlg(msg):
         dlg = ft.AlertDialog(
             modal=True,
@@ -254,7 +254,7 @@ async def main(page: ft.Page):
         expand=True
     )
 
-    # 🚀 修复1：只要时间大于0（说明已启动或被暂停），一律拦截模式切换
+    # 只要时间大于0（说明已启动或被暂停），一律拦截模式切换
     def switch_mode(m):
         if st.timer_active or st.elapsed > 0:
             open_warning_dlg("当前专注尚未结算！请先点击结束。")
@@ -301,7 +301,7 @@ async def main(page: ft.Page):
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
-    # 🚀 修复2：重构结束弹窗，完全剥离 Container，使用原生按钮，避免卡死
+    # 彻底杜绝崩溃和兼容性问题的结束流程
     def stop_timer_handler(e):
         if not st.timer_active and st.elapsed == 0:
             return
@@ -320,7 +320,7 @@ async def main(page: ft.Page):
 
         def on_confirm(e):
             close_dlg(dlg)
-            # 🚀 修复3：番茄钟不足1分钟彻底不留记录，筑城不足1分留废料
+            # 番茄钟不足1分钟彻底不留记录，筑城不足1分留废料
             if st.mode == "pomodoro" and elapsed_int < 60:
                 pass
             else:
@@ -333,15 +333,15 @@ async def main(page: ft.Page):
             close_dlg(dlg)
             reset_timer()
 
-        # 动态生成防卡死原生按钮
+        # 彻底抛弃 ft.colors，改用原生十六进制颜色
         if st.mode == "pomodoro" and elapsed_int < 60:
             actions = [
-                ft.TextButton("确定销毁 (不留记录)", on_click=on_cancel, style=ft.ButtonStyle(color=ft.colors.RED)),
+                ft.TextButton("确定销毁 (不留记录)", on_click=on_cancel, style=ft.ButtonStyle(color="#FF3B30")),
                 ft.TextButton("点错了，继续专注", on_click=lambda e: close_dlg(dlg))
             ]
         else:
             actions = [
-                ft.TextButton("是 (结算)", on_click=on_confirm, style=ft.ButtonStyle(color=ft.colors.RED)),
+                ft.TextButton("是 (结算)", on_click=on_confirm, style=ft.ButtonStyle(color="#FF3B30")),
                 ft.TextButton("否 (销毁)", on_click=on_cancel)
             ]
 
@@ -386,7 +386,6 @@ async def main(page: ft.Page):
             refresh_forest()
             refresh_stats()
 
-        # 🚀 同样替换为原生 Flet 按钮，杜绝卡死
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
