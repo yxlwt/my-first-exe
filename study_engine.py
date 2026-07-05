@@ -129,19 +129,14 @@ async def main(page: ft.Page):
         pass
 
     def open_dlg(d):
-        if hasattr(page, "open"):
-            page.open(d)
-        else:
-            page.dialog = d
-            d.open = True
-            page.update()
+        if d not in page.overlay:
+            page.overlay.append(d)
+        d.open = True
+        page.update()
 
     def close_dlg(d):
-        if hasattr(page, "close"):
-            page.close(d)
-        else:
-            d.open = False
-            page.update()
+        d.open = False
+        page.update()
 
     class State:
         timer_active = False
@@ -217,67 +212,33 @@ async def main(page: ft.Page):
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
-    # 🚀 极致优雅重构：镶嵌式自定义时间选择器
-    txt_pomo_min = ft.TextField(
+    # 🚀 重磅 UI 升级：将“种树按钮”与“时间输入框”完美融合！
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
+    
+    # 专属自定义时间输入框
+    txt_pomo_time = ft.TextField(
         value="25",
-        width=45,
-        height=30,
-        content_padding=ft.padding.only(left=0, right=0, top=0, bottom=0),
+        width=40,
+        dense=True,
+        content_padding=2,
         text_align=ft.TextAlign.CENTER,
+        keyboard_type=ft.KeyboardType.NUMBER,
         border_color="transparent",
-        bgcolor="#E5E5EA",
-        border_radius=5,
-        keyboard_type=ft.KeyboardType.NUMBER
+        bgcolor="#F2F2F7",
+        color="#1C1C1E"
     )
 
-    # 监听用户输入时间，输入完成或失去焦点时，立刻刷新大号倒计时！
-    def apply_pomo_time(e):
-        if st.timer_active: return
-        try:
-            val = int(txt_pomo_min.value)
-            if val <= 0: val = 25
-        except:
-            val = 25
-        txt_pomo_min.value = str(val)
-        st.pomo_target = val * 60
-        st.elapsed = 0
-        update_focus_ui()
-        page.update()
-
-    txt_pomo_min.on_blur = apply_pomo_time
-    txt_pomo_min.on_submit = apply_pomo_time
-
-    # 超顺滑体验：点击输入框时，如果当前是“筑城”，自动为你切换到“种树”模式
-    def on_pomo_focus(e):
-        if st.mode != "pomodoro":
-            switch_mode("pomodoro")
-    txt_pomo_min.on_focus = on_pomo_focus
-
-    # 左侧：筑城按钮
-    mode_sw_lbl = ft.Text("🧱 筑城 (正向)", color="#8E8E93", weight=ft.FontWeight.BOLD)
-    mode_sw_view = ft.Container(
-        content=ft.Row([mode_sw_lbl], alignment=ft.MainAxisAlignment.CENTER),
-        bgcolor="transparent",
-        border_radius=8,
-        padding=10,
-        height=45,
-        on_click=lambda e: switch_mode("stopwatch"),
-        expand=True
-    )
-
-    # 右侧：种树按钮（内嵌输入框）
-    mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
-    mode_pm_unit = ft.Text("分钟", color="#1C1C1E", size=12, weight=ft.FontWeight.BOLD)
+    mode_pm_lbl = ft.Text(value="🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
+    # 将输入框直接塞进种树按钮里
     mode_pm_view = ft.Container(
         content=ft.Row([
             mode_pm_lbl,
-            txt_pomo_min,
-            mode_pm_unit
-        ], alignment=ft.MainAxisAlignment.CENTER, spacing=4),
+            txt_pomo_time,
+            ft.Text("m", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
+        ], alignment=ft.MainAxisAlignment.CENTER, spacing=3),
         bgcolor="#FFFFFF",
         border_radius=8,
-        height=45,
-        padding=4,
+        padding=6,
         on_click=lambda e: switch_mode("pomodoro"),
         expand=True
     )
@@ -285,24 +246,50 @@ async def main(page: ft.Page):
     def switch_mode(m):
         if st.timer_active: return
         st.mode = m
-        
-        # 颜色视觉反馈
         mode_sw_view.bgcolor = "#FFFFFF" if m == "stopwatch" else "transparent"
         mode_sw_lbl.color = "#1C1C1E" if m == "stopwatch" else "#8E8E93"
-        
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
         mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
-        mode_pm_unit.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
         
-        # 处于筑城模式时，禁用分钟输入框
-        txt_pomo_min.disabled = (m == "stopwatch")
+        # 筑城模式下变灰禁用输入框
+        txt_pomo_time.disabled = (m == "stopwatch")
         
-        if m == "pomodoro":
-            apply_pomo_time(None)
+        try:
+            st.pomo_target = int(txt_pomo_time.value) * 60
+        except:
+            st.pomo_target = 25 * 60
+            
+        reset_timer()
+
+    # 🚀 当你在输入框打字时，100% 触发瞬间同步更新！
+    def on_pomo_change(e):
+        if st.timer_active: return
+        try:
+            val = int(txt_pomo_time.value)
+            st.pomo_target = max(1, val) * 60 # 防止输入0或负数
+        except:
+            st.pomo_target = 25 * 60 # 默认兜底
+            
+        # 只要你改了时间，自动帮你切到种树模式
+        if st.mode != "pomodoro":
+            switch_mode("pomodoro")
         else:
             st.elapsed = 0
             update_focus_ui()
             page.update()
+
+    txt_pomo_time.on_change = on_pomo_change
+
+    # 智能防错：鼠标离开输入框时，如果填错了会自动帮你修正回 25
+    def on_pomo_blur(e):
+        try:
+            val = int(txt_pomo_time.value)
+            if val <= 0: txt_pomo_time.value = "25"
+        except:
+            txt_pomo_time.value = "25"
+        on_pomo_change(e)
+        
+    txt_pomo_time.on_blur = on_pomo_blur
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
@@ -353,12 +340,12 @@ async def main(page: ft.Page):
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
             btn_start_view.bgcolor = "#FF9500"
-            
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
             
             sel_subject.disabled = True
-            txt_pomo_min.disabled = True  # 开始专注时，锁死自定义时间框防误触
+            # 开始专注时，锁定自定义时间输入框
+            txt_pomo_time.disabled = True  
             lbl_quote.value = random.choice(ENCOURAGEMENTS)
         else:
             st.timer_active = False 
@@ -397,11 +384,13 @@ async def main(page: ft.Page):
         btn_stop_lbl.color = "#8E8E93"
         
         sel_subject.disabled = False
-        txt_pomo_min.disabled = (st.mode == "stopwatch") 
+        # 恢复时，只要不是筑城模式，就解锁时间输入框
+        txt_pomo_time.disabled = (st.mode == "stopwatch") 
         
         update_focus_ui()
         page.update()
 
+    # 布局更加精简，因为下拉菜单被干掉了！
     view_focus = ft.Container(
         content=ft.Column([
             ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
@@ -412,9 +401,9 @@ async def main(page: ft.Page):
             ft.Container(height=20),
             lbl_goal, bar_goal,
             ft.Container(height=10),
-            # 🚀 胶囊按钮被精简并融合，视觉更加高级
+            # 这里并排显示筑城和带有自定义时间的种树按钮
             ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
-            ft.Container(height=15),
+            ft.Container(height=10),
             ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
         ],
         alignment=ft.MainAxisAlignment.CENTER, 
