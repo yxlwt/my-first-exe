@@ -116,13 +116,15 @@ async def main(page: ft.Page):
     page.bgcolor = "#F2F2F7"
     page.padding = 15
     page.theme_mode = ft.ThemeMode.SYSTEM
+    # 保持自适应滚动，但通过内部排版收缩消除默认滚动条
     page.scroll = ft.ScrollMode.ADAPTIVE
     
     try:
+        # 🚀 降低最小宽度和高度限制，允许用户将窗口缩得很小
         page.window.width = 460
         page.window.height = 800
-        page.window.min_width = 380
-        page.window.min_height = 600
+        page.window.min_width = 280
+        page.window.min_height = 350
     except AttributeError:
         pass
 
@@ -195,11 +197,11 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 专注功能面板与切换逻辑
+    # 🚀 专注功能面板与容器化组装 (响应式设计基础)
     # ========================================================
     
-    lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
-    lbl_time = ft.Text(value="60:00", size=70, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+    lbl_icon = ft.Text(value="🌰", size=90, text_align=ft.TextAlign.CENTER) # 略微缩小，节省空间
+    lbl_time = ft.Text(value="60:00", size=65, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
     
     sel_subject = ft.Dropdown(
@@ -232,7 +234,6 @@ async def main(page: ft.Page):
         page.update()
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
-    
     mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
@@ -263,9 +264,8 @@ async def main(page: ft.Page):
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=115, dense=True, content_padding=10, text_size=13,
-        border_color="transparent", bgcolor="transparent"
+        border_color="transparent", bgcolor="transparent", on_change=on_pomo_change 
     )
-    sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
@@ -279,7 +279,6 @@ async def main(page: ft.Page):
         st.timer_active = False 
         elapsed_int = int(st.elapsed)
         
-        # 实时显示你测试的秒数，让你放心
         if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
             msg = f"番茄钟未完成 (仅专注 {elapsed_int} 秒)，放弃将留下枯树 🥀，确定吗？"
             show_confirm(msg)
@@ -318,23 +317,25 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True, on_click=toggle_timer)
-    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True, on_click=stop_timer_handler)
+    # 稍微缩减按钮高度，释放竖向空间
+    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=45, expand=True, on_click=toggle_timer)
+    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=45, expand=True, on_click=stop_timer_handler)
 
-    # 面板1：主倒计时面板组合
+    # 🚀 将不需要在极简模式显示的组件打包，方便隐藏
+    subject_container = ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER)
+    goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    mode_container = ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4)
+
+    # 面板1：主倒计时面板组合。通过 spacing 替代 Spacer，自动挤压多余空间
     col_main = ft.Column([
-        ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
-        ft.Container(height=15),
+        subject_container,
         lbl_icon,
         lbl_time,
         lbl_quote,
-        ft.Container(height=20),
-        lbl_goal, bar_goal,
-        ft.Container(height=10),
-        ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
-        ft.Container(height=10),
+        goal_container,
+        mode_container,
         ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
-    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=12)
 
     # [组件2] “确认结束”面板
     def reset_timer():
@@ -350,9 +351,7 @@ async def main(page: ft.Page):
 
     def on_confirm_save(e):
         elapsed_int = int(st.elapsed)
-        # 🚨 核心修复：移除 60秒 限制！哪怕你只测试了 1 秒，只要点保存就绝对存进图鉴里！
         db.add_record(sel_subject.value, elapsed_int, st.mode, True, "中途放弃")
-        
         reset_timer()
         refresh_forest()
         refresh_stats()
@@ -387,7 +386,6 @@ async def main(page: ft.Page):
 
     # [组件3] “专注完成”结算面板
     def on_success_save(e):
-        # 无条件保存
         db.add_record(sel_subject.value, int(st.elapsed), st.mode, False, txt_note.value)
         txt_note.value = ""
         reset_timer()
@@ -412,8 +410,8 @@ async def main(page: ft.Page):
 
     # [大本营] 外层包装，接管面板切换调度
     view_focus = ft.Container(
-        content=col_main, # 启动默认挂载组件1
-        bgcolor="white", border_radius=15, padding=25, expand=True, margin=5
+        content=col_main, 
+        bgcolor="white", border_radius=15, padding=15, expand=True, margin=5
     )
 
     def show_main():
@@ -459,6 +457,34 @@ async def main(page: ft.Page):
             page.update()
         except Exception:
             pass
+
+    # ========================================================
+    # 🚀 极致窗口响应式触发器 (Responsive Engine)
+    # ========================================================
+    def handle_resize(e):
+        # e.height 和 e.width 代表软件除开系统标题栏后的实际可用区域
+        # 当高度小于 580 或 宽度小于 360 时，自动进入极简模式
+        is_compact = e.height < 580 or e.width < 360
+        
+        card_countdown.visible = not is_compact
+        nav_bar.visible = not is_compact
+        
+        subject_container.visible = not is_compact
+        lbl_quote.visible = not is_compact
+        goal_container.visible = not is_compact
+        mode_container.visible = not is_compact
+        
+        if is_compact:
+            lbl_icon.size = 80
+            lbl_time.size = 60
+        else:
+            lbl_icon.size = 90
+            lbl_time.size = 65
+            
+        page.update()
+        
+    # 绑定页面拉伸事件
+    page.on_resize = handle_resize
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
