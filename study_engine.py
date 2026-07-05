@@ -53,9 +53,7 @@ class DataManager:
             elif duration >= 15 * 60: icon = "🌳"
             else: icon = "🌿"
         else:
-            # 🚀 修复点：添加对筑城模式下 is_dead (废料) 的判断
-            if is_dead: icon = "🚧"
-            elif duration >= 60 * 60: icon = "🏰"
+            if duration >= 60 * 60: icon = "🏰"
             elif duration >= 45 * 60: icon = "🏛️"
             elif duration >= 30 * 60: icon = "🏠"
             else: icon = "🧱"
@@ -127,6 +125,32 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
+    # 🚀 规范化弹窗方法，彻底杜绝卡死
+    def open_dlg(d):
+        if hasattr(page, "open"):
+            page.open(d)
+        else:
+            page.dialog = d
+            d.open = True
+            page.update()
+
+    def close_dlg(d):
+        if hasattr(page, "close"):
+            page.close(d)
+        else:
+            d.open = False
+            page.update()
+
+    # 🚀 钢铁级状态防御弹窗
+    def open_warning_dlg(msg):
+        dlg = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("🛡️ 状态防御系统", color="#FF3B30", weight=ft.FontWeight.BOLD),
+            content=ft.Text(value=msg),
+            actions=[ft.TextButton("我知道了", on_click=lambda e: close_dlg(dlg))]
+        )
+        open_dlg(dlg)
+
     class State:
         timer_active = False
         mode = "pomodoro"
@@ -137,31 +161,8 @@ async def main(page: ft.Page):
         stats_scope = "day"
         last_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
         last_pomo_val = "60" 
-        dialog_open = False # 🚀 修复点：增加防狂点锁
 
     st = State()
-
-    def show_warning(msg):
-        page.snack_bar = ft.SnackBar(ft.Text(msg), bgcolor=ft.colors.RED_600)
-        page.snack_bar.open = True
-        page.update()
-
-    def open_dlg(d):
-        st.dialog_open = True
-        if hasattr(page, "open"):
-            page.open(d)
-        else:
-            page.dialog = d
-            d.open = True
-            page.update()
-
-    def close_dlg(d):
-        st.dialog_open = False
-        if hasattr(page, "close"):
-            page.close(d)
-        else:
-            d.open = False
-            page.update()
 
     # ----------------- 顶部倒计时看板 -----------------
     countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=16, weight=ft.FontWeight.BOLD, color="#007AFF")
@@ -225,12 +226,40 @@ async def main(page: ft.Page):
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
-    def switch_mode(m):
-        # 🚀 修复点：拦截一切正处于计时或暂停状态的模式切换请求
-        if st.timer_active or st.elapsed > 0:
-            show_warning("当前专注尚未结算！")
-            return
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
+    
+    mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
+    mode_pm_click_area = ft.Container(
+        content=mode_pm_lbl,
+        on_click=lambda e: switch_mode("pomodoro"),
+        padding=10, 
+        bgcolor="transparent"
+    )
 
+    sel_pomo = ft.Dropdown(
+        options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
+        value="60", 
+        width=115, 
+        dense=True,
+        content_padding=10,
+        text_size=13,
+        border_color="transparent", 
+        bgcolor="transparent"
+    )
+
+    mode_pm_view = ft.Container(
+        content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
+        bgcolor="#FFFFFF",
+        border_radius=8,
+        expand=True
+    )
+
+    # 🚀 修复1：只要时间大于0（说明已启动或被暂停），一律拦截模式切换
+    def switch_mode(m):
+        if st.timer_active or st.elapsed > 0:
+            open_warning_dlg("当前专注尚未结算！请先点击结束。")
+            return
+            
         st.mode = m
         mode_sw_view.bgcolor = "#FFFFFF" if m == "stopwatch" else "transparent"
         mode_sw_lbl.color = "#1C1C1E" if m == "stopwatch" else "#8E8E93"
@@ -247,28 +276,15 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
-    mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
-    mode_pm_click_area = ft.Container(
-        content=mode_pm_lbl,
-        on_click=lambda e: switch_mode("pomodoro"),
-        padding=10, 
-        bgcolor="transparent"
-    )
-
     def on_pomo_change(e):
-        # 🚀 修复点：下拉框状态强制拦截与回滚
         if st.timer_active or st.elapsed > 0:
             sel_pomo.value = st.last_pomo_val
-            show_warning("当前专注尚未结算，无法修改时间！")
             page.update()
+            open_warning_dlg("当前专注尚未结算！禁止修改目标时间。")
             return
             
-        st.last_pomo_val = sel_pomo.value
-        try:
-            st.pomo_target = int(sel_pomo.value) * 60
-        except:
-            st.pomo_target = 60 * 60 
+        try: st.pomo_target = int(sel_pomo.value) * 60
+        except: st.pomo_target = 60 * 60 
             
         st.mode = "pomodoro"
         mode_sw_view.bgcolor = "transparent"
@@ -281,29 +297,13 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    sel_pomo = ft.Dropdown(
-        options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", 
-        width=115, 
-        dense=True,
-        content_padding=10,
-        text_size=13,
-        border_color="transparent", 
-        bgcolor="transparent",
-        on_change=on_pomo_change
-    )
-
-    mode_pm_view = ft.Container(
-        content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
-        bgcolor="#FFFFFF",
-        border_radius=8,
-        expand=True
-    )
+    sel_pomo.on_change = on_pomo_change
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
+    # 🚀 修复2：重构结束弹窗，完全剥离 Container，使用原生按钮，避免卡死
     def stop_timer_handler(e):
-        if (not st.timer_active and st.elapsed == 0) or st.dialog_open:
+        if not st.timer_active and st.elapsed == 0:
             return
             
         st.timer_active = False 
@@ -311,17 +311,20 @@ async def main(page: ft.Page):
         
         elapsed_int = int(st.elapsed)
         if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
-            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if elapsed_int >= 60 else "不足 1 分钟，放弃不留记录。"
+            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if elapsed_int >= 60 else "不足 1 分钟，放弃不留记录，确定吗？"
         elif st.mode == "stopwatch" and elapsed_int < 60:
             msg = "筑城不足 1 分钟，只留下废料 🚧。确定保存吗？"
         else:
             trigger_success_dialog(is_dead=False)
             return
 
-        def on_confirm(save_dead):
+        def on_confirm(e):
             close_dlg(dlg)
-            if save_dead:
-                db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
+            # 🚀 修复3：番茄钟不足1分钟彻底不留记录，筑城不足1分留废料
+            if st.mode == "pomodoro" and elapsed_int < 60:
+                pass
+            else:
+                db.add_record(sel_subject.value, elapsed_int, st.mode, True, "提前放弃")
             reset_timer()
             refresh_forest()
             refresh_stats()
@@ -330,15 +333,23 @@ async def main(page: ft.Page):
             close_dlg(dlg)
             reset_timer()
 
-        # 🚀 修复点：严格使用原生 TextButton 避免 Modal 关闭失败或无响应
-        btn_y = ft.TextButton("是 (保存)", style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.RED_600), on_click=lambda e: on_confirm(True))
-        btn_n = ft.TextButton("否 (销毁)", style=ft.ButtonStyle(color=ft.colors.BLACK, bgcolor=ft.colors.GREY_300), on_click=on_cancel)
+        # 动态生成防卡死原生按钮
+        if st.mode == "pomodoro" and elapsed_int < 60:
+            actions = [
+                ft.TextButton("确定销毁 (不留记录)", on_click=on_cancel, style=ft.ButtonStyle(color=ft.colors.RED)),
+                ft.TextButton("点错了，继续专注", on_click=lambda e: close_dlg(dlg))
+            ]
+        else:
+            actions = [
+                ft.TextButton("是 (结算)", on_click=on_confirm, style=ft.ButtonStyle(color=ft.colors.RED)),
+                ft.TextButton("否 (销毁)", on_click=on_cancel)
+            ]
 
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
             content=ft.Text(value=msg),
-            actions=[btn_y, btn_n]
+            actions=actions
         )
         open_dlg(dlg)
 
@@ -346,10 +357,6 @@ async def main(page: ft.Page):
 
     def toggle_timer(e):
         if not st.timer_active:
-            if st.mode == "pomodoro":
-                try: st.pomo_target = int(sel_pomo.value) * 60
-                except: pass
-                
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
@@ -358,7 +365,7 @@ async def main(page: ft.Page):
             btn_stop_lbl.color = "white"
             
             sel_subject.disabled = True
-            sel_pomo.disabled = True  
+            sel_pomo.disabled = True 
             lbl_quote.value = random.choice(ENCOURAGEMENTS)
         else:
             st.timer_active = False 
@@ -371,24 +378,22 @@ async def main(page: ft.Page):
     btn_start_view.on_click = toggle_timer
 
     def trigger_success_dialog(is_dead=False):
-        if st.dialog_open: return
-        
         txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
         def on_save(e):
             close_dlg(dlg)
-            db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value)
+            db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value or "")
             reset_timer()
             refresh_forest()
             refresh_stats()
 
-        # 🚀 修复点：原生 TextButton 稳定响应事件
-        btn_save = ft.TextButton("保存战果", style=ft.ButtonStyle(color=ft.colors.WHITE, bgcolor=ft.colors.GREEN_600), on_click=on_save)
-
+        # 🚀 同样替换为原生 Flet 按钮，杜绝卡死
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
             content=ft.Column([ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), txt_note], tight=True),
-            actions=[btn_save]
+            actions=[
+                ft.ElevatedButton("保存战果", on_click=on_save, bgcolor="#34C759", color="white")
+            ]
         )
         open_dlg(dlg)
 
@@ -641,6 +646,17 @@ async def main(page: ft.Page):
     async def heart_beat():
         while True:
             await asyncio.sleep(0.2) 
+            
+            # 扫描下拉框变化 (剥离越界拦截，交由原生 on_change 处理)
+            current_pomo_val = str(sel_pomo.value)
+            if current_pomo_val != st.last_pomo_val:
+                # 仅做静默回滚，不在此处弹窗阻挡进程
+                if st.timer_active or st.elapsed > 0:
+                    sel_pomo.value = st.last_pomo_val
+                    page.update()
+                else:
+                    st.last_pomo_val = current_pomo_val
+            
             if not st.timer_active: continue
             
             try:
@@ -668,6 +684,7 @@ async def main(page: ft.Page):
 
     page.run_task(heart_beat)
 
+# ================= 4. 防崩沙盒入口 =================
 if __name__ == "__main__":
     try:
         ft.app(target=main)
