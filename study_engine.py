@@ -91,7 +91,7 @@ def format_dur(seconds):
     if m > 0: return f"{m}m {sec}s"
     return f"{sec}s"
 
-# 🚀 视觉修复：废除时分秒的转换，统统变成大写的 MM:SS！
+# 🚀 视觉修复：废除了小时转换！120 分钟就是绝对直观的 120:00
 def format_time(seconds):
     s = max(0, int(seconds))
     return f"{s//60:02d}:{s%60:02d}"
@@ -150,6 +150,7 @@ async def main(page: ft.Page):
         forest_scope = "day"
         stats_scope = "day"
         last_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
+        last_pomo_val = "60" # 🚀 雷达扫描基准值
 
     st = State()
 
@@ -215,31 +216,30 @@ async def main(page: ft.Page):
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
-    # 🚀 极致美学 + 安全架构：拼装而成的胶囊按钮
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
     
-    # 种树的文字点击区（它只负责切换模式）
+    # 🚀 安全排版：剥离一切复杂内边距，完全用数值填充 
     mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl,
         on_click=lambda e: switch_mode("pomodoro"),
-        padding=ft.padding.only(left=15, right=5, top=8, bottom=8),
+        padding=10, 
         bgcolor="transparent"
     )
 
-    # 下拉框区域（它只负责选时间，不会被外层吞噬点击事件）
+    # 🚀 将宽度加长到 115，保证 120 分钟不仅能装下，还很有余地！
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", 
-        width=85, 
+        width=115, 
         dense=True,
-        content_padding=5,
+        content_padding=10,
         text_size=13,
         border_color="transparent", 
         bgcolor="transparent"
     )
 
-    # 将它们组合在一个完美的白色胶囊里
+    # 将其包装成极其漂亮的胶囊
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
         bgcolor="#FFFFFF",
@@ -251,7 +251,6 @@ async def main(page: ft.Page):
         if st.timer_active: return
         st.mode = m
         
-        # UI颜色同步切换
         mode_sw_view.bgcolor = "#FFFFFF" if m == "stopwatch" else "transparent"
         mode_sw_lbl.color = "#1C1C1E" if m == "stopwatch" else "#8E8E93"
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
@@ -267,6 +266,7 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
+    # 等组件生成完之后再绑定，避开框架崩溃陷阱
     def on_pomo_change(e):
         if st.timer_active: return
         try:
@@ -313,12 +313,12 @@ async def main(page: ft.Page):
             refresh_forest()
             refresh_stats()
 
-        def on_cancel():
+        def on_cancel(e):
             close_dlg(dlg)
             reset_timer()
 
         btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
-        btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=lambda e: on_cancel())
+        btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=on_cancel)
 
         dlg = ft.AlertDialog(
             modal=True,
@@ -332,7 +332,6 @@ async def main(page: ft.Page):
 
     def toggle_timer(e):
         if not st.timer_active:
-            # 🚀 JIT 防御读取：在开始的一瞬间，强行抓取框里的数字作为时间！无视所有Bug！
             if st.mode == "pomodoro":
                 try: st.pomo_target = int(sel_pomo.value) * 60
                 except: pass
@@ -403,7 +402,7 @@ async def main(page: ft.Page):
             ft.Container(height=10),
             
             # 美观对称的底座
-            ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=5), bgcolor="#E5E5EA", border_radius=10, padding=4),
+            ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
             
             ft.Container(height=10),
             ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
@@ -623,9 +622,32 @@ async def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
+    # 🚀 极致雷达，防止 Flet 老版本丢失事件，实现秒速响应！
     async def heart_beat():
         while True:
-            await asyncio.sleep(0.5) 
+            await asyncio.sleep(0.2) 
+            
+            # 扫描下拉框变化
+            current_pomo_val = str(sel_pomo.value)
+            if current_pomo_val != st.last_pomo_val:
+                st.last_pomo_val = current_pomo_val
+                if not st.timer_active:
+                    try:
+                        st.pomo_target = int(current_pomo_val) * 60
+                    except:
+                        st.pomo_target = 60 * 60
+                    
+                    st.mode = "pomodoro"
+                    mode_sw_view.bgcolor = "transparent"
+                    mode_sw_lbl.color = "#8E8E93"
+                    mode_pm_view.bgcolor = "#FFFFFF"
+                    mode_pm_lbl.color = "#1C1C1E"
+                    sel_pomo.disabled = False
+                    
+                    st.elapsed = 0
+                    update_focus_ui()
+                    page.update()
+            
             if not st.timer_active: continue
             
             try:
