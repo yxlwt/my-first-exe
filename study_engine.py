@@ -95,7 +95,6 @@ def format_time(seconds):
     s = max(0, int(seconds))
     return f"{s//60:02d}:{s%60:02d}"
 
-# 🚀 为了弹窗安全，保留了 width 定宽能力
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, width=None, height=None, padding=10):
     lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD)
     cnt = ft.Container(
@@ -127,7 +126,6 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 🚀 极致兼容版弹窗挂载
     def open_dlg(d):
         if hasattr(page, "open"):
             page.open(d)
@@ -283,7 +281,6 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    # ✅ 彻底修复报错点：去掉了 __init__ 中的 on_change
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", 
@@ -294,7 +291,7 @@ async def main(page: ft.Page):
         border_color="transparent", 
         bgcolor="transparent"
     )
-    sel_pomo.on_change = on_pomo_change # 兼容旧版本的正确写法
+    sel_pomo.on_change = on_pomo_change 
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
@@ -306,7 +303,7 @@ async def main(page: ft.Page):
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
     # ========================================================
-    # 🚀🚀 核心修复区：废弃 actions 区域，彻底杜绝排版静默卡死 🚀🚀
+    # 🚀 彻底重写的结束逻辑与原生极简弹窗 🚀
     # ========================================================
     def stop_timer_handler(e):
         if not st.session_active:
@@ -344,27 +341,23 @@ async def main(page: ft.Page):
                 st.start_tick = time.time() - st.elapsed
             page.update()
 
-        # 🚨 必须使用 width 锁死宽度，不能出现任何 expand=True，防止底层计算崩溃
-        btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", width=130, on_click=on_confirm_save)
-        btn_n, _ = create_btn("直接销毁", bgcolor="#F2F2F7", txt_color="#8E8E93", width=130, on_click=on_discard)
-        btn_c, _ = create_btn("取消 (手滑点错)", bgcolor="#34C759", txt_color="white", width=270, on_click=on_cancel_dialog)
-
-        # 🚨 把所有按钮移到 content 里面去！让弹窗变成一个普通列，绝对不会卡死
+        # 剥离所有嵌套布局，直接使用原生 TextButton 放置在 actions 数组中
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
-            content=ft.Column([
-                ft.Text(value=msg),
-                ft.Container(height=10),
-                ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, width=270),
-                ft.Container(height=5),
-                btn_c
-            ], tight=True) # tight=True 让内容区自适应高度
+            title=ft.Text("确认结束", weight=ft.FontWeight.BOLD),
+            content=ft.Text(msg),
+            actions=[
+                ft.TextButton("保存战果", on_click=on_confirm_save),
+                ft.TextButton("直接销毁", on_click=on_discard),
+                ft.TextButton("取消", on_click=on_cancel_dialog)
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
         )
         open_dlg(dlg)
 
     def trigger_success_dialog(is_dead=False):
-        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6", width=270)
+        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
+        
         def on_save(e):
             close_dlg(dlg)
             db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value)
@@ -372,18 +365,17 @@ async def main(page: ft.Page):
             refresh_forest()
             refresh_stats()
 
-        btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", width=270, on_click=on_save)
-
-        # 同理，放在 content 里面保平安
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
+            title=ft.Text("🎉 专注完成！", weight=ft.FontWeight.BOLD),
             content=ft.Column([
-                ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"),
-                txt_note,
-                ft.Container(height=10),
-                btn_save
-            ], tight=True)
+                ft.Text(random.choice(ENCOURAGEMENTS), color="#8E8E93"),
+                txt_note
+            ], tight=True),
+            actions=[
+                ft.TextButton("保存战果", on_click=on_save)
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
         )
         open_dlg(dlg)
     # ========================================================
