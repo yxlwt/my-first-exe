@@ -95,7 +95,8 @@ def format_time(seconds):
     s = max(0, int(seconds))
     return f"{s//60:02d}:{s%60:02d}"
 
-def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, height=None, padding=10):
+# 🚀 增加 width 参数，防止弹窗因宽度计算失败而彻底崩溃
+def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, width=None, height=None, padding=10):
     lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD)
     cnt = ft.Container(
         content=ft.Row([lbl], alignment=ft.MainAxisAlignment.CENTER),
@@ -104,6 +105,7 @@ def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", 
         padding=padding,
         on_click=on_click,
         expand=expand,
+        width=width,
         height=height
     )
     return cnt, lbl
@@ -125,34 +127,25 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 弹窗与警告兼容处理
+    # 🚀 最稳妥的弹窗挂载法，彻底杜绝 page.open() 在不同版本的兼容性异常
     def open_dlg(d):
-        if hasattr(page, "open"):
-            page.open(d)
-        else:
-            page.dialog = d
-            d.open = True
-            page.update()
+        page.dialog = d
+        d.open = True
+        page.update()
 
     def close_dlg(d):
-        if hasattr(page, "close"):
-            page.close(d)
-        else:
-            d.open = False
-            page.update()
+        d.open = False
+        page.update()
 
     def show_warning(msg):
         snack = ft.SnackBar(content=ft.Text(msg, color="white", weight=ft.FontWeight.BOLD), bgcolor="#FF3B30")
-        if hasattr(page, "open"):
-            page.open(snack)
-        else:
-            page.snack_bar = snack
-            snack.open = True
-            page.update()
+        page.snack_bar = snack
+        snack.open = True
+        page.update()
 
     class State:
-        session_active = False  # 🚀 会话级防误触锁 (只要点了开始，哪怕暂停，它也是True)
-        timer_active = False    # 倒计时是否正在流动
+        session_active = False  
+        timer_active = False    
         mode = "pomodoro"
         pomo_target = 60 * 60
         elapsed = 0
@@ -226,7 +219,6 @@ async def main(page: ft.Page):
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
-    # 🚀 模式切换拦截盾
     def switch_mode(m):
         if st.session_active:
             show_warning("🚨 当前专注尚未结算，无法切换模式！")
@@ -258,7 +250,6 @@ async def main(page: ft.Page):
         bgcolor="transparent"
     )
 
-    # 🚀 时间修改拦截盾
     def on_pomo_change(e):
         if st.session_active:
             show_warning("🚨 专注期间禁止修改目标时间！")
@@ -305,14 +296,14 @@ async def main(page: ft.Page):
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
     # ========================================================
-    # 🚀🚀🚀 核心修复区：彻底重写防崩弹窗架构 🚀🚀🚀
+    # 🚀🚀 核心修复区：物理定宽，彻底杜绝排版隐形崩溃 🚀🚀
     # ========================================================
     def stop_timer_handler(e):
         if not st.session_active:
             return
             
         was_active = st.timer_active
-        st.timer_active = False # 打开弹窗前，强制暂停底层心跳计时
+        st.timer_active = False 
         page.update()
         
         elapsed_int = int(st.elapsed)
@@ -338,34 +329,36 @@ async def main(page: ft.Page):
 
         def on_cancel_dialog(e):
             close_dlg(dlg)
-            if was_active: # 如果原来在计时，恢复计时
+            if was_active: 
                 st.timer_active = True
                 st.start_tick = time.time() - st.elapsed
             page.update()
 
-        btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=on_confirm_save)
-        btn_n, _ = create_btn("直接销毁", bgcolor="#F2F2F7", txt_color="#8E8E93", expand=True, on_click=on_discard)
-        btn_c, _ = create_btn("取消 (手滑点错)", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_cancel_dialog)
+        # 🚨 绝对不允许使用 expand=True！全部指定固定 width 以防弹窗内排版死锁
+        btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", width=130, on_click=on_confirm_save)
+        btn_n, _ = create_btn("直接销毁", bgcolor="#F2F2F7", txt_color="#8E8E93", width=130, on_click=on_discard)
+        btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", width=270, on_click=on_cancel_dialog)
 
-        # 🚨 重点修复：摒弃原生的 actions 数组排版，将所有按钮锁在 content 容器中，杜绝无边界报错
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
-            content=ft.Container(
-                width=320, # 强行锁定边界，绝不崩溃
-                content=ft.Column([
-                    ft.Text(value=msg),
-                    ft.Container(height=15),
-                    ft.Row([btn_y, btn_n]),
-                    ft.Container(height=5),
-                    ft.Row([btn_c])
-                ], tight=True)
-            )
+            content=ft.Text(value=msg),
+            actions=[
+                ft.Container(
+                    width=270, 
+                    content=ft.Column([
+                        ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Container(height=5),
+                        btn_c
+                    ], tight=True)
+                )
+            ],
+            actions_alignment=ft.MainAxisAlignment.CENTER
         )
         open_dlg(dlg)
 
     def trigger_success_dialog(is_dead=False):
-        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
+        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6", width=270)
         def on_save(e):
             close_dlg(dlg)
             db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value)
@@ -373,21 +366,18 @@ async def main(page: ft.Page):
             refresh_forest()
             refresh_stats()
 
-        btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
+        # 🚨 同样必须设置固定宽度 width=270
+        btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", width=270, on_click=on_save)
 
-        # 🚨 同步修复：完成结算弹窗的安全包裹
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
-            content=ft.Container(
-                width=320,
-                content=ft.Column([
-                    ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), 
-                    txt_note,
-                    ft.Container(height=15),
-                    ft.Row([btn_save])
-                ], tight=True)
-            )
+            content=ft.Column([
+                ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93", width=270),
+                txt_note
+            ], tight=True),
+            actions=[btn_save],
+            actions_alignment=ft.MainAxisAlignment.CENTER
         )
         open_dlg(dlg)
     # ========================================================
@@ -396,7 +386,6 @@ async def main(page: ft.Page):
 
     def toggle_timer(e):
         if not st.session_active:
-            # 🚀 从未开始状态 -> 开始
             st.session_active = True
             st.timer_active = True
             if st.mode == "pomodoro":
@@ -414,7 +403,6 @@ async def main(page: ft.Page):
             lbl_quote.value = random.choice(ENCOURAGEMENTS)
             
         elif not st.timer_active:
-            # 🚀 从暂停状态 -> 继续
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
@@ -423,7 +411,6 @@ async def main(page: ft.Page):
             btn_stop_lbl.color = "white"
             
         else:
-            # 🚀 从计时状态 -> 暂停
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
             btn_start_view.bgcolor = "#34C759"
@@ -434,7 +421,7 @@ async def main(page: ft.Page):
     btn_start_view.on_click = toggle_timer
 
     def reset_timer():
-        st.session_active = False # 彻底释放底层锁
+        st.session_active = False
         st.timer_active = False
         st.elapsed = 0
         btn_start_lbl.value = "▶ 开始专注"
@@ -460,7 +447,6 @@ async def main(page: ft.Page):
             lbl_goal, bar_goal,
             ft.Container(height=10),
             
-            # 美观对称的底座
             ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
             
             ft.Container(height=10),
@@ -681,15 +667,12 @@ async def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 🚀 极致雷达，防止 Flet 老版本丢失事件，实现秒速响应！
     async def heart_beat():
         while True:
             await asyncio.sleep(0.2) 
             
-            # 扫描下拉框变化
             current_pomo_val = str(sel_pomo.value)
             if current_pomo_val != st.last_pomo_val:
-                # 🚀 深度拦截：只要属于会话期间，不仅不执行更新，还要强行拉回旧值！
                 if st.session_active:
                     sel_pomo.value = st.last_pomo_val
                     page.update()
