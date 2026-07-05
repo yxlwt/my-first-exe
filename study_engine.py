@@ -125,37 +125,33 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 🚀 极其严谨的原生弹窗底层调度器
+    # 🚀 新增一个小工具：统一显示警告条
     def show_snack(text):
         sb = ft.SnackBar(content=ft.Text(text, weight=ft.FontWeight.BOLD), bgcolor="#FF3B30")
-        try:
-            if hasattr(page, "open"): page.open(sb)
-            else:
-                page.snack_bar = sb
-                sb.open = True
-                page.update()
-        except Exception: pass
+        if hasattr(page, "open"):
+            page.open(sb)
+        else:
+            page.snack_bar = sb
+            sb.open = True
+            page.update()
 
     def open_dlg(d):
-        try:
-            if hasattr(page, "open"): page.open(d)
-            else:
-                page.dialog = d
-                d.open = True
-                page.update()
-        except Exception: pass
+        if hasattr(page, "open"):
+            page.open(d)
+        else:
+            page.dialog = d
+            d.open = True
+            page.update()
 
     def close_dlg(d):
-        try:
-            if hasattr(page, "close"): page.close(d)
-            else:
-                d.open = False
-                page.update()
-        except Exception: pass
+        if hasattr(page, "close"):
+            page.close(d)
+        else:
+            d.open = False
+            page.update()
 
     class State:
         timer_active = False
-        session_started = False  # 🚀 物理级核心锁：只要开启专注，绝对锁死
         mode = "pomodoro"
         pomo_target = 60 * 60
         elapsed = 0
@@ -163,7 +159,7 @@ async def main(page: ft.Page):
         forest_scope = "day"
         stats_scope = "day"
         last_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
-        last_pomo_val = "60" 
+        last_pomo_val = "60"
 
     st = State()
 
@@ -258,9 +254,9 @@ async def main(page: ft.Page):
     )
 
     def switch_mode(m):
-        # 无论停表多久，只要开始了就彻底拦截！
-        if st.session_started: 
-            show_snack("⚠️ 当前专注尚未结算！禁止切换模式。")
+        # 🚀 修复点 2：只要倒计时走动过（不管是不是暂停状态），直接拦截模式切换
+        if st.timer_active or st.elapsed > 0: 
+            show_snack("当前专注尚未结算，无法切换模式！")
             return
             
         st.mode = m
@@ -281,10 +277,11 @@ async def main(page: ft.Page):
         page.update()
 
     def on_pomo_change(e):
-        if st.session_started: 
+        # 🚀 修复点 2 附加：只要专注开始了，强制把下拉框数值回滚回去
+        if st.timer_active or st.elapsed > 0: 
             sel_pomo.value = st.last_pomo_val
             page.update()
-            show_snack("⚠️ 当前专注尚未结算！时间已锁定。")
+            show_snack("专注期间无法修改时间！")
             return
             
         try:
@@ -293,7 +290,7 @@ async def main(page: ft.Page):
             st.pomo_target = 60 * 60 
             
         st.mode = "pomodoro"
-        st.last_pomo_val = str(sel_pomo.value)
+        st.last_pomo_val = str(sel_pomo.value) # 记录新值，供雷达使用
         mode_sw_view.bgcolor = "transparent"
         mode_sw_lbl.color = "#8E8E93"
         mode_pm_view.bgcolor = "#FFFFFF"
@@ -304,14 +301,12 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    # 唯独保留 Dropdown 自带的 on_change，这是最精确的触发器
     sel_pomo.on_change = on_pomo_change
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
     def stop_timer_handler(e):
-        # 没有处于专注状态时，点击完全无视
-        if not st.session_started:
+        if not st.timer_active and st.elapsed == 0:
             return
             
         st.timer_active = False 
@@ -319,18 +314,16 @@ async def main(page: ft.Page):
         
         elapsed_int = int(st.elapsed)
         if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
-            msg = "番茄钟未走完，提前结束将留下一棵枯树 🥀，确定保存吗？" if elapsed_int >= 60 else "专注不足 1 分钟，放弃将不留记录。"
+            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if elapsed_int >= 60 else "不足 1 分钟，放弃不留记录。"
         elif st.mode == "stopwatch" and elapsed_int < 60:
-            msg = "筑城不足 1 分钟，只留下废料 🚧。确定保存记录吗？"
+            msg = "筑城不足 1 分钟，只留下废料 🚧。确定保存吗？"
         else:
             trigger_success_dialog(is_dead=False)
             return
 
         def on_confirm(e):
             close_dlg(dlg)
-            # 只有大于 60 秒才真正生成垃圾战果，否则丢弃
-            if elapsed_int >= 60:
-                db.add_record(sel_subject.value, elapsed_int, st.mode, True, "提前放弃")
+            db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
             reset_timer()
             refresh_forest()
             refresh_stats()
@@ -339,15 +332,15 @@ async def main(page: ft.Page):
             close_dlg(dlg)
             reset_timer()
 
-        # 🚀 终极修复：使用 Flet 原生标准组件构建 Dialog Actions，杜绝排版崩溃！
-        btn_y = ft.ElevatedButton(text="是 (结束)", bgcolor="#FF3B30", color="white", on_click=on_confirm)
+        # 🚀 修复点 1：废除之前的 create_btn，换成原生的 Button，彻底解决弹窗卡死不出的问题！
+        btn_y = ft.ElevatedButton(text="是 (保存)", color="white", bgcolor="#FF3B30", on_click=on_confirm)
         btn_n = ft.TextButton(text="否 (销毁)", on_click=on_cancel)
 
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text(value="安全结算确认", weight=ft.FontWeight.BOLD),
+            title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
             content=ft.Text(value=msg),
-            actions=[btn_n, btn_y],
+            actions=[btn_n, btn_y], # 原生按钮放入 actions
             actions_alignment=ft.MainAxisAlignment.END
         )
         open_dlg(dlg)
@@ -361,7 +354,6 @@ async def main(page: ft.Page):
                 except: pass
                 
             st.timer_active = True
-            st.session_started = True  # 🔐 核心防线：一键开启，全面封锁
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
             btn_start_view.bgcolor = "#FF9500"
@@ -390,8 +382,8 @@ async def main(page: ft.Page):
             refresh_forest()
             refresh_stats()
 
-        # 原生安全按钮
-        btn_save = ft.ElevatedButton(text="保存战果", bgcolor="#34C759", color="white", on_click=on_save)
+        # 🚀 同样使用原生按钮修复弹窗
+        btn_save = ft.ElevatedButton(text="保存战果", color="white", bgcolor="#34C759", on_click=on_save)
 
         dlg = ft.AlertDialog(
             modal=True,
@@ -404,10 +396,10 @@ async def main(page: ft.Page):
 
     def reset_timer():
         st.timer_active = False
-        st.session_started = False  # 🔓 结算完毕，解除锁定
         st.elapsed = 0
         btn_start_lbl.value = "▶ 开始专注"
         btn_start_view.bgcolor = "#34C759"
+        
         btn_stop_view.bgcolor = "#F2F2F7"
         btn_stop_lbl.color = "#8E8E93"
         
@@ -428,6 +420,7 @@ async def main(page: ft.Page):
             lbl_goal, bar_goal,
             ft.Container(height=10),
             
+            # 美观对称的底座
             ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
             
             ft.Container(height=10),
@@ -464,11 +457,8 @@ async def main(page: ft.Page):
         bar_goal.value = min(total / goal, 1.0)
         
         try:
-            # 独立刷新核心组件，不强拖整个页面下水
             lbl_time.update()
             lbl_icon.update()
-            lbl_goal.update()
-            bar_goal.update()
         except Exception:
             pass
 
@@ -613,12 +603,9 @@ async def main(page: ft.Page):
 
     def on_export(e):
         try:
-            backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
-            with open(backup_path, "w", encoding="utf-8") as f:
+            with open("StudyEngine_Backup.json", "w", encoding="utf-8") as f:
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
-            show_snack("✅ 备份已成功导出至同目录！")
-        except Exception: 
-            pass
+        except: pass
 
     btn_exp, _ = create_btn("⬇ 导出本地备份 (同目录)", bgcolor="#E5E5EA", padding=15, on_click=on_export)
 
@@ -654,9 +641,35 @@ async def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
+    # 🚀 完全原版的雷达扫描，唯一变动：加上了和模式切换一样的拦截判断
     async def heart_beat():
         while True:
             await asyncio.sleep(0.2) 
+            
+            # 扫描下拉框变化
+            current_pomo_val = str(sel_pomo.value)
+            if current_pomo_val != st.last_pomo_val:
+                # 🚀 补充修补：只要是在专注期间，下拉框会被强制回原形
+                if st.timer_active or st.elapsed > 0:
+                    sel_pomo.value = st.last_pomo_val
+                    page.update()
+                else:
+                    st.last_pomo_val = current_pomo_val
+                    try:
+                        st.pomo_target = int(current_pomo_val) * 60
+                    except:
+                        st.pomo_target = 60 * 60
+                    
+                    st.mode = "pomodoro"
+                    mode_sw_view.bgcolor = "transparent"
+                    mode_sw_lbl.color = "#8E8E93"
+                    mode_pm_view.bgcolor = "#FFFFFF"
+                    mode_pm_lbl.color = "#1C1C1E"
+                    sel_pomo.disabled = False
+                    
+                    st.elapsed = 0
+                    update_focus_ui()
+                    page.update()
             
             if not st.timer_active: continue
             
@@ -679,6 +692,7 @@ async def main(page: ft.Page):
                     continue
                     
                 update_focus_ui()
+                page.update() 
             except Exception:
                 pass
 
