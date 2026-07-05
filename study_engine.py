@@ -125,35 +125,25 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 🚀 修复1：防静默崩溃的弹窗控制器与通知条
+    # 🚀 修复点 1：抛弃所有花里胡哨的兼容写法，直接刚底层 API
     def show_snack(text):
         sb = ft.SnackBar(content=ft.Text(text, weight=ft.FontWeight.BOLD), bgcolor="#FF3B30")
-        try:
-            if hasattr(page, "open"): page.open(sb)
-            else:
-                page.snack_bar = sb
-                sb.open = True
-                page.update()
-        except: pass
+        page.snack_bar = sb
+        sb.open = True
+        page.update()
 
     def open_dlg(d):
-        try:
-            if hasattr(page, "open"): page.open(d)
-            else:
-                page.dialog = d
-                d.open = True
-                page.update()
-        except: pass
+        page.dialog = d
+        d.open = True
+        page.update()
 
     def close_dlg(d):
         d.open = False
-        try:
-            if hasattr(page, "close"): page.close(d)
-        except: pass
         page.update()
 
     class State:
         timer_active = False
+        session_started = False  # 🚀 修复点 2：极其硬核的“会话状态锁”
         mode = "pomodoro"
         pomo_target = 60 * 60
         elapsed = 0
@@ -256,9 +246,9 @@ async def main(page: ft.Page):
     )
 
     def switch_mode(m):
-        # 🚀 修复2：增强状态锁，时间走过 1 秒就不许切模式
-        if st.timer_active or st.elapsed > 0: 
-            show_snack("当前专注尚未结算！")
+        # 只要点击过开始，就算时间还没走，照样死锁拦截！
+        if st.session_started: 
+            show_snack("⚠️ 当前专注尚未结算！")
             return
             
         st.mode = m
@@ -279,11 +269,10 @@ async def main(page: ft.Page):
         page.update()
 
     def on_pomo_change(e):
-        # 🚀 修复2（联动）：专注状态锁死下拉框
-        if st.timer_active or st.elapsed > 0: 
+        if st.session_started: 
             sel_pomo.value = st.last_pomo_val
             page.update()
-            show_snack("当前专注尚未结算！")
+            show_snack("⚠️ 当前专注尚未结算！禁止篡改。")
             return
             
         try:
@@ -292,6 +281,7 @@ async def main(page: ft.Page):
             st.pomo_target = 60 * 60 
             
         st.mode = "pomodoro"
+        st.last_pomo_val = str(sel_pomo.value) # 核心：同步更新基准值
         mode_sw_view.bgcolor = "transparent"
         mode_sw_lbl.color = "#8E8E93"
         mode_pm_view.bgcolor = "#FFFFFF"
@@ -307,7 +297,8 @@ async def main(page: ft.Page):
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
     def stop_timer_handler(e):
-        if not st.timer_active and st.elapsed == 0:
+        # 如果连专注的会话都没开启，点结束完全没反应
+        if not st.session_started:
             return
             
         st.timer_active = False 
@@ -343,6 +334,7 @@ async def main(page: ft.Page):
             content=ft.Text(value=msg),
             actions=[ft.Row([btn_y, btn_n])]
         )
+        # 这里一定能弹出来，因为已经换成了最暴力的原生写法
         open_dlg(dlg)
 
     btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True, on_click=stop_timer_handler)
@@ -354,6 +346,7 @@ async def main(page: ft.Page):
                 except: pass
                 
             st.timer_active = True
+            st.session_started = True # 🔐 这里！只要点了开始，彻底锁死！
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
             btn_start_view.bgcolor = "#FF9500"
@@ -394,6 +387,7 @@ async def main(page: ft.Page):
 
     def reset_timer():
         st.timer_active = False
+        st.session_started = False # 🔓 只有完成结算后，才松开防护锁
         st.elapsed = 0
         btn_start_lbl.value = "▶ 开始专注"
         btn_start_view.bgcolor = "#34C759"
@@ -601,7 +595,6 @@ async def main(page: ft.Page):
 
     def on_export(e):
         try:
-            # 同样保留了这个关键的导出路径修复
             backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
             with open(backup_path, "w", encoding="utf-8") as f:
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
@@ -643,16 +636,14 @@ async def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 🚀 完全恢复你最初稳定的雷达扫描逻辑，只加上防篡改锁！
     async def heart_beat():
         while True:
             await asyncio.sleep(0.2) 
             
-            # 扫描下拉框变化
+            # 雷达依然在线，防止框架诡异脱位
             current_pomo_val = str(sel_pomo.value)
             if current_pomo_val != st.last_pomo_val:
-                # 🚀 修复3：如果倒计时走过哪怕1秒（包含暂停），雷达强行拦截改时间！
-                if st.timer_active or st.elapsed > 0:
+                if st.session_started:
                     sel_pomo.value = st.last_pomo_val
                     page.update()
                 else:
