@@ -91,7 +91,6 @@ def format_dur(seconds):
     if m > 0: return f"{m}m {sec}s"
     return f"{sec}s"
 
-# 🚀 视觉修复：废除了小时转换！120 分钟就是绝对直观的 120:00
 def format_time(seconds):
     s = max(0, int(seconds))
     return f"{s//60:02d}:{s%60:02d}"
@@ -126,30 +125,27 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
+    # 🚀 修复 Bug 1：全版本通吃、绝对不会静默失败的弹窗与提示引擎
     def open_dlg(d):
-        if hasattr(page, "open"):
-            page.open(d)
-        else:
-            page.dialog = d
-            d.open = True
-            page.update()
+        if d not in page.overlay:
+            page.overlay.append(d)
+        d.open = True
+        page.update()
 
     def close_dlg(d):
-        if hasattr(page, "close"):
-            page.close(d)
-        else:
-            d.open = False
+        d.open = False
+        page.update()
+        # 延迟清理，防止闪烁
+        if d in page.overlay:
+            page.overlay.remove(d)
             page.update()
             
-    # 🚀 新增：兼容各种 Flet 版本的防崩提示条
     def show_snack(text, color="#FF3B30"):
         sb = ft.SnackBar(content=ft.Text(text, weight=ft.FontWeight.BOLD), bgcolor=color)
-        if hasattr(page, "open"):
-            page.open(sb)
-        else:
-            page.snack_bar = sb
-            sb.open = True
-            page.update()
+        if sb not in page.overlay:
+            page.overlay.append(sb)
+        sb.open = True
+        page.update()
 
     class State:
         timer_active = False
@@ -162,6 +158,11 @@ async def main(page: ft.Page):
         last_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
 
     st = State()
+    
+    # 🚀 修复 Bug 2 & Bug 3：极其严密的“会话锁”
+    # 哪怕你点了暂停 (timer_active=False)，只要 elapsed > 0，依然属于专注会话中，绝对不许修改设置！
+    def is_session_active():
+        return st.timer_active or st.elapsed > 0
 
     # ----------------- 顶部倒计时看板 -----------------
     countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=16, weight=ft.FontWeight.BOLD, color="#007AFF")
@@ -227,7 +228,6 @@ async def main(page: ft.Page):
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
     
-    # 🚀 安全排版：剥离一切复杂内边距，完全用数值填充 
     mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl,
@@ -236,7 +236,6 @@ async def main(page: ft.Page):
         bgcolor="transparent"
     )
 
-    # 🚀 将宽度加长到 115，保证 120 分钟不仅能装下，还很有余地！
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", 
@@ -248,7 +247,6 @@ async def main(page: ft.Page):
         bgcolor="transparent"
     )
 
-    # 将其包装成极其漂亮的胶囊
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
         bgcolor="#FFFFFF",
@@ -257,8 +255,8 @@ async def main(page: ft.Page):
     )
 
     def switch_mode(m):
-        if st.timer_active:
-            # 🚀 状态防御系统：拦截并弹窗警告
+        # 🚀 拦截锁生效区
+        if is_session_active():
             show_snack("⚠️ 当前专注尚未结算！禁止切换模式。")
             return
             
@@ -280,11 +278,11 @@ async def main(page: ft.Page):
         page.update()
 
     def on_pomo_change(e):
-        if st.timer_active:
-            # 🚀 时间修改拦截盾：复原并弹窗警告
-            sel_pomo.value = str(int(st.pomo_target / 60))
-            page.update()
+        # 🚀 拦截锁生效区
+        if is_session_active():
+            sel_pomo.value = str(int(st.pomo_target / 60)) # 回滚值
             show_snack("⚠️ 专注期间禁止修改时间！已强行回滚。")
+            page.update()
             return
             
         try:
@@ -308,7 +306,8 @@ async def main(page: ft.Page):
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
     def stop_timer_handler(e):
-        if not st.timer_active and st.elapsed == 0:
+        # 修复逻辑判断：只要不在会话中（未走时），点结束直接返回。
+        if not is_session_active():
             return
             
         st.timer_active = False 
@@ -419,7 +418,6 @@ async def main(page: ft.Page):
             lbl_goal, bar_goal,
             ft.Container(height=10),
             
-            # 美观对称的底座
             ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
             
             ft.Container(height=10),
@@ -454,12 +452,6 @@ async def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
-        
-        try:
-            lbl_time.update()
-            lbl_icon.update()
-        except Exception:
-            pass
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
@@ -602,7 +594,6 @@ async def main(page: ft.Page):
 
     def on_export(e):
         try:
-            # 🚀 修复：绑定绝对路径，确保文件导出到当前执行程序所在的同目录
             backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
             with open(backup_path, "w", encoding="utf-8") as f:
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
@@ -644,7 +635,6 @@ async def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 🚀 极致精简心跳引擎，只专注走秒，释放 CPU 性能
     async def heart_beat():
         while True:
             await asyncio.sleep(0.2) 
