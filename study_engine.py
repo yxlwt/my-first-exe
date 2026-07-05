@@ -195,7 +195,7 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀🚀 无极切换重构区：抛弃弹窗，直接切换视图面板 🚀🚀
+    # 🚀 坚如磐石的原位面板切换区（杜绝一切浮窗和拉伸报错） 🚀
     # ========================================================
     
     # [组件1] 专注面板核心元素
@@ -212,7 +212,8 @@ async def main(page: ft.Page):
         db.save()
     sel_subject.on_change = on_sub_change
 
-    bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
+    # 移除老版本易报错的 border_radius
+    bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
     def switch_mode(m):
@@ -266,7 +267,7 @@ async def main(page: ft.Page):
         bgcolor="#FFFFFF", border_radius=8, expand=True
     )
 
-    # 声明事件，避免未定义错误
+    # 先声明事件
     def stop_timer_handler(e):
         if not st.session_active:
             return
@@ -314,7 +315,7 @@ async def main(page: ft.Page):
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True, on_click=toggle_timer)
     btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True, on_click=stop_timer_handler)
 
-    # 面板1：主倒计时面板
+    # 面板1：主倒计时面板组合
     col_main = ft.Column([
         ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
         ft.Container(height=15),
@@ -329,7 +330,7 @@ async def main(page: ft.Page):
         ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
-    # [组件2] “确认结束”面板
+    # [组件2] “确认结束”面板（绝对宽度，绝不死锁）
     def reset_timer():
         st.session_active = False
         st.timer_active = False
@@ -361,19 +362,20 @@ async def main(page: ft.Page):
         show_main()
 
     lbl_confirm_msg = ft.Text("", size=15, color="#8E8E93", text_align=ft.TextAlign.CENTER)
-    btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", expand=True, padding=15, on_click=on_confirm_save)
-    btn_n, _ = create_btn("直接销毁", bgcolor="#E5E5EA", txt_color="#8E8E93", expand=True, padding=15, on_click=on_discard)
-    btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", expand=True, padding=15, on_click=on_cancel_dialog)
+    
+    # 🚨 强制写死像素宽度，消除任何排版歧义
+    btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", width=140, padding=15, on_click=on_confirm_save)
+    btn_n, _ = create_btn("直接销毁", bgcolor="#E5E5EA", txt_color="#8E8E93", width=140, padding=15, on_click=on_discard)
+    btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", width=300, padding=15, on_click=on_cancel_dialog)
 
-    # 🚀 坚决不用 ft.Icon，换成普通文本 Emoji
     col_confirm = ft.Column([
         ft.Text("⚠️", size=60), 
         ft.Text("确认结束", size=24, weight=ft.FontWeight.BOLD),
         ft.Container(height=10),
         lbl_confirm_msg,
-        ft.Container(height=40),
+        ft.Container(height=30),
         ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.CENTER, spacing=15),
-        ft.Container(height=10),
+        ft.Container(height=5),
         ft.Row([btn_c], alignment=ft.MainAxisAlignment.CENTER)
     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
@@ -386,8 +388,9 @@ async def main(page: ft.Page):
         refresh_stats()
         show_main()
 
-    txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6", expand=True)
-    btn_success_save, _ = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", expand=True, padding=15, on_click=on_success_save)
+    # 🚨 强制写死像素宽度
+    txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6", width=300)
+    btn_success_save, _ = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", width=300, padding=15, on_click=on_success_save)
     lbl_success_quote = ft.Text("", size=14, color="#8E8E93", text_align=ft.TextAlign.CENTER)
 
     col_success = ft.Column([
@@ -396,14 +399,14 @@ async def main(page: ft.Page):
         ft.Container(height=10),
         lbl_success_quote,
         ft.Container(height=30),
-        ft.Row([txt_note]),
+        ft.Row([txt_note], alignment=ft.MainAxisAlignment.CENTER),
         ft.Container(height=15),
-        ft.Row([btn_success_save])
+        ft.Row([btn_success_save], alignment=ft.MainAxisAlignment.CENTER)
     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
-    # [大本营] 外层包装，管理面板切换
+    # [大本营] 外层包装，接管面板切换调度
     view_focus = ft.Container(
-        content=col_main, # 启动时默认挂载主面板
+        content=col_main, # 启动默认挂载组件1
         bgcolor="white", border_radius=15, padding=25, expand=True, margin=5
     )
 
