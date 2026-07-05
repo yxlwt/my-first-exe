@@ -121,7 +121,6 @@ async def main(page: ft.Page):
     try:
         page.window.width = 460
         page.window.height = 800
-        # 🚀 进一步放宽最小窗口限制
         page.window.min_width = 250
         page.window.min_height = 300
     except AttributeError:
@@ -196,8 +195,9 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 主专注面板 UI 定义
+    # 🚀 专注功能面板与容器化组装
     # ========================================================
+    
     lbl_icon = ft.Text(value="🌰", size=90, text_align=ft.TextAlign.CENTER) 
     lbl_time = ft.Text(value="60:00", size=65, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
@@ -259,11 +259,14 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
+    # 🚨 终极排雷：这里绝对绝对绝对没有 on_change 嵌套！
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=115, dense=True, content_padding=10, text_size=13,
-        border_color="transparent", bgcolor="transparent", on_change=on_pomo_change 
+        border_color="transparent", bgcolor="transparent"
     )
+    # 将绑定事件剥离到括号外
+    sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
@@ -278,10 +281,10 @@ async def main(page: ft.Page):
         elapsed_int = int(st.elapsed)
         
         if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
-            msg = f"番茄钟未完成 ({elapsed_int}s)，放弃将留枯树 🥀"
+            msg = f"番茄钟未完成 (仅 {elapsed_int}s)，放弃将留枯树 🥀"
             show_confirm(msg)
         elif st.mode == "stopwatch" and elapsed_int < 60:
-            msg = f"筑城不足1分钟 ({elapsed_int}s)，只留废料 🚧"
+            msg = f"筑城不足1分钟 (仅 {elapsed_int}s)，只留废料 🚧"
             show_confirm(msg)
         else:
             show_success()
@@ -315,15 +318,14 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, expand=True, on_click=toggle_timer)
-    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, expand=True, on_click=stop_timer_handler)
+    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=45, expand=True, on_click=toggle_timer)
+    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=45, expand=True, on_click=stop_timer_handler)
 
     subject_container = ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER)
     goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     mode_container = ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4)
     row_main_btns = ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
 
-    # 主面板通过 spacing 分配间距，彻底抛弃占位空气墙
     col_main = ft.Column([
         subject_container,
         lbl_icon,
@@ -335,7 +337,7 @@ async def main(page: ft.Page):
     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=12)
 
     # ========================================================
-    # 🚀 确认结束面板 UI 定义
+    # 🚀 流体布局：确认结束面板
     # ========================================================
     def reset_timer():
         st.session_active = False
@@ -370,10 +372,9 @@ async def main(page: ft.Page):
     lbl_title_confirm = ft.Text("确认结束", size=22, weight=ft.FontWeight.BOLD)
     lbl_confirm_msg = ft.Text("", size=14, color="#8E8E93", text_align=ft.TextAlign.CENTER)
     
-    # 全部设定 expand=True 保证流体平分
-    btn_y, btn_y_lbl = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=on_confirm_save)
-    btn_n, btn_n_lbl = create_btn("直接销毁", bgcolor="#E5E5EA", txt_color="#8E8E93", expand=True, on_click=on_discard)
-    btn_c, btn_c_lbl = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_cancel_dialog)
+    btn_y, btn_y_lbl = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", padding=12, expand=True, on_click=on_confirm_save)
+    btn_n, btn_n_lbl = create_btn("直接销毁", bgcolor="#E5E5EA", txt_color="#8E8E93", padding=12, expand=True, on_click=on_discard)
+    btn_c, btn_c_lbl = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", padding=12, expand=True, on_click=on_cancel_dialog)
 
     row_confirm_btns1 = ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
     row_confirm_btns2 = ft.Row([btn_c], alignment=ft.MainAxisAlignment.CENTER)
@@ -387,7 +388,7 @@ async def main(page: ft.Page):
     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
 
     # ========================================================
-    # 🚀 专注完成结算面板 UI 定义
+    # 🚀 流体布局：专注完成结算面板
     # ========================================================
     def on_success_save(e):
         db.add_record(sel_subject.value, int(st.elapsed), st.mode, False, txt_note.value)
@@ -399,13 +400,11 @@ async def main(page: ft.Page):
 
     lbl_icon_success = ft.Text("🎉", size=60)
     lbl_title_success = ft.Text("专注完成！", size=22, weight=ft.FontWeight.BOLD)
-    lbl_success_quote = ft.Text("", size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
-    
     txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6", expand=True)
     row_note = ft.Row([txt_note], alignment=ft.MainAxisAlignment.CENTER)
-    
-    btn_success_save, btn_success_save_lbl = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_success_save)
+    btn_success_save, btn_success_save_lbl = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", padding=12, expand=True, on_click=on_success_save)
     row_success_btn = ft.Row([btn_success_save], alignment=ft.MainAxisAlignment.CENTER)
+    lbl_success_quote = ft.Text("", size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
 
     col_success = ft.Column([
         lbl_icon_success,
@@ -467,16 +466,12 @@ async def main(page: ft.Page):
         except Exception:
             pass
 
-    # 💎 核心优化：动态尺寸计算引擎
     def apply_responsive_layout():
-        # 如果未获取到宽高（比如初次加载瞬间），给一个默认的安全大窗口值
         w = page.window.width if page.window.width else 460
         h = page.window.height if page.window.height else 800
         
-        # 探测是否处于悬浮窗模式
         is_compact = h < 550 or w < 360
         
-        # 隐藏组件
         card_countdown.visible = not is_compact
         nav_bar.visible = not is_compact
         subject_container.visible = not is_compact
@@ -485,7 +480,6 @@ async def main(page: ft.Page):
         mode_container.visible = not is_compact
         
         if is_compact:
-            # 极简模式：压缩一切不必要的留白，缩小字体
             lbl_icon.size = 65
             lbl_time.size = 55
             view_focus.padding = 10
@@ -518,7 +512,6 @@ async def main(page: ft.Page):
             txt_note.content_padding = 5; txt_note.text_size = 12
             btn_success_save.padding = 8; btn_success_save_lbl.size = 12
         else:
-            # 正常模式：恢复大方舒展的排版
             lbl_icon.size = 90
             lbl_time.size = 65
             view_focus.padding = 25
@@ -533,23 +526,23 @@ async def main(page: ft.Page):
             row_main_btns.spacing = 15
             col_main.spacing = 12
             
-            lbl_icon_confirm.size = 60
-            lbl_title_confirm.size = 24
+            lbl_icon_confirm.size = 50
+            lbl_title_confirm.size = 22
             lbl_confirm_msg.size = 14
             col_confirm.spacing = 15
             
-            btn_y.padding = 15; btn_y_lbl.size = 14
-            btn_n.padding = 15; btn_n_lbl.size = 14
-            btn_c.padding = 15; btn_c_lbl.size = 14
+            btn_y.padding = 12; btn_y_lbl.size = 14
+            btn_n.padding = 12; btn_n_lbl.size = 14
+            btn_c.padding = 12; btn_c_lbl.size = 14
             row_confirm_btns1.spacing = 15
             
-            lbl_icon_success.size = 70
-            lbl_title_success.size = 24
-            lbl_success_quote.size = 14
+            lbl_icon_success.size = 60
+            lbl_title_success.size = 22
+            lbl_success_quote.size = 13
             col_success.spacing = 15
             
             txt_note.content_padding = 10; txt_note.text_size = 14
-            btn_success_save.padding = 15; btn_success_save_lbl.size = 14
+            btn_success_save.padding = 12; btn_success_save_lbl.size = 14
             
         page.update()
 
