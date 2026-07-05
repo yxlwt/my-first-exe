@@ -140,6 +140,16 @@ async def main(page: ft.Page):
         else:
             d.open = False
             page.update()
+            
+    # 🚀 新增：兼容各种 Flet 版本的防崩提示条
+    def show_snack(text, color="#FF3B30"):
+        sb = ft.SnackBar(content=ft.Text(text, weight=ft.FontWeight.BOLD), bgcolor=color)
+        if hasattr(page, "open"):
+            page.open(sb)
+        else:
+            page.snack_bar = sb
+            sb.open = True
+            page.update()
 
     class State:
         timer_active = False
@@ -150,7 +160,6 @@ async def main(page: ft.Page):
         forest_scope = "day"
         stats_scope = "day"
         last_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
-        last_pomo_val = "60" # 🚀 雷达扫描基准值
 
     st = State()
 
@@ -248,7 +257,11 @@ async def main(page: ft.Page):
     )
 
     def switch_mode(m):
-        if st.timer_active: return
+        if st.timer_active:
+            # 🚀 状态防御系统：拦截并弹窗警告
+            show_snack("⚠️ 当前专注尚未结算！禁止切换模式。")
+            return
+            
         st.mode = m
         
         mode_sw_view.bgcolor = "#FFFFFF" if m == "stopwatch" else "transparent"
@@ -266,9 +279,14 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    # 等组件生成完之后再绑定，避开框架崩溃陷阱
     def on_pomo_change(e):
-        if st.timer_active: return
+        if st.timer_active:
+            # 🚀 时间修改拦截盾：复原并弹窗警告
+            sel_pomo.value = str(int(st.pomo_target / 60))
+            page.update()
+            show_snack("⚠️ 专注期间禁止修改时间！已强行回滚。")
+            return
+            
         try:
             st.pomo_target = int(sel_pomo.value) * 60
         except:
@@ -298,9 +316,9 @@ async def main(page: ft.Page):
         
         elapsed_int = int(st.elapsed)
         if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
-            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if elapsed_int >= 60 else "不足 1 分钟，放弃不留记录。"
+            msg = "番茄钟未走完，提前结束将留下一棵 🥀 枯树，确定吗？" if elapsed_int >= 60 else "不足 1 分钟，放弃将不留记录。"
         elif st.mode == "stopwatch" and elapsed_int < 60:
-            msg = "筑城不足 1 分钟，只留下废料 🚧。确定保存吗？"
+            msg = "筑城不足 1 分钟，只留下废料 🚧，确定保存吗？"
         else:
             trigger_success_dialog(is_dead=False)
             return
@@ -322,7 +340,7 @@ async def main(page: ft.Page):
 
         dlg = ft.AlertDialog(
             modal=True,
-            title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
+            title=ft.Text(value="安全结算确认", weight=ft.FontWeight.BOLD),
             content=ft.Text(value=msg),
             actions=[ft.Row([btn_y, btn_n])]
         )
@@ -584,9 +602,13 @@ async def main(page: ft.Page):
 
     def on_export(e):
         try:
-            with open("StudyEngine_Backup.json", "w", encoding="utf-8") as f:
+            # 🚀 修复：绑定绝对路径，确保文件导出到当前执行程序所在的同目录
+            backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
+            with open(backup_path, "w", encoding="utf-8") as f:
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
-        except: pass
+            show_snack("✅ 备份已成功导出至程序所在目录！", color="#34C759")
+        except Exception as ex: 
+            show_snack(f"❌ 导出失败: {ex}")
 
     btn_exp, _ = create_btn("⬇ 导出本地备份 (同目录)", bgcolor="#E5E5EA", padding=15, on_click=on_export)
 
@@ -622,31 +644,10 @@ async def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 🚀 极致雷达，防止 Flet 老版本丢失事件，实现秒速响应！
+    # 🚀 极致精简心跳引擎，只专注走秒，释放 CPU 性能
     async def heart_beat():
         while True:
             await asyncio.sleep(0.2) 
-            
-            # 扫描下拉框变化
-            current_pomo_val = str(sel_pomo.value)
-            if current_pomo_val != st.last_pomo_val:
-                st.last_pomo_val = current_pomo_val
-                if not st.timer_active:
-                    try:
-                        st.pomo_target = int(current_pomo_val) * 60
-                    except:
-                        st.pomo_target = 60 * 60
-                    
-                    st.mode = "pomodoro"
-                    mode_sw_view.bgcolor = "transparent"
-                    mode_sw_lbl.color = "#8E8E93"
-                    mode_pm_view.bgcolor = "#FFFFFF"
-                    mode_pm_lbl.color = "#1C1C1E"
-                    sel_pomo.disabled = False
-                    
-                    st.elapsed = 0
-                    update_focus_ui()
-                    page.update()
             
             if not st.timer_active: continue
             
