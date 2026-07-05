@@ -138,7 +138,7 @@ async def main(page: ft.Page):
     class State:
         session_active = False  
         timer_active = False 
-        was_active = False 
+        was_active = False # 记录暂停前状态
         mode = "pomodoro"
         pomo_target = 60 * 60
         elapsed = 0
@@ -254,13 +254,12 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    # ✅ 彻底修复：括号内坚决不留 on_change
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=115, dense=True, content_padding=10, text_size=13,
         border_color="transparent", bgcolor="transparent"
     )
-    sel_pomo.on_change = on_pomo_change  # 绑定操作移到括号外！
+    sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
@@ -366,8 +365,9 @@ async def main(page: ft.Page):
     btn_n, _ = create_btn("直接销毁", bgcolor="#E5E5EA", txt_color="#8E8E93", expand=True, padding=15, on_click=on_discard)
     btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", expand=True, padding=15, on_click=on_cancel_dialog)
 
+    # 🚀 坚决不用 ft.Icon，换成普通文本 Emoji
     col_confirm = ft.Column([
-        ft.Icon(ft.icons.WARNING_AMBER_ROUNDED, size=60, color="#FF9500"),
+        ft.Text("⚠️", size=60), 
         ft.Text("确认结束", size=24, weight=ft.FontWeight.BOLD),
         ft.Container(height=10),
         lbl_confirm_msg,
