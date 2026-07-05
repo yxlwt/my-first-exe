@@ -126,21 +126,6 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    def open_dlg(d):
-        if hasattr(page, "open"):
-            page.open(d)
-        else:
-            page.dialog = d
-            d.open = True
-            page.update()
-
-    def close_dlg(d):
-        if hasattr(page, "close"):
-            page.close(d)
-        else:
-            d.open = False
-            page.update()
-
     def show_warning(msg):
         snack = ft.SnackBar(content=ft.Text(msg, color="white", weight=ft.FontWeight.BOLD), bgcolor="#FF3B30")
         if hasattr(page, "open"):
@@ -152,7 +137,8 @@ async def main(page: ft.Page):
 
     class State:
         session_active = False  
-        timer_active = False    
+        timer_active = False 
+        was_active = False # 记录暂停前状态
         mode = "pomodoro"
         pomo_target = 60 * 60
         elapsed = 0
@@ -208,15 +194,18 @@ async def main(page: ft.Page):
         bgcolor="#E5E5EA", border_radius=10, padding=4, margin=5
     )
 
-    # ----------------- 专注视图 (0) -----------------
+    # ========================================================
+    # 🚀🚀 无极切换重构区：抛弃弹窗，直接切换视图面板 🚀🚀
+    # ========================================================
+    
+    # [组件1] 专注面板核心元素
     lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
     lbl_time = ft.Text(value="60:00", size=70, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
     
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
-        value=db.data["currentSubject"],
-        width=160, dense=True, border_radius=10, border_color="#D1D1D6"
+        value=db.data["currentSubject"], width=160, dense=True, border_radius=10, border_color="#D1D1D6"
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -230,32 +219,21 @@ async def main(page: ft.Page):
         if st.session_active:
             show_warning("🚨 当前专注尚未结算，无法切换模式！")
             return
-            
         st.mode = m
         mode_sw_view.bgcolor = "#FFFFFF" if m == "stopwatch" else "transparent"
         mode_sw_lbl.color = "#1C1C1E" if m == "stopwatch" else "#8E8E93"
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
         mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
-        
         sel_pomo.disabled = (m == "stopwatch")
-        
         if m == "pomodoro":
             try: st.pomo_target = int(sel_pomo.value) * 60
             except: st.pomo_target = 60 * 60
-            
         st.elapsed = 0
         update_focus_ui()
         page.update()
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
-    
-    mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
-    mode_pm_click_area = ft.Container(
-        content=mode_pm_lbl,
-        on_click=lambda e: switch_mode("pomodoro"),
-        padding=10, 
-        bgcolor="transparent"
-    )
+    mode_pm_click_area = ft.Container(content=ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD), on_click=lambda e: switch_mode("pomodoro"), padding=10, bgcolor="transparent")
 
     def on_pomo_change(e):
         if st.session_active:
@@ -263,124 +241,45 @@ async def main(page: ft.Page):
             sel_pomo.value = st.last_pomo_val
             page.update()
             return
-
         st.last_pomo_val = str(sel_pomo.value)
-        try:
-            st.pomo_target = int(sel_pomo.value) * 60
-        except:
-            st.pomo_target = 60 * 60 
-            
+        try: st.pomo_target = int(sel_pomo.value) * 60
+        except: st.pomo_target = 60 * 60 
         st.mode = "pomodoro"
         mode_sw_view.bgcolor = "transparent"
         mode_sw_lbl.color = "#8E8E93"
         mode_pm_view.bgcolor = "#FFFFFF"
         mode_pm_lbl.color = "#1C1C1E"
         sel_pomo.disabled = False
-        
         st.elapsed = 0
         update_focus_ui()
         page.update()
 
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", 
-        width=115, 
-        dense=True,
-        content_padding=10,
-        text_size=13,
-        border_color="transparent", 
-        bgcolor="transparent"
+        value="60", width=115, dense=True, content_padding=10, text_size=13,
+        border_color="transparent", bgcolor="transparent", on_change=on_pomo_change 
     )
-    sel_pomo.on_change = on_pomo_change 
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
-        bgcolor="#FFFFFF",
-        border_radius=8,
-        expand=True
+        bgcolor="#FFFFFF", border_radius=8, expand=True
     )
 
-    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
-    
-    # ========================================================
-    # 🚀 彻底重写的结束逻辑与原生极简弹窗 🚀
-    # ========================================================
+    # 声明事件，避免未定义错误
     def stop_timer_handler(e):
         if not st.session_active:
             return
-            
-        was_active = st.timer_active
+        st.was_active = st.timer_active
         st.timer_active = False 
-        page.update()
-        
         elapsed_int = int(st.elapsed)
         if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
             msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if elapsed_int >= 60 else "不足 1 分钟，放弃不留记录。"
+            show_confirm(msg)
         elif st.mode == "stopwatch" and elapsed_int < 60:
             msg = "筑城不足 1 分钟，只留下废料 🚧。确定放弃吗？"
+            show_confirm(msg)
         else:
-            trigger_success_dialog(is_dead=False)
-            return
-
-        def on_confirm_save(e):
-            close_dlg(dlg)
-            if elapsed_int >= 60:
-                db.add_record(sel_subject.value, elapsed_int, st.mode, True, "中途放弃")
-            reset_timer()
-            refresh_forest()
-            refresh_stats()
-
-        def on_discard(e):
-            close_dlg(dlg)
-            reset_timer()
-
-        def on_cancel_dialog(e):
-            close_dlg(dlg)
-            if was_active: 
-                st.timer_active = True
-                st.start_tick = time.time() - st.elapsed
-            page.update()
-
-        # 剥离所有嵌套布局，直接使用原生 TextButton 放置在 actions 数组中
-        dlg = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("确认结束", weight=ft.FontWeight.BOLD),
-            content=ft.Text(msg),
-            actions=[
-                ft.TextButton("保存战果", on_click=on_confirm_save),
-                ft.TextButton("直接销毁", on_click=on_discard),
-                ft.TextButton("取消", on_click=on_cancel_dialog)
-            ],
-            actions_alignment=ft.MainAxisAlignment.END
-        )
-        open_dlg(dlg)
-
-    def trigger_success_dialog(is_dead=False):
-        txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6")
-        
-        def on_save(e):
-            close_dlg(dlg)
-            db.add_record(sel_subject.value, int(st.elapsed), st.mode, is_dead, txt_note.value)
-            reset_timer()
-            refresh_forest()
-            refresh_stats()
-
-        dlg = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("🎉 专注完成！", weight=ft.FontWeight.BOLD),
-            content=ft.Column([
-                ft.Text(random.choice(ENCOURAGEMENTS), color="#8E8E93"),
-                txt_note
-            ], tight=True),
-            actions=[
-                ft.TextButton("保存战果", on_click=on_save)
-            ],
-            actions_alignment=ft.MainAxisAlignment.END
-        )
-        open_dlg(dlg)
-    # ========================================================
-
-    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True, on_click=stop_timer_handler)
+            show_success()
 
     def toggle_timer(e):
         if not st.session_active:
@@ -389,17 +288,14 @@ async def main(page: ft.Page):
             if st.mode == "pomodoro":
                 try: st.pomo_target = int(sel_pomo.value) * 60
                 except: pass
-                
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
             btn_start_view.bgcolor = "#FF9500"
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
-            
             sel_subject.disabled = True
             sel_pomo.disabled = True  
             lbl_quote.value = random.choice(ENCOURAGEMENTS)
-            
         elif not st.timer_active:
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed
@@ -407,54 +303,122 @@ async def main(page: ft.Page):
             btn_start_view.bgcolor = "#FF9500"
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
-            
         else:
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
             btn_start_view.bgcolor = "#34C759"
-
         update_focus_ui()
         page.update()
-    
-    btn_start_view.on_click = toggle_timer
 
+    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True, on_click=toggle_timer)
+    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=50, expand=True, on_click=stop_timer_handler)
+
+    # 面板1：主倒计时面板
+    col_main = ft.Column([
+        ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
+        ft.Container(height=15),
+        lbl_icon,
+        lbl_time,
+        lbl_quote,
+        ft.Container(height=20),
+        lbl_goal, bar_goal,
+        ft.Container(height=10),
+        ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
+        ft.Container(height=10),
+        ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+    # [组件2] “确认结束”面板
     def reset_timer():
         st.session_active = False
         st.timer_active = False
         st.elapsed = 0
         btn_start_lbl.value = "▶ 开始专注"
         btn_start_view.bgcolor = "#34C759"
-        
         btn_stop_view.bgcolor = "#F2F2F7"
         btn_stop_lbl.color = "#8E8E93"
-        
         sel_subject.disabled = False
         sel_pomo.disabled = (st.mode == "stopwatch") 
-            
-        update_focus_ui()
-        page.update()
 
+    def on_confirm_save(e):
+        elapsed_int = int(st.elapsed)
+        if elapsed_int >= 60:
+            db.add_record(sel_subject.value, elapsed_int, st.mode, True, "中途放弃")
+        reset_timer()
+        refresh_forest()
+        refresh_stats()
+        show_main()
+
+    def on_discard(e):
+        reset_timer()
+        show_main()
+
+    def on_cancel_dialog(e):
+        if st.was_active: 
+            st.timer_active = True
+            st.start_tick = time.time() - st.elapsed
+        show_main()
+
+    lbl_confirm_msg = ft.Text("", size=15, color="#8E8E93", text_align=ft.TextAlign.CENTER)
+    btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", expand=True, padding=15, on_click=on_confirm_save)
+    btn_n, _ = create_btn("直接销毁", bgcolor="#E5E5EA", txt_color="#8E8E93", expand=True, padding=15, on_click=on_discard)
+    btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", expand=True, padding=15, on_click=on_cancel_dialog)
+
+    col_confirm = ft.Column([
+        ft.Icon(ft.icons.WARNING_AMBER_ROUNDED, size=60, color="#FF9500"),
+        ft.Text("确认结束", size=24, weight=ft.FontWeight.BOLD),
+        ft.Container(height=10),
+        lbl_confirm_msg,
+        ft.Container(height=40),
+        ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.CENTER, spacing=15),
+        ft.Container(height=10),
+        ft.Row([btn_c], alignment=ft.MainAxisAlignment.CENTER)
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+    # [组件3] “专注完成”结算面板
+    def on_success_save(e):
+        db.add_record(sel_subject.value, int(st.elapsed), st.mode, False, txt_note.value)
+        txt_note.value = ""
+        reset_timer()
+        refresh_forest()
+        refresh_stats()
+        show_main()
+
+    txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6", expand=True)
+    btn_success_save, _ = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", expand=True, padding=15, on_click=on_success_save)
+    lbl_success_quote = ft.Text("", size=14, color="#8E8E93", text_align=ft.TextAlign.CENTER)
+
+    col_success = ft.Column([
+        ft.Text("🎉", size=70),
+        ft.Text("专注完成！", size=24, weight=ft.FontWeight.BOLD),
+        ft.Container(height=10),
+        lbl_success_quote,
+        ft.Container(height=30),
+        ft.Row([txt_note]),
+        ft.Container(height=15),
+        ft.Row([btn_success_save])
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+
+    # [大本营] 外层包装，管理面板切换
     view_focus = ft.Container(
-        content=ft.Column([
-            ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Container(height=15),
-            lbl_icon,
-            lbl_time,
-            lbl_quote,
-            ft.Container(height=20),
-            lbl_goal, bar_goal,
-            ft.Container(height=10),
-            
-            ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
-            
-            ft.Container(height=10),
-            ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
-        ],
-        alignment=ft.MainAxisAlignment.CENTER, 
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        expand=True), 
+        content=col_main, # 启动时默认挂载主面板
         bgcolor="white", border_radius=15, padding=25, expand=True, margin=5
     )
+
+    def show_main():
+        view_focus.content = col_main
+        update_focus_ui()
+        view_focus.update()
+
+    def show_confirm(msg):
+        lbl_confirm_msg.value = msg
+        view_focus.content = col_confirm
+        view_focus.update()
+
+    def show_success():
+        lbl_success_quote.value = random.choice(ENCOURAGEMENTS)
+        view_focus.content = col_success
+        view_focus.update()
 
     def update_focus_ui():
         elapsed_int = int(st.elapsed)
@@ -481,8 +445,7 @@ async def main(page: ft.Page):
         bar_goal.value = min(total / goal, 1.0)
         
         try:
-            lbl_time.update()
-            lbl_icon.update()
+            page.update()
         except Exception:
             pass
 
@@ -709,11 +672,11 @@ async def main(page: ft.Page):
                     update_focus_ui()
                     try: import winsound; winsound.Beep(800, 500)
                     except: pass
-                    trigger_success_dialog(is_dead=False)
+                    # 倒计时结束，拉起无缝结算面板
+                    show_success()
                     continue
                     
                 update_focus_ui()
-                page.update() 
             except Exception:
                 pass
 
