@@ -196,7 +196,7 @@ async def main(page: ft.Page):
 
     # ----------------- 专注视图 (0) -----------------
     lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
-    lbl_time = ft.Text(value="60:00", size=70, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+    lbl_time = ft.Text(value="01:00:00", size=70, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
     
     sel_subject = ft.Dropdown(
@@ -212,33 +212,7 @@ async def main(page: ft.Page):
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8, border_radius=4)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
-    
-    # 🚀 修复点 1：加宽宽度到 120，增加 padding，让文字完整显示绝不拥挤！
-    sel_pomo = ft.Dropdown(
-        options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60分钟", 
-        width=120, 
-        dense=True,
-        content_padding=10,
-        text_size=14,
-        border_color="transparent", 
-        bgcolor="#F2F2F7"
-    )
-
-    mode_pm_lbl = ft.Text(value="🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
-    mode_pm_view = ft.Container(
-        content=ft.Row([
-            mode_pm_lbl,
-            sel_pomo
-        ], alignment=ft.MainAxisAlignment.CENTER, spacing=5),
-        bgcolor="#FFFFFF",
-        border_radius=8,
-        padding=4,
-        on_click=lambda e: switch_mode("pomodoro"),
-        expand=True
-    )
-
+    # 提前声明切换函数以供按钮和下拉框调用
     def switch_mode(m):
         if st.timer_active: return
         st.mode = m
@@ -247,20 +221,59 @@ async def main(page: ft.Page):
         mode_pm_view.bgcolor = "#FFFFFF" if m == "pomodoro" else "transparent"
         mode_pm_lbl.color = "#1C1C1E" if m == "pomodoro" else "#8E8E93"
         
-        sel_pomo.disabled = (m == "stopwatch")
+        if m == "stopwatch":
+            sel_pomo.disabled = True
+            sel_pomo.bgcolor = "transparent"
+        else:
+            sel_pomo.disabled = False
+            sel_pomo.bgcolor = "#FFFFFF"
         
         try: st.pomo_target = int(sel_pomo.value.replace("分钟", "")) * 60
         except: st.pomo_target = 60 * 60
             
-        reset_timer()
+        st.elapsed = 0
+        update_focus_ui()
+        page.update()
 
-    # 🚀 修复点 2：只要修改下拉框，强行触发 switch_mode 重置底层，并定向刷新大字时间！
+    # 🚀 最关键的修复点：精准读取事件数据并瞬间刷新屏幕
     def on_pomo_change(e):
         if st.timer_active: return
-        # 直接调用 switch_mode，它会负责读取新时间、归零 elapsed、以及更新 UI
-        switch_mode("pomodoro")
+        try:
+            # 绝对不能用 sel_pomo.value，必须用 e.control.value 获取最新选中项！
+            new_val = str(e.control.value).replace("分钟", "")
+            st.pomo_target = int(new_val) * 60
+        except:
+            st.pomo_target = 60 * 60 
+            
+        # 只要你修改了时间，强行锁定到“种树”模式
+        st.mode = "pomodoro"
+        mode_sw_view.bgcolor = "transparent"
+        mode_sw_lbl.color = "#8E8E93"
+        mode_pm_view.bgcolor = "#FFFFFF"
+        mode_pm_lbl.color = "#1C1C1E"
+        sel_pomo.disabled = False
+        sel_pomo.bgcolor = "#FFFFFF"
+        
+        st.elapsed = 0
+        update_focus_ui()
+        page.update()
 
-    sel_pomo.on_change = on_pomo_change
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
+    mode_pm_view, mode_pm_lbl = create_btn("🌱 种树", radius=8, expand=True, bgcolor="#FFFFFF", padding=8, on_click=lambda e: switch_mode("pomodoro"))
+
+    # 🚀 将 width 扩充到 115，保证 120 分钟也能完美显示
+    sel_pomo = ft.Dropdown(
+        options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
+        value="60分钟", 
+        width=115, 
+        dense=True,
+        content_padding=10,
+        text_size=13,
+        border_color="transparent", 
+        bgcolor="#FFFFFF",
+        border_radius=8,
+        on_change=on_pomo_change # 👈 强制在构造期绑定，彻底杜绝事件吞噬！
+    )
 
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=50, expand=True)
     
@@ -354,8 +367,13 @@ async def main(page: ft.Page):
         btn_stop_lbl.color = "#8E8E93"
         
         sel_subject.disabled = False
-        sel_pomo.disabled = (st.mode == "stopwatch") 
-        
+        if st.mode == "stopwatch":
+            sel_pomo.disabled = True
+            sel_pomo.bgcolor = "transparent"
+        else:
+            sel_pomo.disabled = False
+            sel_pomo.bgcolor = "#FFFFFF"
+            
         update_focus_ui()
         page.update()
 
@@ -369,7 +387,10 @@ async def main(page: ft.Page):
             ft.Container(height=20),
             lbl_goal, bar_goal,
             ft.Container(height=10),
-            ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
+            
+            # 完美的平铺布局，清爽不拥挤
+            ft.Container(content=ft.Row([mode_sw_view, mode_pm_view, sel_pomo], alignment=ft.MainAxisAlignment.CENTER, spacing=5), bgcolor="#E5E5EA", border_radius=10, padding=4),
+            
             ft.Container(height=10),
             ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
         ],
@@ -402,13 +423,6 @@ async def main(page: ft.Page):
         
         lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
         bar_goal.value = min(total / goal, 1.0)
-        
-        # 🚀 修复点 3：强行单独刷新时间文本，绕过框架偷懒！
-        try:
-            lbl_time.update()
-            lbl_icon.update()
-        except Exception:
-            pass
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD, color="#8E8E93")
