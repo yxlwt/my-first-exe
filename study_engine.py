@@ -95,6 +95,7 @@ def format_time(seconds):
     s = max(0, int(seconds))
     return f"{s//60:02d}:{s%60:02d}"
 
+# 保持你最原汁原味的 create_btn，绝对不动它！
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color="#1C1C1E", radius=8, expand=False, height=None, padding=10):
     lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD)
     cnt = ft.Container(
@@ -125,30 +126,34 @@ async def main(page: ft.Page):
     except AttributeError:
         pass
 
-    # 🚀 新增一个小工具：统一显示警告条
     def show_snack(text):
         sb = ft.SnackBar(content=ft.Text(text, weight=ft.FontWeight.BOLD), bgcolor="#FF3B30")
-        if hasattr(page, "open"):
-            page.open(sb)
-        else:
-            page.snack_bar = sb
-            sb.open = True
-            page.update()
+        try:
+            if hasattr(page, "open"): page.open(sb)
+            else:
+                page.snack_bar = sb
+                sb.open = True
+                page.update()
+        except Exception: pass
 
+    # 🚀 修复1：防弹衣级别的开关弹窗，就算 Flet 报错也强行把界面归位
     def open_dlg(d):
-        if hasattr(page, "open"):
-            page.open(d)
-        else:
-            page.dialog = d
-            d.open = True
-            page.update()
+        try:
+            if hasattr(page, "open"): page.open(d)
+            else:
+                page.dialog = d
+                d.open = True
+                page.update()
+        except Exception:
+            pass
 
     def close_dlg(d):
-        if hasattr(page, "close"):
-            page.close(d)
-        else:
-            d.open = False
-            page.update()
+        d.open = False
+        try:
+            if hasattr(page, "close"): page.close(d)
+        except Exception:
+            pass
+        page.update()
 
     class State:
         timer_active = False
@@ -159,7 +164,7 @@ async def main(page: ft.Page):
         forest_scope = "day"
         stats_scope = "day"
         last_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
-        last_pomo_val = "60"
+        last_pomo_val = "60" 
 
     st = State()
 
@@ -254,9 +259,9 @@ async def main(page: ft.Page):
     )
 
     def switch_mode(m):
-        # 🚀 修复点 2：只要倒计时走动过（不管是不是暂停状态），直接拦截模式切换
+        # 🚀 修复2：只要倒计时走过（哪怕处于暂停），绝对拦截
         if st.timer_active or st.elapsed > 0: 
-            show_snack("当前专注尚未结算，无法切换模式！")
+            show_snack("当前专注尚未结算！")
             return
             
         st.mode = m
@@ -277,11 +282,11 @@ async def main(page: ft.Page):
         page.update()
 
     def on_pomo_change(e):
-        # 🚀 修复点 2 附加：只要专注开始了，强制把下拉框数值回滚回去
+        # 🚀 修复2：同步拦截下拉框修改
         if st.timer_active or st.elapsed > 0: 
             sel_pomo.value = st.last_pomo_val
             page.update()
-            show_snack("专注期间无法修改时间！")
+            show_snack("专注期间禁止修改时间！")
             return
             
         try:
@@ -290,7 +295,7 @@ async def main(page: ft.Page):
             st.pomo_target = 60 * 60 
             
         st.mode = "pomodoro"
-        st.last_pomo_val = str(sel_pomo.value) # 记录新值，供雷达使用
+        st.last_pomo_val = str(sel_pomo.value)
         mode_sw_view.bgcolor = "transparent"
         mode_sw_lbl.color = "#8E8E93"
         mode_pm_view.bgcolor = "#FFFFFF"
@@ -321,9 +326,10 @@ async def main(page: ft.Page):
             trigger_success_dialog(is_dead=False)
             return
 
-        def on_confirm(e):
-            close_dlg(dlg)
-            db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
+        def on_confirm(save_dead):
+            close_dlg(dlg) # 现在的 close_dlg 已经穿了防弹衣，必定成功向下执行
+            if save_dead:
+                db.add_record(sel_subject.value, elapsed_int, st.mode, True, "放弃番茄钟")
             reset_timer()
             refresh_forest()
             refresh_stats()
@@ -332,16 +338,15 @@ async def main(page: ft.Page):
             close_dlg(dlg)
             reset_timer()
 
-        # 🚀 修复点 1：废除之前的 create_btn，换成原生的 Button，彻底解决弹窗卡死不出的问题！
-        btn_y = ft.ElevatedButton(text="是 (保存)", color="white", bgcolor="#FF3B30", on_click=on_confirm)
-        btn_n = ft.TextButton(text="否 (销毁)", on_click=on_cancel)
+        # 还原为你手搓的组件，不再引起 Flet 版本报错！
+        btn_y, _ = create_btn("是 (保存)", txt_color="white", bgcolor="#FF3B30", expand=True, on_click=lambda e: on_confirm(True))
+        btn_n, _ = create_btn("否 (销毁)", bgcolor="#F2F2F7", expand=True, on_click=on_cancel)
 
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="确认结束", weight=ft.FontWeight.BOLD),
             content=ft.Text(value=msg),
-            actions=[btn_n, btn_y], # 原生按钮放入 actions
-            actions_alignment=ft.MainAxisAlignment.END
+            actions=[ft.Row([btn_y, btn_n])]
         )
         open_dlg(dlg)
 
@@ -382,15 +387,13 @@ async def main(page: ft.Page):
             refresh_forest()
             refresh_stats()
 
-        # 🚀 同样使用原生按钮修复弹窗
-        btn_save = ft.ElevatedButton(text="保存战果", color="white", bgcolor="#34C759", on_click=on_save)
+        btn_save, _ = create_btn("保存战果", bgcolor="#34C759", txt_color="white", expand=True, on_click=on_save)
 
         dlg = ft.AlertDialog(
             modal=True,
             title=ft.Text(value="🎉 专注完成！", weight=ft.FontWeight.BOLD),
             content=ft.Column([ft.Text(value=random.choice(ENCOURAGEMENTS), color="#8E8E93"), txt_note], tight=True),
-            actions=[btn_save],
-            actions_alignment=ft.MainAxisAlignment.END
+            actions=[ft.Row([btn_save])]
         )
         open_dlg(dlg)
 
@@ -420,7 +423,6 @@ async def main(page: ft.Page):
             lbl_goal, bar_goal,
             ft.Container(height=10),
             
-            # 美观对称的底座
             ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
             
             ft.Container(height=10),
@@ -641,15 +643,14 @@ async def main(page: ft.Page):
     sw_stat(0)
     render_subs()
 
-    # 🚀 完全原版的雷达扫描，唯一变动：加上了和模式切换一样的拦截判断
     async def heart_beat():
         while True:
             await asyncio.sleep(0.2) 
             
-            # 扫描下拉框变化
+            # 你最稳的雷达机制完全保留
             current_pomo_val = str(sel_pomo.value)
             if current_pomo_val != st.last_pomo_val:
-                # 🚀 补充修补：只要是在专注期间，下拉框会被强制回原形
+                # 🚀 修复点 3：不仅保护下拉框原生事件，雷达里也加上相同的锁
                 if st.timer_active or st.elapsed > 0:
                     sel_pomo.value = st.last_pomo_val
                     page.update()
