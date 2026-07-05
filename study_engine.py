@@ -101,7 +101,7 @@ def create_btn(text, on_click=None, bgcolor="transparent", txt_color=None, radiu
         content=ft.Row([lbl], alignment=ft.MainAxisAlignment.CENTER),
         bgcolor=bgcolor,
         border_radius=radius,
-        padding=padding, # 纯数字赋值
+        padding=padding,
         on_click=on_click,
         expand=expand,
         width=width,
@@ -281,7 +281,6 @@ async def main(page: ft.Page):
         countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
     except: pass
 
-    # 🚨 绝对安全修改：这里废除了 padding=ft.padding.symmetric，换成纯数字 padding=12
     card_countdown = ft.Container(
         content=ft.Row([btn_pin, countdown_text, btn_theme], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         border_radius=12, padding=12, margin=5 
@@ -321,12 +320,13 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 专注功能面板 (组件深度美化)
+    # 🚀 专注功能面板 (完全剥离引发报错的 alignment.center)
     # ========================================================
     lbl_icon = ft.Text(value="🌰", size=90, text_align=ft.TextAlign.CENTER) 
     lbl_time = ft.Text(value="60:00", size=65, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, text_align=ft.TextAlign.CENTER)
     
+    # 🚨 终极安全：移除了 alignment=ft.alignment.center，杜绝老版本报错
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
@@ -335,8 +335,7 @@ async def main(page: ft.Page):
         border_radius=25, 
         border_color="transparent",
         text_size=15,
-        content_padding=15, 
-        alignment=ft.alignment.center
+        content_padding=15
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -366,13 +365,12 @@ async def main(page: ft.Page):
     mode_sw_view.height = 42
 
     mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD)
-    # 🚨 绝对安全修改：这里废除了 padding=ft.padding.symmetric，换成纯数字 padding=10
+    # 🚨 终极安全：同样移除了 alignment=ft.alignment.center
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
         padding=10, 
-        bgcolor="transparent", 
-        alignment=ft.alignment.center
+        bgcolor="transparent"
     )
 
     def on_pomo_change(e):
