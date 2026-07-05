@@ -195,7 +195,7 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 坚如磐石的原位面板切换区
+    # 🚀 专注功能面板与切换逻辑
     # ========================================================
     
     lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
@@ -233,7 +233,6 @@ async def main(page: ft.Page):
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
     
-    # ✅ 彻底修复点：补回了丢失的 mode_pm_lbl 变量定义！
     mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
@@ -279,11 +278,13 @@ async def main(page: ft.Page):
         st.was_active = st.timer_active
         st.timer_active = False 
         elapsed_int = int(st.elapsed)
+        
+        # 实时显示你测试的秒数，让你放心
         if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
-            msg = "番茄钟未完成，放弃将留下枯树 🥀，确定吗？" if elapsed_int >= 60 else "不足 1 分钟，放弃不留记录。"
+            msg = f"番茄钟未完成 (仅专注 {elapsed_int} 秒)，放弃将留下枯树 🥀，确定吗？"
             show_confirm(msg)
         elif st.mode == "stopwatch" and elapsed_int < 60:
-            msg = "筑城不足 1 分钟，只留下废料 🚧。确定放弃吗？"
+            msg = f"筑城不足 1 分钟 (仅专注 {elapsed_int} 秒)，只留下废料 🚧。确定保存吗？"
             show_confirm(msg)
         else:
             show_success()
@@ -349,8 +350,9 @@ async def main(page: ft.Page):
 
     def on_confirm_save(e):
         elapsed_int = int(st.elapsed)
-        if elapsed_int >= 60:
-            db.add_record(sel_subject.value, elapsed_int, st.mode, True, "中途放弃")
+        # 🚨 核心修复：移除 60秒 限制！哪怕你只测试了 1 秒，只要点保存就绝对存进图鉴里！
+        db.add_record(sel_subject.value, elapsed_int, st.mode, True, "中途放弃")
+        
         reset_timer()
         refresh_forest()
         refresh_stats()
@@ -367,6 +369,7 @@ async def main(page: ft.Page):
         show_main()
 
     lbl_confirm_msg = ft.Text("", size=15, color="#8E8E93", text_align=ft.TextAlign.CENTER)
+    
     btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", width=140, padding=15, on_click=on_confirm_save)
     btn_n, _ = create_btn("直接销毁", bgcolor="#E5E5EA", txt_color="#8E8E93", width=140, padding=15, on_click=on_discard)
     btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", width=300, padding=15, on_click=on_cancel_dialog)
@@ -384,6 +387,7 @@ async def main(page: ft.Page):
 
     # [组件3] “专注完成”结算面板
     def on_success_save(e):
+        # 无条件保存
         db.add_record(sel_subject.value, int(st.elapsed), st.mode, False, txt_note.value)
         txt_note.value = ""
         reset_timer()
