@@ -141,7 +141,7 @@ async def main(page: ft.Page):
     class State:
         timer_active = False
         mode = "pomodoro"
-        pomo_target = 60 * 60  # 🚀 默认修改为 60 分钟
+        pomo_target = 60 * 60
         elapsed = 0
         start_tick = 0
         forest_scope = "day"
@@ -214,7 +214,7 @@ async def main(page: ft.Page):
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
     
-    # 🚀 全新设计：内嵌在按钮中的“胶囊下拉框”
+    # 🚀 修复点：已移除引起版本冲突的 alignment 属性
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=f"{m}分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60分钟", 
@@ -223,8 +223,7 @@ async def main(page: ft.Page):
         content_padding=5,
         text_size=13,
         border_color="transparent", 
-        bgcolor="#F2F2F7",
-        alignment=ft.alignment.center
+        bgcolor="#F2F2F7"
     )
 
     mode_pm_lbl = ft.Text(value="🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
@@ -262,7 +261,6 @@ async def main(page: ft.Page):
         except:
             st.pomo_target = 60 * 60 
             
-        # 只要你在下拉框里选了时间，自动帮你切到种树模式
         if st.mode != "pomodoro":
             switch_mode("pomodoro")
         else:
@@ -379,7 +377,6 @@ async def main(page: ft.Page):
             ft.Container(height=20),
             lbl_goal, bar_goal,
             ft.Container(height=10),
-            # 并排显示筑城和种树（内部嵌有下拉菜单）
             ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4),
             ft.Container(height=10),
             ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
