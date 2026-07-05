@@ -138,7 +138,7 @@ async def main(page: ft.Page):
     class State:
         session_active = False  
         timer_active = False 
-        was_active = False # 记录暂停前状态
+        was_active = False 
         mode = "pomodoro"
         pomo_target = 60 * 60
         elapsed = 0
@@ -195,10 +195,9 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 坚如磐石的原位面板切换区（杜绝一切浮窗和拉伸报错） 🚀
+    # 🚀 坚如磐石的原位面板切换区
     # ========================================================
     
-    # [组件1] 专注面板核心元素
     lbl_icon = ft.Text(value="🌰", size=100, text_align=ft.TextAlign.CENTER)
     lbl_time = ft.Text(value="60:00", size=70, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
@@ -212,7 +211,6 @@ async def main(page: ft.Page):
         db.save()
     sel_subject.on_change = on_sub_change
 
-    # 移除老版本易报错的 border_radius
     bar_goal = ft.ProgressBar(value=0, color="#34C759", bgcolor="#E5E5EA", height=8)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, color="#8E8E93", weight=ft.FontWeight.BOLD)
 
@@ -234,7 +232,15 @@ async def main(page: ft.Page):
         page.update()
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, txt_color="#8E8E93", padding=8, on_click=lambda e: switch_mode("stopwatch"))
-    mode_pm_click_area = ft.Container(content=ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD), on_click=lambda e: switch_mode("pomodoro"), padding=10, bgcolor="transparent")
+    
+    # ✅ 彻底修复点：补回了丢失的 mode_pm_lbl 变量定义！
+    mode_pm_lbl = ft.Text("🌱 种树", color="#1C1C1E", weight=ft.FontWeight.BOLD)
+    mode_pm_click_area = ft.Container(
+        content=mode_pm_lbl, 
+        on_click=lambda e: switch_mode("pomodoro"), 
+        padding=10, 
+        bgcolor="transparent"
+    )
 
     def on_pomo_change(e):
         if st.session_active:
@@ -267,7 +273,6 @@ async def main(page: ft.Page):
         bgcolor="#FFFFFF", border_radius=8, expand=True
     )
 
-    # 先声明事件
     def stop_timer_handler(e):
         if not st.session_active:
             return
@@ -330,7 +335,7 @@ async def main(page: ft.Page):
         ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
 
-    # [组件2] “确认结束”面板（绝对宽度，绝不死锁）
+    # [组件2] “确认结束”面板
     def reset_timer():
         st.session_active = False
         st.timer_active = False
@@ -362,8 +367,6 @@ async def main(page: ft.Page):
         show_main()
 
     lbl_confirm_msg = ft.Text("", size=15, color="#8E8E93", text_align=ft.TextAlign.CENTER)
-    
-    # 🚨 强制写死像素宽度，消除任何排版歧义
     btn_y, _ = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", width=140, padding=15, on_click=on_confirm_save)
     btn_n, _ = create_btn("直接销毁", bgcolor="#E5E5EA", txt_color="#8E8E93", width=140, padding=15, on_click=on_discard)
     btn_c, _ = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", width=300, padding=15, on_click=on_cancel_dialog)
@@ -388,7 +391,6 @@ async def main(page: ft.Page):
         refresh_stats()
         show_main()
 
-    # 🚨 强制写死像素宽度
     txt_note = ft.TextField(label="复盘便签 (选填)", border_color="#D1D1D6", width=300)
     btn_success_save, _ = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", width=300, padding=15, on_click=on_success_save)
     lbl_success_quote = ft.Text("", size=14, color="#8E8E93", text_align=ft.TextAlign.CENTER)
