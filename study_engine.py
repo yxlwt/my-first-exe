@@ -116,11 +116,9 @@ async def main(page: ft.Page):
     page.bgcolor = "#F2F2F7"
     page.padding = 15
     page.theme_mode = ft.ThemeMode.SYSTEM
-    # 保持自适应滚动，但通过内部排版收缩消除默认滚动条
     page.scroll = ft.ScrollMode.ADAPTIVE
     
     try:
-        # 🚀 降低最小宽度和高度限制，允许用户将窗口缩得很小
         page.window.width = 460
         page.window.height = 800
         page.window.min_width = 280
@@ -200,7 +198,7 @@ async def main(page: ft.Page):
     # 🚀 专注功能面板与容器化组装 (响应式设计基础)
     # ========================================================
     
-    lbl_icon = ft.Text(value="🌰", size=90, text_align=ft.TextAlign.CENTER) # 略微缩小，节省空间
+    lbl_icon = ft.Text(value="🌰", size=90, text_align=ft.TextAlign.CENTER) 
     lbl_time = ft.Text(value="60:00", size=65, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, color="#8E8E93", text_align=ft.TextAlign.CENTER)
     
@@ -261,11 +259,13 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
+    # 🚨 终极核查：绝对干净的初始化，没有任何 on_change 污染括号！
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=115, dense=True, content_padding=10, text_size=13,
-        border_color="transparent", bgcolor="transparent", on_change=on_pomo_change 
+        border_color="transparent", bgcolor="transparent"
     )
+    sel_pomo.on_change = on_pomo_change 
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
@@ -317,16 +317,14 @@ async def main(page: ft.Page):
         update_focus_ui()
         page.update()
 
-    # 稍微缩减按钮高度，释放竖向空间
     btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=45, expand=True, on_click=toggle_timer)
     btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", bgcolor="#F2F2F7", txt_color="#8E8E93", radius=25, height=45, expand=True, on_click=stop_timer_handler)
 
-    # 🚀 将不需要在极简模式显示的组件打包，方便隐藏
     subject_container = ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER)
     goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     mode_container = ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), bgcolor="#E5E5EA", border_radius=10, padding=4)
 
-    # 面板1：主倒计时面板组合。通过 spacing 替代 Spacer，自动挤压多余空间
+    # 面板1：主倒计时面板组合
     col_main = ft.Column([
         subject_container,
         lbl_icon,
@@ -462,8 +460,6 @@ async def main(page: ft.Page):
     # 🚀 极致窗口响应式触发器 (Responsive Engine)
     # ========================================================
     def handle_resize(e):
-        # e.height 和 e.width 代表软件除开系统标题栏后的实际可用区域
-        # 当高度小于 580 或 宽度小于 360 时，自动进入极简模式
         is_compact = e.height < 580 or e.width < 360
         
         card_countdown.visible = not is_compact
@@ -483,7 +479,6 @@ async def main(page: ft.Page):
             
         page.update()
         
-    # 绑定页面拉伸事件
     page.on_resize = handle_resize
 
     # ----------------- 图鉴视图 (1) -----------------
