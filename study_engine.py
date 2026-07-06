@@ -117,7 +117,6 @@ async def main(page: ft.Page):
     page.padding = 10
     page.scroll = None 
     
-    # 🚀 优化：提升默认高度，彻底解决底部内容被遮挡的问题
     try:
         page.window.resizable = False
         page.window.width = 400
@@ -392,16 +391,15 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 修复：确保模式切换按钮样式一致
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=8, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD, max_lines=1)
     
-    # 🚀 修复点：移除了奇葩的透明高度 Hack，直接放入点击区域即可
+    # 全面兼容：使用基础整型 padding 规避只读或丢失属性报错
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=ft.padding.only(left=10, right=5), 
+        padding=8,
         bgcolor="transparent"
     )
 
@@ -425,15 +423,14 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 修复点：修改了下拉框的内边距，让它能和旁边的文字完美对齐
+    # 全面兼容：剔除了 alignment 属性，依靠外层 Row 对齐
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=110, dense=True, content_padding=8, text_size=13,
-        border_color="transparent", bgcolor="transparent", alignment=ft.alignment.center
+        border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
-    # 🚀 修复点：加上了 vertical_alignment=ft.CrossAxisAlignment.CENTER，绝对居中对齐
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
@@ -492,7 +489,6 @@ async def main(page: ft.Page):
     subject_container = ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER)
     goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     
-    # 🚀 修复点：容器整体水平和垂直对齐
     mode_container = ft.Container(
         content=ft.Row(
             [mode_sw_view, mode_pm_view], 
@@ -680,7 +676,6 @@ async def main(page: ft.Page):
                 except: pass
                 
         else:
-            # 🚀 修复点：完整模式恢复到 620px，展示所有内容不截断！
             mini_top_bar.visible = False
             lbl_time.visible = True
             
@@ -856,7 +851,6 @@ async def main(page: ft.Page):
         ], expand=True)
     )
 
-    # 🚀 初始状态强制加载完整模式
     st.is_mini_mode = False
     apply_theme_and_layout()
     switch_main_tab(0)
@@ -892,7 +886,6 @@ async def main(page: ft.Page):
             if not st.timer_active: continue
             
             try:
-                # 🚀 纯净计秒代码！每隔 0.2 秒持续更新 UI 倒计时
                 st.elapsed = time.time() - st.start_tick
                 if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
                     st.timer_active = False 
@@ -901,7 +894,6 @@ async def main(page: ft.Page):
                     show_success()
                     continue
                 
-                # 同步屏幕文本并刷新画面
                 update_focus_ui()
                 try: page.update()
                 except: pass
