@@ -165,7 +165,7 @@ async def main(page: ft.Page):
         active_tab = 0
         forest_tab = 0
         stat_tab = 0
-        chart_tab = 0 # 新增图表切换维度
+        chart_tab = 0 
         
         is_pinned = False
         is_mini_mode = False 
@@ -205,7 +205,6 @@ async def main(page: ft.Page):
         
         lbl_quote.color = text_sec
         
-        # 🚀 修改科目下拉框颜色与边框样式
         sel_subject.bgcolor = "transparent"
         sel_subject.border_color = "#38383A" if is_dark else "#C7C7CC"
         sel_subject.color = text_main
@@ -266,7 +265,6 @@ async def main(page: ft.Page):
             item["view"].bgcolor = surface if i == st.stat_tab else "transparent"
             item["lbl"].color = text_main if i == st.stat_tab else text_sec
 
-        # 🚀 刷新图表切换按钮样式
         for i, item in enumerate(chart_nav_btns):
             item["view"].bgcolor = surface_variant if i == st.chart_tab else "transparent"
             item["lbl"].color = text_main if i == st.chart_tab else text_sec
@@ -366,12 +364,12 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align=ft.TextAlign.CENTER, max_lines=1)
     
-    # 🚀 重构下拉框：增加 border_radius, explicit border, 以及 alignment 文本居中
+    # 🚀 修复点：彻底移除会导致崩溃的 alignment 属性，改用 text_align=ft.TextAlign.CENTER 实现文本完美居中
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
         width=180, dense=True, border_radius=12, 
-        alignment=ft.alignment.center,  # 强制文字居中
+        text_align=ft.TextAlign.CENTER,  
         text_size=15, content_padding=8
     )
     def on_sub_change(e):
@@ -434,9 +432,11 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 同样为时间下拉框增加 text_align，确保文本居中对齐
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=125, dense=True, content_padding=5, text_size=13,
+        text_align=ft.TextAlign.CENTER,
         border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
@@ -783,7 +783,6 @@ async def main(page: ft.Page):
 
     row_stat_nav = ft.Container(content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), border_radius=10, padding=4)
     
-    # 🚀 新增：图表种类切换选项卡
     row_chart_nav = ft.Container(
         content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("折线图", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=0, margin=ft.margin.only(top=5, bottom=5)
@@ -799,12 +798,13 @@ async def main(page: ft.Page):
         text_main = "#FFFFFF" if is_dark else "#1C1C1E"
         
         if not records:
-            col_stats.controls.append(ft.Container(content=ft.Text(value="当前时段无专注数据", color="#8E8E93"), alignment=ft.alignment.center, padding=20))
+            # 🚀 修复点：彻底移除会导致崩溃的 alignment 属性，改用安全的 ft.Row 包裹实现水平居中
+            empty_msg = ft.Row([ft.Text(value="当前时段无专注数据", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER)
+            col_stats.controls.append(ft.Container(content=empty_msg, padding=20))
             try: page.update()
             except: pass
             return
             
-        # 📊 逻辑1：条形进度图 (默认)
         if st.chart_tab == 0:
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
@@ -817,7 +817,6 @@ async def main(page: ft.Page):
                     ], spacing=8)
                 )
                 
-        # 🥧 逻辑2：扇形占比图
         elif st.chart_tab == 1:
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
@@ -837,7 +836,6 @@ async def main(page: ft.Page):
             pie = ft.PieChart(sections=sections, sections_space=2, center_space_radius=30, expand=True)
             col_stats.controls.append(ft.Container(content=pie, height=220, padding=10))
             
-        # 📈 逻辑3：时间折线趋势图
         elif st.chart_tab == 2:
             date_map = {}
             for r in records:
@@ -875,7 +873,6 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 将图表导航条融合进统计视图
     view_stats = ft.Container(
         content=ft.Column([
             row_stat_nav, 
@@ -956,7 +953,7 @@ async def main(page: ft.Page):
     switch_main_tab(0)
     sw_forest(0)
     sw_stat(0)
-    sw_chart(0) # 默认初始化图表
+    sw_chart(0) 
     render_subs()
 
     async def heart_beat():
