@@ -98,14 +98,15 @@ def format_time(seconds):
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color=None, radius=8, expand=False, width=None, height=None, padding=10):
     lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD, max_lines=1)
     cnt = ft.Container(
-        content=ft.Row([lbl], alignment=ft.MainAxisAlignment.CENTER),
+        content=ft.Row([lbl], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         bgcolor=bgcolor,
         border_radius=radius,
         padding=padding,
         on_click=on_click,
         expand=expand,
         width=width,
-        height=height
+        height=height,
+        alignment=ft.alignment.center
     )
     return cnt, lbl
 
@@ -114,20 +115,19 @@ async def main(page: ft.Page):
     db = DataManager(DATA_FILE)
     page.title = "冲刺备考引擎"
     page.theme_mode = "light" 
-    # 🚀 压缩整页内边距，释放内部空间
     page.padding = 8 
     page.scroll = None 
     
-    # 🚀 窗口尺寸死锁，不准修改！
+    # 🚀 补偿系统标题栏高度，完美展示底部按钮
     try:
         page.window.resizable = False
         page.window.width = 380
-        page.window.height = 550
+        page.window.height = 620
     except AttributeError:
         try:
             page.window_resizable = False
             page.window_width = 380
-            page.window_height = 550
+            page.window_height = 620
         except: pass
 
     def open_dlg(d):
@@ -304,10 +304,9 @@ async def main(page: ft.Page):
         countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
     except: pass
 
-    # 🚀 降低 margin/padding，榨取高度
     card_countdown_full = ft.Container(
         content=ft.Row([row_left_controls_full, countdown_text, btn_theme], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        border_radius=10, padding=8, margin=3 
+        border_radius=12, padding=10, margin=5 
     )
 
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=8, width=40, on_click=toggle_mini_mode)
@@ -316,7 +315,7 @@ async def main(page: ft.Page):
     
     mini_top_bar = ft.Container(
         content=ft.Row([btn_mini_expand, lbl_time_mini, btn_pin_mini], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        padding=2, visible=False
+        padding=5, visible=False
     )
 
     # ----------------- 导航栏 -----------------
@@ -348,7 +347,6 @@ async def main(page: ft.Page):
         nav_buttons.append({"view": view, "lbl": lbl})
         return view
 
-    # 🚀 降低 margin，给下方核心区域留位置
     nav_bar = ft.Container(
         content=ft.Row([make_nav_btn("专注", 0), make_nav_btn("图鉴", 1), make_nav_btn("统计", 2), make_nav_btn("设置", 3)], alignment=ft.MainAxisAlignment.CENTER, spacing=0),
         border_radius=10, padding=4, margin=3
@@ -357,8 +355,8 @@ async def main(page: ft.Page):
     # ========================================================
     # 🚀 专注功能面板与组件美化
     # ========================================================
-    lbl_icon = ft.Text(value="🌰", size=65, text_align=ft.TextAlign.CENTER, max_lines=1) 
-    lbl_time = ft.Text(value="60:00", size=50, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1)
+    lbl_icon = ft.Text(value="🌰", size=70, text_align=ft.TextAlign.CENTER, max_lines=1) 
+    lbl_time = ft.Text(value="60:00", size=55, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=12, text_align=ft.TextAlign.CENTER, max_lines=1)
     
     sel_subject = ft.Dropdown(
@@ -395,19 +393,19 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=8, on_click=lambda e: switch_mode("stopwatch"))
+    # 🚀 绝对锁死统一高度 38px
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=5, on_click=lambda e: switch_mode("stopwatch"))
     mode_sw_view.height = 38
 
     mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD, max_lines=1)
     
-    # 4px 垫片强制修平 Flet 底层下拉框空气墙
+    # 🚀 给文本套上 38px 绝对对齐容器，消除下拉框引起的错位
     mode_pm_click_area = ft.Container(
-        content=ft.Column(
-            [ft.Container(height=4), mode_pm_lbl], 
-            spacing=0, alignment=ft.MainAxisAlignment.CENTER
-        ), 
+        content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=8, 
+        padding=0, 
+        alignment=ft.alignment.center,
+        height=38,
         bgcolor="transparent"
     )
 
@@ -431,16 +429,19 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 宽度增加到 125 杜绝截断。套入 38px 绝对居中对齐容器
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=120, dense=True, content_padding=5, text_size=13,
-        border_color="transparent", bgcolor="transparent"
+        value="60", width=125, dense=True, content_padding=5, text_size=13,
+        border_color="transparent", bgcolor="transparent",
+        alignment=ft.alignment.center
     )
     sel_pomo.on_change = on_pomo_change  
+    pomo_wrapper = ft.Container(content=sel_pomo, height=38, alignment=ft.alignment.center)
 
     mode_pm_view = ft.Container(
         content=ft.Row(
-            [mode_pm_click_area, sel_pomo], 
+            [mode_pm_click_area, pomo_wrapper], 
             spacing=0, 
             alignment=ft.MainAxisAlignment.CENTER,
             vertical_alignment=ft.CrossAxisAlignment.CENTER 
@@ -490,8 +491,8 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=38, expand=True, on_click=toggle_timer)
-    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", radius=25, height=38, expand=True, on_click=stop_timer_handler)
+    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=40, expand=True, on_click=toggle_timer)
+    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", radius=25, height=40, expand=True, on_click=stop_timer_handler)
 
     subject_container = ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER)
     goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
@@ -500,7 +501,7 @@ async def main(page: ft.Page):
 
     col_main = ft.Column([
         subject_container, lbl_icon, lbl_time, lbl_quote, goal_container, mode_container, row_main_btns
-    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8, expand=True)
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10, expand=True)
 
     # ========================================================
     # 🚀 确认与结算面板
@@ -539,8 +540,7 @@ async def main(page: ft.Page):
     btn_y, btn_y_lbl = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", padding=8, expand=True, on_click=on_confirm_save)
     btn_n, btn_n_lbl = create_btn("直接销毁", padding=8, expand=True, on_click=on_discard)
     btn_c, btn_c_lbl = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", padding=8, expand=True, on_click=on_cancel_dialog)
-    # 默认高度配置在后面由 apply 调整
-    
+
     row_confirm_btns1 = ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
     row_confirm_btns2 = ft.Row([btn_c], alignment=ft.MainAxisAlignment.CENTER)
 
@@ -556,11 +556,11 @@ async def main(page: ft.Page):
         refresh_stats()
         show_main()
 
-    lbl_icon_success = ft.Text("🎉", size=50)
+    lbl_icon_success = ft.Text("🎉", size=55)
     lbl_title_success = ft.Text("专注完成！", size=20, weight=ft.FontWeight.BOLD)
-    txt_note = ft.TextField(label="复盘便签 (选填)", expand=True, content_padding=5, text_size=12)
+    txt_note = ft.TextField(label="复盘便签 (选填)", expand=True, content_padding=8, text_size=13)
     row_note = ft.Row([txt_note], alignment=ft.MainAxisAlignment.CENTER)
-    btn_success_save, btn_success_save_lbl = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", padding=8, expand=True, on_click=on_success_save)
+    btn_success_save, btn_success_save_lbl = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", padding=10, expand=True, on_click=on_success_save)
     row_success_btn = ft.Row([btn_success_save], alignment=ft.MainAxisAlignment.CENTER)
     lbl_success_quote = ft.Text("", size=12, text_align=ft.TextAlign.CENTER)
 
@@ -643,11 +643,10 @@ async def main(page: ft.Page):
             show_goal_reached_dialog()
 
     # ========================================================
-    # 🚀 内部组件微压缩调度器：为 550px 高度量身定制！
+    # 🚀 完美的程序控制切换：高度充足，杜绝遮挡
     # ========================================================
     def apply_theme_and_layout():
         if st.is_mini_mode:
-            # 🚀 切入极简挂件模式
             switch_main_tab(0) 
             
             card_countdown_full.visible = False
@@ -661,7 +660,6 @@ async def main(page: ft.Page):
             lbl_time.visible = False
             mini_top_bar.visible = True
             
-            # 极致挤压空间，绝不留白
             lbl_icon.size = 65
             view_focus.padding = 10; view_focus.margin = 0
             
@@ -669,7 +667,6 @@ async def main(page: ft.Page):
             btn_stop_view.height = 36; btn_stop_view.padding = 4; btn_stop_lbl.size = 13
             row_main_btns.spacing = 10; col_main.spacing = 8
             
-            # 🚀 确认页面适配挂件：元素被极度压扁，绝对不再遮挡！
             lbl_icon_confirm.size = 25; lbl_title_confirm.size = 16; lbl_confirm_msg.size = 11
             col_confirm.spacing = 4
             btn_y.padding = 4; btn_y.height = 32; btn_y_lbl.size = 12
@@ -677,13 +674,11 @@ async def main(page: ft.Page):
             btn_c.padding = 4; btn_c.height = 32; btn_c_lbl.size = 12
             row_confirm_btns1.spacing = 10
             
-            # 🚀 成功结算页面适配挂件
             lbl_icon_success.size = 35; lbl_title_success.size = 16; lbl_success_quote.size = 11
             col_success.spacing = 4
             txt_note.height = 35
             btn_success_save.padding = 4; btn_success_save.height = 32; btn_success_save_lbl.size = 12
             
-            # 瞬间锁定极度紧凑的尺寸 (更小，毫无留白！)
             try:
                 page.window.width = 300
                 page.window.height = 280
@@ -692,7 +687,7 @@ async def main(page: ft.Page):
                 except: pass
                 
         else:
-            # 🚀 完整模式：压入 550px 的精密黄金比例
+            # 🚀 完整模式：恢复到 620px 以预留系统标题栏高度！完美容纳所有组件！
             mini_top_bar.visible = False
             lbl_time.visible = True
             
@@ -704,13 +699,12 @@ async def main(page: ft.Page):
             goal_container.visible = True
             mode_container.visible = True
             
-            # 精密缩小内部边距，让全组件完美挤入 550px，底部绝不遮挡！
-            lbl_icon.size = 65; lbl_time.size = 50
-            view_focus.padding = 10; view_focus.margin = 5
+            lbl_icon.size = 70; lbl_time.size = 55
+            view_focus.padding = 15; view_focus.margin = 5
             
-            btn_start_view.height = 38; btn_start_view.padding = 5; btn_start_lbl.size = 13
-            btn_stop_view.height = 38; btn_stop_view.padding = 5; btn_stop_lbl.size = 13
-            row_main_btns.spacing = 15; col_main.spacing = 5
+            btn_start_view.height = 40; btn_start_view.padding = 8; btn_start_lbl.size = 14
+            btn_stop_view.height = 40; btn_stop_view.padding = 8; btn_stop_lbl.size = 14
+            row_main_btns.spacing = 15; col_main.spacing = 10
             
             lbl_icon_confirm.size = 45; lbl_title_confirm.size = 20; lbl_confirm_msg.size = 13
             col_confirm.spacing = 10
@@ -726,16 +720,16 @@ async def main(page: ft.Page):
             
             try:
                 page.window.width = 380
-                page.window.height = 550
+                page.window.height = 620
             except:
-                try: page.window_width = 380; page.window_height = 550
+                try: page.window_width = 380; page.window_height = 620
                 except: pass
         
         apply_theme_colors()
         try: page.update()
         except: pass
 
-    # ----------------- 图鉴视图 (1)：内部独立滚动条 -----------------
+    # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
     grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15)
     
@@ -773,7 +767,7 @@ async def main(page: ft.Page):
         ]), border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
-    # ----------------- 统计视图 (2)：内部独立滚动条 -----------------
+    # ----------------- 统计视图 (2) -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
 
@@ -817,7 +811,7 @@ async def main(page: ft.Page):
         border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
-    # ----------------- 设置视图 (3)：内部独立滚动条 -----------------
+    # ----------------- 设置视图 (3) -----------------
     lbl_setting_1 = ft.Text(value="🎯 目标设置", weight=ft.FontWeight.BOLD)
     lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight=ft.FontWeight.BOLD)
     lbl_setting_3 = ft.Text(value="💾 数据安全", weight=ft.FontWeight.BOLD)
@@ -881,7 +875,7 @@ async def main(page: ft.Page):
         ], expand=True)
     )
 
-    # 🚀 初始强制压缩加载 550px
+    # 🚀 初始状态强制加载完整模式
     st.is_mini_mode = False
     apply_theme_and_layout()
     switch_main_tab(0)
@@ -917,7 +911,6 @@ async def main(page: ft.Page):
             if not st.timer_active: continue
             
             try:
-                # 🚀 纯净计秒代码！持续更新倒计时
                 st.elapsed = time.time() - st.start_tick
                 if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
                     st.timer_active = False 
