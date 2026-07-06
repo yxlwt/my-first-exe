@@ -115,18 +115,18 @@ async def main(page: ft.Page):
     page.title = "冲刺备考引擎"
     page.theme_mode = "light" 
     page.padding = 10
-    page.scroll = None 
+    page.scroll = None # 绝对禁止外层滚动
     
-    # 🚀 彻底禁绝拉伸！完全依靠按钮进行模式切换
+    # 🚀 极其硬核的控制：完全禁用操作系统的窗口拉伸！
     try:
         page.window.resizable = False
-        page.window.width = 400
-        page.window.height = 760
+        page.window.width = 380
+        page.window.height = 780
     except AttributeError:
         try:
             page.window_resizable = False
-            page.window_width = 400
-            page.window_height = 760
+            page.window_width = 380
+            page.window_height = 780
         except: pass
 
     def open_dlg(d):
@@ -201,7 +201,6 @@ async def main(page: ft.Page):
         nav_bar.bgcolor = surface_variant
         
         lbl_time.color = text_main
-        # 🚀 顶栏迷你时间的颜色同步
         lbl_time_mini.color = text_main
         
         lbl_quote.color = text_sec
@@ -268,7 +267,7 @@ async def main(page: ft.Page):
             c.bgcolor = bg
             c.content.controls[0].color = text_main
 
-    # ----------------- 🎯 真假顶栏架构 (将时间移入迷你顶栏) -----------------
+    # ----------------- 🎯 内嵌顶栏 -----------------
     def toggle_theme(e):
         page.theme_mode = "dark" if page.theme_mode == "light" else "light"
         apply_theme_colors()
@@ -309,7 +308,6 @@ async def main(page: ft.Page):
         border_radius=12, padding=12, margin=5 
     )
 
-    # 🚀 极其关键的新顶栏：把时间压缩到同一行展示！
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=8, width=40, on_click=toggle_mini_mode)
     lbl_time_mini = ft.Text(value="60:00", size=26, weight=ft.FontWeight.BOLD, max_lines=1)
     btn_pin_mini, btn_pin_mini_lbl = create_btn("📌", padding=8, width=40, on_click=toggle_pin)
@@ -386,7 +384,6 @@ async def main(page: ft.Page):
         
         lbl_icon.value = "🌰" if m == "pomodoro" else "🚧"
         
-        # 强制同步所有时间显示
         time_str = format_time(st.pomo_target) if m == "pomodoro" else "00:00"
         lbl_time.value = time_str
         lbl_time_mini.value = time_str
@@ -418,7 +415,6 @@ async def main(page: ft.Page):
         sel_pomo.disabled = False
         st.elapsed = 0
         
-        # 🚀 瞬间同步所有时间文本
         time_str = format_time(st.pomo_target)
         lbl_time.value = time_str
         lbl_time_mini.value = time_str
@@ -427,16 +423,21 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 加宽下拉框，杜绝右侧截断
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=140, dense=True, content_padding=10, text_size=13,
+        value="60", width=115, dense=True, content_padding=10, text_size=13,
         border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
+    # 🚀 极其关键：添加 vertical_alignment，强迫症像素级居中对齐，杜绝高低脚！
     mode_pm_view = ft.Container(
-        content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
+        content=ft.Row(
+            [mode_pm_click_area, sel_pomo], 
+            spacing=0, 
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER 
+        ),
         height=42, border_radius=8, expand=True
     )
 
@@ -642,6 +643,7 @@ async def main(page: ft.Page):
             switch_main_tab(0)
             
             card_countdown_full.visible = False
+            mini_top_bar.visible = True
             nav_bar.visible = False
             
             subject_container.visible = False
@@ -651,9 +653,8 @@ async def main(page: ft.Page):
             
             # 🚀 隐藏中心大时间，显示顶栏小时间！
             lbl_time.visible = False
-            mini_top_bar.visible = True
             
-            # 🚀 重新校准组件大小，完美适应挂件
+            # 🚀 重新校准组件大小，完美适应挂件 (彻底紧缩间距)
             lbl_icon.size = 70
             view_focus.padding = 10; view_focus.margin = 0
             
@@ -661,24 +662,25 @@ async def main(page: ft.Page):
             btn_stop_view.height = 40; btn_stop_view.padding = 5; btn_stop_lbl.size = 13
             row_main_btns.spacing = 10; col_main.spacing = 10
             
-            lbl_icon_confirm.size = 40; lbl_title_confirm.size = 18; lbl_confirm_msg.size = 12
+            # 🚀 极致压缩确认面板的间距，防止按钮被切掉！
+            lbl_icon_confirm.size = 35; lbl_title_confirm.size = 18; lbl_confirm_msg.size = 12
             col_confirm.spacing = 8
-            btn_y.padding = 8; btn_y_lbl.size = 12
-            btn_n.padding = 8; btn_n_lbl.size = 12
-            btn_c.padding = 8; btn_c_lbl.size = 12
+            btn_y.padding = 6; btn_y_lbl.size = 12
+            btn_n.padding = 6; btn_n_lbl.size = 12
+            btn_c.padding = 6; btn_c_lbl.size = 12
             row_confirm_btns1.spacing = 10
             
-            lbl_icon_success.size = 50; lbl_title_success.size = 18; lbl_success_quote.size = 12
+            lbl_icon_success.size = 45; lbl_title_success.size = 18; lbl_success_quote.size = 11
             col_success.spacing = 8
             txt_note.content_padding = 5; txt_note.text_size = 12
-            btn_success_save.padding = 8; btn_success_save_lbl.size = 12
+            btn_success_save.padding = 6; btn_success_save_lbl.size = 12
             
-            # 🚀 瞬间锁定极度紧凑的尺寸 (缩到了极致 300x280，一像素白边都没有！)
+            # 🚀 锁定挂件尺寸：高度放宽到 500 保证无论任何面板都不截断
             try:
-                page.window.width = 300
-                page.window.height = 280
+                page.window.width = 320
+                page.window.height = 500
             except:
-                try: page.window_width = 300; page.window_height = 280
+                try: page.window_width = 320; page.window_height = 500
                 except: pass
                 
         else:
@@ -715,10 +717,10 @@ async def main(page: ft.Page):
             
             # 🚀 瞬间恢复到完整尺寸！
             try:
-                page.window.width = 400
-                page.window.height = 760
+                page.window.width = 380
+                page.window.height = 780
             except:
-                try: page.window_width = 400; page.window_height = 760
+                try: page.window_width = 380; page.window_height = 780
                 except: pass
         
         apply_theme_colors()
@@ -881,7 +883,7 @@ async def main(page: ft.Page):
         while True:
             await asyncio.sleep(0.2) 
             
-            # 🚀 后台检测下拉框更新 (防老版本 Flet 丢事件)
+            # 🚀 后台检测下拉框更新
             try:
                 current_pomo_val = str(sel_pomo.value)
                 if current_pomo_val != st.last_pomo_val:
@@ -895,7 +897,6 @@ async def main(page: ft.Page):
                         sel_pomo.disabled = False
                         st.elapsed = 0
                         
-                        # 同步大字和小字时间
                         time_str = format_time(st.pomo_target)
                         lbl_time.value = time_str
                         lbl_time_mini.value = time_str
@@ -907,7 +908,7 @@ async def main(page: ft.Page):
             if not st.timer_active: continue
             
             try:
-                # 🚀 纯净计秒代码！每隔 0.2 秒持续更新 UI 倒计时
+                # 🚀 持续更新 UI 倒计时
                 st.elapsed = time.time() - st.start_tick
                 if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
                     st.timer_active = False 
@@ -916,7 +917,6 @@ async def main(page: ft.Page):
                     show_success()
                     continue
                 
-                # 同步屏幕文本并刷新画面
                 update_focus_ui()
                 try: page.update()
                 except: pass
