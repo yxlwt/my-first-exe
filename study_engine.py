@@ -108,6 +108,15 @@ def format_time(seconds):
     s = max(0, int(seconds))
     return f"{s//60:02d}:{s%60:02d}"
 
+def play_success_sound():
+    # 🚀 优化点 2：倒计时归零时通过 Windows API 触发清脆的系统提示音，提供触觉之外的实时结账反馈
+    if sys.platform == "win32":
+        try:
+            import winsound
+            winsound.MessageBeep(winsound.MB_ICONASTERISK)
+        except Exception:
+            pass
+
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color=None, radius=8, expand=False, width=None, height=None, padding=8):
     lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD, max_lines=1)
     cnt = ft.Container(
@@ -188,6 +197,23 @@ async def main(page: ft.Page):
         last_ui_second = -1
 
     st = State()
+
+    # 🚀 优化点 1：自动数据断电/抢救守护机制。如果遭遇程序意外关闭，自动将当前的努力结算存盘
+    def on_window_event(e):
+        if e.data == "close":
+            if st.session_active and int(st.elapsed) >= 5:
+                try:
+                    # 强行紧急抢救数据写入本地磁盘
+                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序被意外关闭（数据已抢救）")
+                except Exception:
+                    pass
+            page.window.destroy()
+            
+    try:
+        page.window.prevent_close = True
+        page.on_window_event = on_window_event
+    except Exception:
+        pass
 
     # ========================================================
     # 🚀 主题色调度中心
@@ -631,7 +657,6 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 优化点：移除内部多余的状态早退锁，纯粹负责根据当前 st.elapsed 同步更新所有文本数据
     def update_focus_ui():
         elapsed_int = int(st.elapsed)
 
@@ -654,7 +679,9 @@ async def main(page: ft.Page):
             else: lbl_icon.value = "🚧"
 
         logical_today = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
-        if logical_today != st.last_date:
+        
+        # 🚀 优化点 3：深夜作息守护机制。只有当会话处于非活跃状态时，才允许后台重置跨天进度条
+        if logical_today != st.last_date and not st.session_active:
             st.last_date = logical_today
             st.goal_reached = False 
             refresh_forest()
@@ -964,7 +991,7 @@ async def main(page: ft.Page):
 
     async def heart_beat():
         while True:
-            await asyncio.sleep(0.1) # 提高心跳采样率至0.1秒，确保计时极度灵敏
+            await asyncio.sleep(0.1) 
             
             try:
                 current_pomo_val = str(sel_pomo.value)
@@ -997,10 +1024,10 @@ async def main(page: ft.Page):
                     st.elapsed = st.pomo_target
                     st.last_ui_second = -1 
                     update_focus_ui()
+                    play_success_sound() # 触发声学结账提醒
                     show_success()
                     continue
                 
-                # 🚀 修复点：外层状态拦截。只有当整数秒数真正发生跳变时，才执行赋值、计算并提交 page.update()
                 elapsed_int = int(st.elapsed)
                 if elapsed_int != st.last_ui_second:
                     st.last_ui_second = elapsed_int
