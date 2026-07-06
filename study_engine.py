@@ -120,7 +120,7 @@ async def main(page: ft.Page):
     try:
         page.window.resizable = False
         page.window.width = 380
-        page.window.height = 600  # 🚀 提升到 600，应对 Windows DPI 缩放带来的底部遮挡
+        page.window.height = 600
     except AttributeError:
         try:
             page.window_resizable = False
@@ -165,6 +165,7 @@ async def main(page: ft.Page):
         active_tab = 0
         forest_tab = 0
         stat_tab = 0
+        chart_tab = 0 # 新增图表切换维度
         
         is_pinned = False
         is_mini_mode = False 
@@ -204,7 +205,9 @@ async def main(page: ft.Page):
         
         lbl_quote.color = text_sec
         
-        sel_subject.bgcolor = surface_variant
+        # 🚀 修改科目下拉框颜色与边框样式
+        sel_subject.bgcolor = "transparent"
+        sel_subject.border_color = "#38383A" if is_dark else "#C7C7CC"
         sel_subject.color = text_main
         
         bar_goal.bgcolor = surface_variant
@@ -237,6 +240,7 @@ async def main(page: ft.Page):
         container_forest_grid.bgcolor = "transparent"
         lbl_stat_total.color = text_main
         row_stat_nav.bgcolor = surface_variant
+        
         view_stats.bgcolor = surface
         
         lbl_setting_1.color = text_main
@@ -261,6 +265,11 @@ async def main(page: ft.Page):
         for i, item in enumerate(stat_nav_btns):
             item["view"].bgcolor = surface if i == st.stat_tab else "transparent"
             item["lbl"].color = text_main if i == st.stat_tab else text_sec
+
+        # 🚀 刷新图表切换按钮样式
+        for i, item in enumerate(chart_nav_btns):
+            item["view"].bgcolor = surface_variant if i == st.chart_tab else "transparent"
+            item["lbl"].color = text_main if i == st.chart_tab else text_sec
             
         for c in col_subs.controls:
             c.bgcolor = bg
@@ -357,10 +366,13 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align=ft.TextAlign.CENTER, max_lines=1)
     
+    # 🚀 重构下拉框：增加 border_radius, explicit border, 以及 alignment 文本居中
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
-        width=160, dense=True, border_radius=25, border_color="transparent", text_size=14, content_padding=5
+        width=180, dense=True, border_radius=12, 
+        alignment=ft.alignment.center,  # 强制文字居中
+        text_size=15, content_padding=8
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -422,7 +434,6 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 加宽下拉框，放大字体，彻底解决文字拥挤被遮挡问题
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=125, dense=True, content_padding=5, text_size=13,
@@ -687,7 +698,7 @@ async def main(page: ft.Page):
             mode_container.visible = True
             
             lbl_icon.size = 65; lbl_time.size = 50
-            view_focus.padding = 15; view_focus.margin = 0  # 🚀 给主容器内边距，提供完美呼吸感
+            view_focus.padding = 15; view_focus.margin = 0
             
             btn_start_view.height = 42; btn_start_view.padding = 8; btn_start_lbl.size = 14
             btn_stop_view.height = 42; btn_stop_view.padding = 8; btn_stop_lbl.size = 14
@@ -695,7 +706,7 @@ async def main(page: ft.Page):
             
             try:
                 page.window.width = 380
-                page.window.height = 600  # 🚀 同步提升高度，绝对杜绝按钮被遮挡
+                page.window.height = 600 
             except:
                 try: page.window_width = 380; page.window_height = 600
                 except: pass
@@ -742,14 +753,21 @@ async def main(page: ft.Page):
         ]), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 统计视图 (2) -----------------
+    # ----------------- 统计视图 (2) 增强版：柱状、扇形、折线 -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
 
     stat_nav_btns = []
+    chart_nav_btns = []
+    
     def sw_stat(idx):
         st.stat_tab = idx
         st.stats_scope = ["day", "week", "month"][idx]
+        apply_theme_colors()
+        refresh_stats()
+
+    def sw_chart(idx):
+        st.chart_tab = idx
         apply_theme_colors()
         refresh_stats()
 
@@ -757,32 +775,115 @@ async def main(page: ft.Page):
         view, lbl = create_btn(text, on_click=lambda e, i=idx: (sw_stat(i), page.update()), radius=8, expand=True, padding=6)
         stat_nav_btns.append({"view": view, "lbl": lbl})
         return view
+        
+    def make_chart_btn(text, idx):
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: (sw_chart(i), page.update()), radius=6, expand=True, padding=4)
+        chart_nav_btns.append({"view": view, "lbl": lbl})
+        return view
 
     row_stat_nav = ft.Container(content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), border_radius=10, padding=4)
+    
+    # 🚀 新增：图表种类切换选项卡
+    row_chart_nav = ft.Container(
+        content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("折线图", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        padding=0, margin=ft.margin.only(top=5, bottom=5)
+    )
 
     def refresh_stats():
         records = db.get_filtered(st.stats_scope)
         total = sum(r["duration"] for r in records)
         lbl_stat_total.value = format_dur(total)
         col_stats.controls.clear()
+        
+        is_dark = page.theme_mode == "dark"
+        text_main = "#FFFFFF" if is_dark else "#1C1C1E"
+        
         if not records:
-            col_stats.controls.append(ft.Text(value="当前时段无专注数据", color="#8E8E93"))
-        smap = {}
-        for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
-        for sub, dur in sorted(smap.items(), key=lambda x: x[1], reverse=True):
-            pct = dur / total if total > 0 else 0
-            is_dark = page.theme_mode == "dark"
-            col_stats.controls.append(
-                ft.Column([
-                    ft.Row([ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight=ft.FontWeight.BOLD, color="#FFFFFF" if is_dark else "#1C1C1E"), ft.Text(value=format_dur(dur), color="#8E8E93")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#2C2C2E" if is_dark else "#E5E5EA", height=10, border_radius=5)
-                ], spacing=8)
+            col_stats.controls.append(ft.Container(content=ft.Text(value="当前时段无专注数据", color="#8E8E93"), alignment=ft.alignment.center, padding=20))
+            try: page.update()
+            except: pass
+            return
+            
+        # 📊 逻辑1：条形进度图 (默认)
+        if st.chart_tab == 0:
+            smap = {}
+            for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
+            for sub, dur in sorted(smap.items(), key=lambda x: x[1], reverse=True):
+                pct = dur / total if total > 0 else 0
+                col_stats.controls.append(
+                    ft.Column([
+                        ft.Row([ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight=ft.FontWeight.BOLD, color=text_main), ft.Text(value=format_dur(dur), color="#8E8E93")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#2C2C2E" if is_dark else "#E5E5EA", height=10, border_radius=5)
+                    ], spacing=8)
+                )
+                
+        # 🥧 逻辑2：扇形占比图
+        elif st.chart_tab == 1:
+            smap = {}
+            for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
+            colors = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#5AC8FA", "#007AFF", "#5856D6", "#FF2D55"]
+            sections = []
+            for i, (sub, dur) in enumerate(sorted(smap.items(), key=lambda x: x[1], reverse=True)):
+                pct = (dur / total) * 100 if total > 0 else 0
+                sections.append(
+                    ft.PieChartSection(
+                        value=dur,
+                        title=f"{sub}\n{pct:.1f}%",
+                        color=colors[i % len(colors)],
+                        radius=60,
+                        title_style=ft.TextStyle(size=11, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+                    )
+                )
+            pie = ft.PieChart(sections=sections, sections_space=2, center_space_radius=30, expand=True)
+            col_stats.controls.append(ft.Container(content=pie, height=220, padding=10))
+            
+        # 📈 逻辑3：时间折线趋势图
+        elif st.chart_tab == 2:
+            date_map = {}
+            for r in records:
+                date_map[r["date"]] = date_map.get(r["date"], 0) + r["duration"]
+            sorted_dates = sorted(list(date_map.keys()))
+            
+            points = []
+            labels = []
+            max_hrs = 0
+            for i, d in enumerate(sorted_dates):
+                hrs = date_map[d] / 3600
+                if hrs > max_hrs: max_hrs = hrs
+                points.append(ft.LineChartDataPoint(i, hrs))
+                labels.append(ft.ChartAxisLabel(value=i, label=ft.Text(d[-5:], size=10, color=text_main)))
+                
+            line_chart = ft.LineChart(
+                data_series=[
+                    ft.LineChartData(
+                        data_points=points,
+                        stroke_width=3,
+                        color="#00A2FF",
+                        curved=True,
+                        point=True
+                    )
+                ],
+                left_axis=ft.ChartAxis(labels_size=30, title=ft.Text("H (时)", size=10, color="#8E8E93")),
+                bottom_axis=ft.ChartAxis(labels=labels, labels_size=20),
+                border=ft.border.all(1, "#2C2C2E" if is_dark else "#E5E5EA"),
+                expand=True,
+                min_y=0,
+                max_y=max_hrs * 1.2 if max_hrs > 0 else 1
             )
+            col_stats.controls.append(ft.Container(content=line_chart, height=220, padding=10))
+
         try: page.update()
         except: pass
 
+    # 🚀 将图表导航条融合进统计视图
     view_stats = ft.Container(
-        content=ft.Column([row_stat_nav, ft.Container(height=15), ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), ft.Container(height=15), col_stats]),
+        content=ft.Column([
+            row_stat_nav, 
+            row_chart_nav, 
+            ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), 
+            ft.Container(height=5), 
+            col_stats
+        ]),
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
@@ -855,6 +956,7 @@ async def main(page: ft.Page):
     switch_main_tab(0)
     sw_forest(0)
     sw_stat(0)
+    sw_chart(0) # 默认初始化图表
     render_subs()
 
     async def heart_beat():
