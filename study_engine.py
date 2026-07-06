@@ -197,27 +197,6 @@ async def main(page: ft.Page):
 
     st = State()
 
-    # 🚀 修复点2：彻底解决 X 关不掉的问题
-    def on_window_event(e):
-        if e.data == "close":
-            if st.session_active and int(st.elapsed) >= 5:
-                try:
-                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序意外关闭 (数据已抢救)")
-                except Exception:
-                    pass
-            # 不再指望 Flet 的窗口销毁功能，直接使用 Python 操作系统底层命令，无视一切强制关闭进程！
-            os._exit(0)
-            
-    try:
-        page.window.prevent_close = True
-        page.window.on_event = on_window_event
-    except AttributeError:
-        try:
-            page.window_prevent_close = True
-            page.on_window_event = on_window_event
-        except Exception:
-            pass
-
     # ========================================================
     # 🚀 主题色调度中心
     # ========================================================
@@ -321,11 +300,8 @@ async def main(page: ft.Page):
     def toggle_theme(e):
         page.theme_mode = "dark" if page.theme_mode == "light" else "light"
         apply_theme_colors()
-        
-        # 🚀 修复点1：在切换主题时强制重新渲染统计图表和图鉴，这样它们就会用最新的主题色重新绘制，字就不会隐形了。
         refresh_forest()
         refresh_stats()
-        
         try: page.update()
         except: pass
 
@@ -756,9 +732,11 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # ----------------- 图鉴视图 (1) -----------------
+    # ----------------- 🚀 彻底重构的图鉴视图：绝对数学居中 -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
-    grid_forest = ft.Row(wrap=True, spacing=18, run_spacing=18, alignment=ft.MainAxisAlignment.CENTER)
+    
+    # 彻底弃用有缺陷的 Row(wrap=True)，改为使用纯 Column 承载每一行的精确居中 Row
+    grid_forest = ft.Column(spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     
     forest_nav_btns = []
     def sw_forest(idx):
@@ -780,15 +758,29 @@ async def main(page: ft.Page):
         records = db.get_filtered(st.forest_scope)
         lbl_forest_sum.value = f"共收获 {len(records)} 个战果"
         grid_forest.controls.clear()
+        
         if not records:
             grid_forest.controls.append(ft.Row([ft.Text(value="空空如也，快去专注吧 ✨", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER))
-        for r in records:
-            tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
-            icon_view = ft.Container(
-                content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment=ft.MainAxisAlignment.CENTER),
-                width=55, height=55
-            )
-            grid_forest.controls.append(icon_view)
+        else:
+            # 🚀 采用“每组4个”的硬分块算法，保证每一排都绝对独立且完全居中
+            current_row = []
+            for r in records:
+                tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
+                icon_view = ft.Container(
+                    content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment=ft.MainAxisAlignment.CENTER),
+                    width=55, height=55
+                )
+                current_row.append(icon_view)
+                
+                # 满4个打成一排，强制放入父网格中居中
+                if len(current_row) == 4:
+                    grid_forest.controls.append(ft.Row(current_row, alignment=ft.MainAxisAlignment.CENTER, spacing=15))
+                    current_row = []
+            
+            # 将最后不满4个的残余项也打成一排居中放入
+            if current_row:
+                grid_forest.controls.append(ft.Row(current_row, alignment=ft.MainAxisAlignment.CENTER, spacing=15))
+                
         try: page.update()
         except: pass
 
