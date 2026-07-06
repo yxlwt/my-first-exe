@@ -115,18 +115,18 @@ async def main(page: ft.Page):
     page.title = "冲刺备考引擎"
     page.theme_mode = "light" 
     page.padding = 10
-    page.scroll = None 
+    page.scroll = None # 绝对禁止外层窗口滚动，改由内部模块自适应滚动！
     
-    # 🚀 极其硬核的控制：完全禁用操作系统的窗口拉伸！缩小初始高度约 20%
+    # 🚀 极其硬核的控制：恢复黄金比例 780px，杜绝内容被遮挡！禁止随意拖拽！
     try:
         page.window.resizable = False
         page.window.width = 400
-        page.window.height = 610
+        page.window.height = 780
     except AttributeError:
         try:
             page.window_resizable = False
             page.window_width = 400
-            page.window_height = 610
+            page.window_height = 780
         except: pass
 
     def open_dlg(d):
@@ -423,21 +423,19 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 精细调整：将 content_padding 从 10 缩小到 5，让内部文字真正垂直居中
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=115, dense=True, content_padding=5, text_size=13,
+        value="60", width=140, dense=True, content_padding=5, text_size=13,
         border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
-    # 🚀 强制十字轴居中（CrossAxisAlignment.CENTER），消除高低脚
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
             spacing=0, 
             alignment=ft.MainAxisAlignment.CENTER,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER
+            vertical_alignment=ft.CrossAxisAlignment.CENTER 
         ),
         height=42, border_radius=8, expand=True
     )
@@ -640,10 +638,10 @@ async def main(page: ft.Page):
     # ========================================================
     def apply_theme_and_layout():
         if st.is_mini_mode:
-            switch_main_tab(0) 
+            # 🚀 强制切回专注页，并隐藏所有多余的大卡片
+            switch_main_tab(0)
             
             card_countdown_full.visible = False
-            mini_top_bar.visible = True
             nav_bar.visible = False
             
             subject_container.visible = False
@@ -651,8 +649,11 @@ async def main(page: ft.Page):
             goal_container.visible = False
             mode_container.visible = False
             
+            # 🚀 隐藏中心大时间，显示顶栏小时间！
             lbl_time.visible = False
+            mini_top_bar.visible = True
             
+            # 🚀 重新校准组件大小，完美适应挂件
             lbl_icon.size = 70
             view_focus.padding = 10; view_focus.margin = 0
             
@@ -672,15 +673,16 @@ async def main(page: ft.Page):
             txt_note.content_padding = 5; txt_note.text_size = 12
             btn_success_save.padding = 8; btn_success_save_lbl.size = 12
             
-            # 瞬间锁定极度紧凑的尺寸
+            # 🚀 瞬间锁定挂件尺寸：高度增加到 460，绝对不会再切掉按钮！
             try:
-                page.window.width = 300
-                page.window.height = 280
+                page.window.width = 320
+                page.window.height = 460
             except:
-                try: page.window_width = 300; page.window_height = 280
+                try: page.window_width = 320; page.window_height = 460
                 except: pass
                 
         else:
+            # 完整模式：恢复黄金比例，展示所有卡片
             mini_top_bar.visible = False
             lbl_time.visible = True
             
@@ -711,19 +713,19 @@ async def main(page: ft.Page):
             txt_note.content_padding = 10; txt_note.text_size = 14
             btn_success_save.padding = 12; btn_success_save_lbl.size = 14
             
-            # 🚀 瞬间恢复到 610px 紧凑全尺寸
+            # 🚀 瞬间恢复到 780 完整尺寸，完美展示所有底栏！
             try:
                 page.window.width = 400
-                page.window.height = 610
+                page.window.height = 780
             except:
-                try: page.window_width = 400; page.window_height = 610
+                try: page.window_width = 400; page.window_height = 780
                 except: pass
         
         apply_theme_colors()
         try: page.update()
         except: pass
 
-    # ----------------- 图鉴视图 (1) -----------------
+    # ----------------- 图鉴视图 (1)：加上内部独立滚动条 -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
     grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15)
     
@@ -740,7 +742,9 @@ async def main(page: ft.Page):
         return view
 
     row_forest_nav = ft.Container(content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0), border_radius=10, padding=4)
-    col_forest_scroll = ft.Column([grid_forest], scroll=ft.ScrollMode.ADAPTIVE, expand=True)
+    
+    # 📜 内部滚动引擎激活：当战果太多时，可以在图鉴区域无限滑动
+    col_forest_scroll = ft.Column([grid_forest], scroll=ft.ScrollMode.AUTO, expand=True)
     container_forest_grid = ft.Container(content=col_forest_scroll, expand=True, padding=15, border_radius=10, bgcolor="transparent")
 
     def refresh_forest():
@@ -761,9 +765,11 @@ async def main(page: ft.Page):
         ]), border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
-    # ----------------- 统计视图 (2) -----------------
+    # ----------------- 统计视图 (2)：加上内部独立滚动条 -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
-    col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
+    
+    # 📜 内部滚动引擎激活
+    col_stats = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
 
     stat_nav_btns = []
     def sw_stat(idx):
@@ -805,7 +811,7 @@ async def main(page: ft.Page):
         border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
-    # ----------------- 设置视图 (3) -----------------
+    # ----------------- 设置视图 (3)：加上内部独立滚动条 -----------------
     lbl_setting_1 = ft.Text(value="🎯 目标设置", weight=ft.FontWeight.BOLD)
     lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight=ft.FontWeight.BOLD)
     lbl_setting_3 = ft.Text(value="💾 数据安全", weight=ft.FontWeight.BOLD)
@@ -853,10 +859,13 @@ async def main(page: ft.Page):
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份 (同目录)", padding=15, on_click=on_export)
 
+    # 📜 设置页面内部滚动引擎激活
+    col_settings_scroll = ft.Column([
+        lbl_setting_1, txt_goal, lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=10), lbl_setting_3, btn_exp
+    ], scroll=ft.ScrollMode.AUTO, expand=True)
+
     view_settings = ft.Container(
-        content=ft.Column([
-            lbl_setting_1, txt_goal, lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=10), lbl_setting_3, btn_exp
-        ], scroll=ft.ScrollMode.ADAPTIVE),
+        content=col_settings_scroll,
         border_radius=15, padding=25, expand=True, visible=False, margin=5
     )
 
@@ -903,6 +912,7 @@ async def main(page: ft.Page):
             if not st.timer_active: continue
             
             try:
+                # 🚀 纯净计秒代码！每隔 0.2 秒持续更新 UI 倒计时
                 st.elapsed = time.time() - st.start_tick
                 if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
                     st.timer_active = False 
@@ -911,6 +921,7 @@ async def main(page: ft.Page):
                     show_success()
                     continue
                 
+                # 同步屏幕文本并刷新画面
                 update_focus_ui()
                 try: page.update()
                 except: pass
