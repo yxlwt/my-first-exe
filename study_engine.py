@@ -715,7 +715,9 @@ async def main(page: ft.Page):
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
-    grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15)
+    
+    # 🚀 在 grid_forest 这里加入了 alignment=ft.MainAxisAlignment.CENTER，彻底保证图鉴居中
+    grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.CENTER)
     
     forest_nav_btns = []
     def sw_forest(idx):
@@ -751,7 +753,7 @@ async def main(page: ft.Page):
         ]), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 统计视图 (2) 增强版：柱状、扇形、折线 -----------------
+    # ----------------- 统计视图 (2) 绝对无懈可击版 -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
 
@@ -781,9 +783,8 @@ async def main(page: ft.Page):
 
     row_stat_nav = ft.Container(content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), border_radius=10, padding=4)
     
-    # 🚀 彻底移除 ft.margin.only，替换为原生整型 margin=5，杜绝报错
     row_chart_nav = ft.Container(
-        content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("折线图", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("趋势图", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=0, margin=5
     )
 
@@ -815,59 +816,76 @@ async def main(page: ft.Page):
                     ], spacing=8)
                 )
                 
+        # 🥧 抛弃脆弱的 PieChart 模块，使用原生渐变容器模拟出的极度稳定“扇形图”
         elif st.chart_tab == 1:
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
             colors = ["#FF3B30", "#FF9500", "#FFCC00", "#34C759", "#5AC8FA", "#007AFF", "#5856D6", "#FF2D55"]
-            sections = []
-            for i, (sub, dur) in enumerate(sorted(smap.items(), key=lambda x: x[1], reverse=True)):
-                pct = (dur / total) * 100 if total > 0 else 0
-                sections.append(
-                    ft.PieChartSection(
-                        value=dur,
-                        title=f"{sub}\n{pct:.1f}%",
-                        color=colors[i % len(colors)],
-                        radius=60,
-                        # 🚀 替换 ft.colors.WHITE 为原生 "#FFFFFF"
-                        title_style=ft.TextStyle(size=11, color="#FFFFFF", weight=ft.FontWeight.BOLD)
-                    )
-                )
-            pie = ft.PieChart(sections=sections, sections_space=2, center_space_radius=30, expand=True)
-            col_stats.controls.append(ft.Container(content=pie, height=220, padding=10))
             
+            gradient_colors = []
+            stops = []
+            current_stop = 0.0
+            legend_cols = []
+            
+            for i, (sub, dur) in enumerate(sorted(smap.items(), key=lambda x: x[1], reverse=True)):
+                pct = dur / total if total > 0 else 0
+                c = colors[i % len(colors)]
+                
+                gradient_colors.extend([c, c])
+                stops.extend([current_stop, current_stop + pct])
+                current_stop += pct
+                
+                legend_cols.append(
+                    ft.Row([
+                        ft.Container(width=12, height=12, bgcolor=c, border_radius=6),
+                        ft.Text(f"{sub} {pct*100:.1f}%", size=12, color=text_main)
+                    ], alignment=ft.MainAxisAlignment.CENTER)
+                )
+                
+            pie = ft.Container(
+                width=160, height=160, border_radius=80,
+                gradient=ft.SweepGradient(
+                    start_angle=0.0,
+                    end_angle=3.14159 * 2,
+                    colors=gradient_colors,
+                    stops=stops,
+                )
+            )
+            
+            col_stats.controls.append(ft.Column([
+                ft.Container(content=ft.Row([pie], alignment=ft.MainAxisAlignment.CENTER), padding=10),
+                ft.Column(legend_cols, spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            ], spacing=15))
+            
+        # 📈 抛弃脆弱的 LineChart 模块，使用原生容器模拟出的极其稳定且好看的“柱状趋势图”
         elif st.chart_tab == 2:
             date_map = {}
             for r in records:
                 date_map[r["date"]] = date_map.get(r["date"], 0) + r["duration"]
             sorted_dates = sorted(list(date_map.keys()))
             
-            points = []
-            labels = []
-            max_hrs = 0
-            for i, d in enumerate(sorted_dates):
-                hrs = date_map[d] / 3600
-                if hrs > max_hrs: max_hrs = hrs
-                points.append(ft.LineChartDataPoint(i, hrs))
-                labels.append(ft.ChartAxisLabel(value=i, label=ft.Text(d[-5:], size=10, color=text_main)))
+            max_dur = max(date_map.values()) if date_map else 0
+            
+            bars = []
+            for d in sorted_dates:
+                dur = date_map[d]
+                h = (dur / max_dur) * 120 if max_dur > 0 else 0
                 
-            line_chart = ft.LineChart(
-                data_series=[
-                    ft.LineChartData(
-                        data_points=points,
-                        stroke_width=3,
-                        color="#00A2FF",
-                        curved=True,
-                        point=True
-                    )
-                ],
-                left_axis=ft.ChartAxis(labels_size=30, title=ft.Text("H (时)", size=10, color="#8E8E93")),
-                bottom_axis=ft.ChartAxis(labels=labels, labels_size=20),
-                # 🚀 移除了潜藏风险的 border 设置参数
-                expand=True,
-                min_y=0,
-                max_y=max_hrs * 1.2 if max_hrs > 0 else 1
-            )
-            col_stats.controls.append(ft.Container(content=line_chart, height=220, padding=10))
+                bars.append(
+                    ft.Column([
+                        ft.Text(format_dur(dur), size=9, color="#8E8E93"),
+                        ft.Container(
+                            width=25, height=max(h, 5), bgcolor="#00A2FF", border_radius=4,
+                            tooltip=f"{d[-5:]}: {format_dur(dur)}"
+                        ),
+                        ft.Text(d[-5:], size=10, color=text_main)
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4)
+                )
+                
+            chart_row = ft.Row(bars, alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.END, spacing=15)
+            scroll_row = ft.Row([chart_row], scroll=ft.ScrollMode.ADAPTIVE, alignment=ft.MainAxisAlignment.CENTER)
+            
+            col_stats.controls.append(ft.Container(content=scroll_row, height=200, padding=10))
 
         try: page.update()
         except: pass
