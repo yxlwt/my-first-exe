@@ -115,17 +115,18 @@ async def main(page: ft.Page):
     page.title = "冲刺备考引擎"
     page.theme_mode = "light" 
     page.padding = 10
+    page.scroll = None # 绝对禁止外层滚动
     
-    # 🚀 彻底禁绝操作系统级别的鼠标拉伸！防止任何因为拖拽导致的留白断层
+    # 🚀 极其硬核的控制：完全禁用操作系统的窗口拉伸！
     try:
         page.window.resizable = False
-        page.window.width = 400
-        page.window.height = 760
+        page.window.width = 380
+        page.window.height = 780
     except AttributeError:
         try:
             page.window_resizable = False
-            page.window_width = 400
-            page.window_height = 760
+            page.window_width = 380
+            page.window_height = 780
         except: pass
 
     def open_dlg(d):
@@ -306,7 +307,7 @@ async def main(page: ft.Page):
         border_radius=12, padding=12, margin=5 
     )
 
-    # 迷你模式下的极简透明顶栏 (没有任何背景色和多余边距)
+    # 迷你模式下的极简透明顶栏
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=8, width=40, on_click=toggle_mini_mode)
     btn_pin_mini, btn_pin_mini_lbl = create_btn("📌", padding=8, width=40, on_click=toggle_pin)
     
@@ -318,6 +319,10 @@ async def main(page: ft.Page):
     # ----------------- 导航栏 -----------------
     nav_buttons = []
     def switch_main_tab(index):
+        if st.is_mini_mode and index != 0:
+            show_warning("🚨 迷你模式下仅支持显示【专注】面板！")
+            return
+            
         st.active_tab = index
         is_dark = page.theme_mode == "dark"
         surface = "#1C1C1E" if is_dark else "#FFFFFF"
@@ -355,7 +360,7 @@ async def main(page: ft.Page):
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
-        width=180, dense=True, border_radius=25, border_color="transparent", text_size=15, content_padding=15
+        width=180, dense=True, border_radius=25, border_color="transparent", text_size=15, content_padding=10
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -413,8 +418,7 @@ async def main(page: ft.Page):
 
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=115, dense=True, content_padding=10, text_size=13,
-        border_color="transparent", bgcolor="transparent"
+        value="60", width=115, dense=True, content_padding=10, text_size=13, border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
@@ -475,7 +479,7 @@ async def main(page: ft.Page):
 
     col_main = ft.Column([
         subject_container, lbl_icon, lbl_time, lbl_quote, goal_container, mode_container, row_main_btns
-    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15, expand=True)
 
     # ========================================================
     # 🚀 确认与结算面板
@@ -520,7 +524,7 @@ async def main(page: ft.Page):
 
     col_confirm = ft.Column([
         lbl_icon_confirm, lbl_title_confirm, lbl_confirm_msg, row_confirm_btns1, row_confirm_btns2
-    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15, expand=True)
 
     def on_success_save(e):
         db.add_record(sel_subject.value, int(st.elapsed), st.mode, False, txt_note.value)
@@ -540,7 +544,7 @@ async def main(page: ft.Page):
 
     col_success = ft.Column([
         lbl_icon_success, lbl_title_success, lbl_success_quote, row_note, row_success_btn
-    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15)
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15, expand=True)
 
     def show_goal_reached_dialog():
         dlg_goal = ft.AlertDialog(
@@ -550,18 +554,21 @@ async def main(page: ft.Page):
         )
         open_dlg(dlg_goal)
 
-    # 🚀 使用 expand=True 配合外层控制，保证绝对居中无白边
     view_focus = ft.Container(content=col_main, border_radius=15, expand=True)
 
     def show_main():
         view_focus.content = col_main
         update_focus_ui()
         apply_theme_colors()
+        try: page.update()
+        except: pass
 
     def show_confirm(msg):
         lbl_confirm_msg.value = msg
         view_focus.content = col_confirm
         apply_theme_colors()
+        try: page.update()
+        except: pass
 
     def show_success():
         if st.goal_reached_this_session:
@@ -571,6 +578,8 @@ async def main(page: ft.Page):
             lbl_success_quote.value = random.choice(ENCOURAGEMENTS)
         view_focus.content = col_success
         apply_theme_colors()
+        try: page.update()
+        except: pass
 
     def update_focus_ui():
         elapsed_int = int(st.elapsed)
@@ -608,11 +617,11 @@ async def main(page: ft.Page):
             show_goal_reached_dialog()
 
     # ========================================================
-    # 🚀 完美的程序控制切换：绝对锁定，消除白边
+    # 🚀 完美的程序控制切换：绝对锁定，消除所有白边与截断
     # ========================================================
     def apply_theme_and_layout():
         if st.is_mini_mode:
-            # 🚀 强制切回专注页，并隐藏所有多余的大卡片和组件
+            # 🚀 强制切回专注页，并隐藏所有多余的大卡片
             switch_main_tab(0)
             
             card_countdown_full.visible = False
@@ -624,12 +633,13 @@ async def main(page: ft.Page):
             goal_container.visible = False
             mode_container.visible = False
             
-            lbl_icon.size = 80; lbl_time.size = 60
-            view_focus.padding = 10; view_focus.margin = 0
+            # 🚀 重新校准组件大小，完美适应挂件
+            lbl_icon.size = 80; lbl_time.size = 65
+            view_focus.padding = 15; view_focus.margin = 0
             
-            btn_start_view.height = 40; btn_start_view.padding = 5; btn_start_lbl.size = 12
-            btn_stop_view.height = 40; btn_stop_view.padding = 5; btn_stop_lbl.size = 12
-            row_main_btns.spacing = 10; col_main.spacing = 10
+            btn_start_view.height = 40; btn_start_view.padding = 5; btn_start_lbl.size = 13
+            btn_stop_view.height = 40; btn_stop_view.padding = 5; btn_stop_lbl.size = 13
+            row_main_btns.spacing = 15; col_main.spacing = 10
             
             lbl_icon_confirm.size = 40; lbl_title_confirm.size = 18; lbl_confirm_msg.size = 12
             col_confirm.spacing = 8
@@ -643,16 +653,16 @@ async def main(page: ft.Page):
             txt_note.content_padding = 5; txt_note.text_size = 12
             btn_success_save.padding = 8; btn_success_save_lbl.size = 12
             
-            # 瞬间锁定极度紧凑的尺寸
+            # 🚀 瞬间锁定极度紧凑的尺寸 (高度加大到 460，绝对不会切断按钮！)
             try:
-                page.window.width = 300
-                page.window.height = 360
+                page.window.width = 320
+                page.window.height = 460
             except:
-                try: page.window_width = 300; page.window_height = 360
+                try: page.window_width = 320; page.window_height = 460
                 except: pass
                 
         else:
-            # 完整模式：恢复黄金舒展比例，并展示完整的卡片
+            # 完整模式：恢复黄金比例，展示所有卡片
             mini_top_bar.visible = False
             card_countdown_full.visible = True
             nav_bar.visible = True
@@ -681,12 +691,12 @@ async def main(page: ft.Page):
             txt_note.content_padding = 10; txt_note.text_size = 14
             btn_success_save.padding = 12; btn_success_save_lbl.size = 14
             
-            # 瞬间恢复到黄金比例大尺寸
+            # 🚀 瞬间恢复到黄金比例大尺寸
             try:
-                page.window.width = 400
-                page.window.height = 760
+                page.window.width = 380
+                page.window.height = 780
             except:
-                try: page.window_width = 400; page.window_height = 760
+                try: page.window_width = 380; page.window_height = 780
                 except: pass
         
         apply_theme_colors()
@@ -841,6 +851,10 @@ async def main(page: ft.Page):
     # 🚀 初始状态强制加载完整模式
     st.is_mini_mode = False
     apply_theme_and_layout()
+    switch_main_tab(0)
+    sw_forest(0)
+    sw_stat(0)
+    render_subs()
 
     async def heart_beat():
         while True:
@@ -875,6 +889,7 @@ async def main(page: ft.Page):
                     show_success()
                     continue
                 update_focus_ui()
+                # 🚀 恢复屏幕刷新，倒计时完美执行
                 try: page.update()
                 except: pass
             except Exception: pass
