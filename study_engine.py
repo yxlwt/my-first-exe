@@ -96,7 +96,7 @@ def format_time(seconds):
     return f"{s//60:02d}:{s%60:02d}"
 
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color=None, radius=8, expand=False, width=None, height=None, padding=10):
-    lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD)
+    lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD, max_lines=1)
     cnt = ft.Container(
         content=ft.Row([lbl], alignment=ft.MainAxisAlignment.CENTER),
         bgcolor=bgcolor,
@@ -117,17 +117,22 @@ async def main(page: ft.Page):
     page.padding = 15
     page.scroll = ft.ScrollMode.ADAPTIVE
     
+    # 🚀 极其硬核的尺寸限制：绝不允许随意拉伸变形！
     try:
-        page.window.width = 460
-        page.window.height = 800
-        page.window.min_width = 250
-        page.window.min_height = 300
+        page.window.width = 420
+        page.window.height = 780
+        page.window.min_width = 300   # 极限小组件宽度，防止文字换行
+        page.window.min_height = 360  # 极限小组件高度
+        page.window.max_width = 460   # 最大也就是个大号手机，防止变宽变丑
+        page.window.max_height = 850
     except AttributeError:
         try:
-            page.window_width = 460
-            page.window_height = 800
-            page.window_min_width = 250
-            page.window_min_height = 300
+            page.window_width = 420
+            page.window_height = 780
+            page.window_min_width = 300
+            page.window_min_height = 360
+            page.window_max_width = 460
+            page.window_max_height = 850
         except: pass
 
     def open_dlg(d):
@@ -178,7 +183,7 @@ async def main(page: ft.Page):
     st = State()
 
     # ========================================================
-    # 🚀 主题色调度中心 (修复了死循环 BUG)
+    # 🚀 主题色调度中心
     # ========================================================
     def apply_theme_colors():
         is_dark = page.theme_mode == "dark"
@@ -250,27 +255,15 @@ async def main(page: ft.Page):
         btn_exp_lbl.color = text_main
         view_settings.bgcolor = surface
         
-        # 🚨 仅仅更新按钮颜色，绝对不要再调用外层的刷新函数导致死循环！
-        for i, item in enumerate(nav_buttons):
-            item["view"].bgcolor = surface if i == st.active_tab else "transparent"
-            item["lbl"].color = text_main if i == st.active_tab else text_sec
-            
-        for i, item in enumerate(forest_nav_btns):
-            item["view"].bgcolor = surface if i == st.forest_tab else "transparent"
-            item["lbl"].color = text_main if i == st.forest_tab else text_sec
-            
-        for i, item in enumerate(stat_nav_btns):
-            item["view"].bgcolor = surface if i == st.stat_tab else "transparent"
-            item["lbl"].color = text_main if i == st.stat_tab else text_sec
-
+        switch_main_tab(st.active_tab)
+        sw_forest(st.forest_tab)
+        sw_stat(st.stat_tab)
         render_subs()
-        try: page.update()
-        except: pass
 
-    # ----------------- 🎯 美化重构：内嵌式 App 顶栏 -----------------
     def toggle_theme(e):
         page.theme_mode = "dark" if page.theme_mode == "light" else "light"
         apply_theme_colors()
+        page.update()
 
     def toggle_pin(e):
         st.is_pinned = not st.is_pinned
@@ -279,11 +272,12 @@ async def main(page: ft.Page):
             try: page.window_always_on_top = st.is_pinned
             except: pass
         apply_theme_colors()
+        page.update()
 
     btn_pin, btn_pin_lbl = create_btn("📌", padding=8, width=40, on_click=toggle_pin)
     btn_theme, btn_theme_lbl = create_btn("🌙", padding=8, width=40, on_click=toggle_theme)
 
-    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=17, weight=ft.FontWeight.BOLD, color="#007AFF")
+    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=17, weight=ft.FontWeight.BOLD, color="#007AFF", max_lines=1)
     try:
         today = datetime.now().date()
         exam = datetime.strptime(db.data["examDate"], "%Y-%m-%d").date()
@@ -297,7 +291,6 @@ async def main(page: ft.Page):
         border_radius=12, padding=12, margin=5 
     )
 
-    # ----------------- 导航栏 -----------------
     nav_buttons = []
     
     def switch_main_tab(index):
@@ -318,11 +311,9 @@ async def main(page: ft.Page):
         
         if index == 1: refresh_forest()
         if index == 2: refresh_stats()
-        try: page.update()
-        except: pass
 
     def make_nav_btn(text, idx):
-        view, lbl = create_btn(text, on_click=lambda e, i=idx: switch_main_tab(i), radius=8, expand=True, padding=8)
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: (switch_main_tab(i), page.update()), radius=8, expand=True, padding=8)
         nav_buttons.append({"view": view, "lbl": lbl})
         return view
 
@@ -334,9 +325,10 @@ async def main(page: ft.Page):
     # ========================================================
     # 🚀 专注功能面板
     # ========================================================
-    lbl_icon = ft.Text(value="🌰", size=90, text_align=ft.TextAlign.CENTER) 
-    lbl_time = ft.Text(value="60:00", size=65, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
-    lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, text_align=ft.TextAlign.CENTER)
+    lbl_icon = ft.Text(value="🌰", size=90, text_align=ft.TextAlign.CENTER, max_lines=1) 
+    # 🚨 强制 max_lines=1 杜绝时间被挤换行！
+    lbl_time = ft.Text(value="60:00", size=65, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1)
+    lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, text_align=ft.TextAlign.CENTER, max_lines=1)
     
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
@@ -354,7 +346,7 @@ async def main(page: ft.Page):
     sel_subject.on_change = on_sub_change
 
     bar_goal = ft.ProgressBar(value=0, color="#34C759", height=8)
-    lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, weight=ft.FontWeight.BOLD)
+    lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=12, weight=ft.FontWeight.BOLD, max_lines=1)
 
     def switch_mode(m):
         if st.session_active:
@@ -371,11 +363,12 @@ async def main(page: ft.Page):
         lbl_time.value = format_time(st.pomo_target) if m == "pomodoro" else "00:00"
         
         apply_theme_colors() 
+        page.update()
 
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=8, on_click=lambda e: switch_mode("stopwatch"))
     mode_sw_view.height = 42
 
-    mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD)
+    mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD, max_lines=1)
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
@@ -398,6 +391,7 @@ async def main(page: ft.Page):
         
         lbl_time.value = format_time(st.pomo_target)
         apply_theme_colors()
+        page.update()
 
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
@@ -420,9 +414,9 @@ async def main(page: ft.Page):
         elapsed_int = int(st.elapsed)
         
         if st.mode == "pomodoro" and elapsed_int < st.pomo_target:
-            show_confirm(f"番茄钟未完成 (仅专注 {elapsed_int}秒)\n放弃将留下枯树 🥀，确定吗？")
+            show_confirm(f"番茄钟未完成 (仅专注 {elapsed_int}秒)\n放弃将留枯树 🥀，确定吗？")
         elif st.mode == "stopwatch" and elapsed_int < 60:
-            show_confirm(f"筑城不足1分钟 (仅专注 {elapsed_int}秒)\n只留下废料 🚧。确定保存吗？")
+            show_confirm(f"筑城不足1分钟 (仅专注 {elapsed_int}秒)\n只留废料 🚧。确定保存吗？")
         else:
             show_success()
 
@@ -546,11 +540,13 @@ async def main(page: ft.Page):
         view_focus.content = col_main
         update_focus_ui()
         apply_theme_colors()
+        page.update()
 
     def show_confirm(msg):
         lbl_confirm_msg.value = msg
         view_focus.content = col_confirm
         apply_theme_colors()
+        page.update()
 
     def show_success():
         if st.goal_reached_this_session:
@@ -560,6 +556,7 @@ async def main(page: ft.Page):
             lbl_success_quote.value = random.choice(ENCOURAGEMENTS)
         view_focus.content = col_success
         apply_theme_colors()
+        page.update()
 
     def update_focus_ui():
         elapsed_int = int(st.elapsed)
@@ -595,18 +592,19 @@ async def main(page: ft.Page):
             st.goal_reached = True
             st.goal_reached_this_session = True
             show_goal_reached_dialog()
-            
-        try: page.update()
-        except Exception: pass
 
     # ========================================================
-    # 🚀 尺寸侦测 (自动流体响应式，杜绝滚动条)
+    # 🚀 尺寸侦测 (智能压缩字体，防止文字折行)
     # ========================================================
     def apply_responsive_layout():
-        w = page.window.width if page.window.width else 460
-        h = page.window.height if page.window.height else 800
+        w = page.window.width if page.window.width else 420
+        h = page.window.height if page.window.height else 750
         
-        is_compact = h < 550 or w < 360
+        is_compact = h < 600 or w < 380
+        
+        # 如果是悬浮窗模式，但在非专注界面，强制切回专注界面！
+        if is_compact and st.active_tab != 0:
+            st.active_tab = 0
         
         card_countdown.visible = not is_compact
         nav_bar.visible = not is_compact
@@ -616,8 +614,8 @@ async def main(page: ft.Page):
         mode_container.visible = not is_compact
         
         if is_compact:
-            lbl_icon.size = 65; lbl_time.size = 55
-            view_focus.padding = 10; view_focus.margin = 0
+            lbl_icon.size = 70; lbl_time.size = 50
+            view_focus.padding = 15; view_focus.margin = 0
             btn_start_view.height = 40; btn_start_view.padding = 5; btn_start_lbl.size = 12
             btn_stop_view.height = 40; btn_stop_view.padding = 5; btn_stop_lbl.size = 12
             row_main_btns.spacing = 8; col_main.spacing = 8
@@ -664,16 +662,7 @@ async def main(page: ft.Page):
     def sw_forest(idx):
         st.forest_tab = idx
         st.forest_scope = ["day", "week", "month"][idx]
-        
-        is_dark = page.theme_mode == "dark"
-        surface = "#1C1C1E" if is_dark else "#FFFFFF"
-        text_main = "#FFFFFF" if is_dark else "#1C1C1E"
-        text_sec = "#8E8E93"
-        for i, item in enumerate(forest_nav_btns):
-            item["view"].bgcolor = surface if i == idx else "transparent"
-            item["lbl"].color = text_main if i == idx else text_sec
-            
-        refresh_forest()
+        apply_theme_colors()
 
     def make_forest_btn(text, idx):
         view, lbl = create_btn(text, on_click=lambda e, i=idx: (sw_forest(i), page.update()), radius=8, expand=True, padding=8)
@@ -692,8 +681,6 @@ async def main(page: ft.Page):
         for r in records:
             tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
             grid_forest.controls.append(ft.Text(value=r.get("tree","🌲"), size=45, tooltip=tip))
-        try: page.update()
-        except: pass
 
     view_forest = ft.Container(
         content=ft.Column([
@@ -709,16 +696,7 @@ async def main(page: ft.Page):
     def sw_stat(idx):
         st.stat_tab = idx
         st.stats_scope = ["day", "week", "month"][idx]
-        
-        is_dark = page.theme_mode == "dark"
-        surface = "#1C1C1E" if is_dark else "#FFFFFF"
-        text_main = "#FFFFFF" if is_dark else "#1C1C1E"
-        text_sec = "#8E8E93"
-        for i, item in enumerate(stat_nav_btns):
-            item["view"].bgcolor = surface if i == idx else "transparent"
-            item["lbl"].color = text_main if i == idx else text_sec
-            
-        refresh_stats()
+        apply_theme_colors()
 
     def make_stat_btn(text, idx):
         view, lbl = create_btn(text, on_click=lambda e, i=idx: (sw_stat(i), page.update()), radius=8, expand=True, padding=8)
@@ -745,8 +723,6 @@ async def main(page: ft.Page):
                     ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#2C2C2E" if is_dark else "#E5E5EA", height=10, border_radius=5)
                 ], spacing=8)
             )
-        try: page.update()
-        except: pass
 
     view_stats = ft.Container(
         content=ft.Column([row_stat_nav, ft.Container(height=15), ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), ft.Container(height=15), col_stats]),
@@ -782,7 +758,7 @@ async def main(page: ft.Page):
         if v and v not in db.data["subjects"]:
             db.data["subjects"].append(v); db.save()
             sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-            txt_new_sub.value = ""; render_subs(); apply_theme_colors()
+            txt_new_sub.value = ""; render_subs(); apply_theme_colors(); page.update()
             
     btn_add, _ = create_btn("添加", bgcolor="#34C759", txt_color="white", padding=12, on_click=add_sub)
 
@@ -792,7 +768,7 @@ async def main(page: ft.Page):
             sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
             sel_subject.value = db.data["subjects"][0]
             db.data["currentSubject"] = sel_subject.value
-            db.save(); render_subs(); apply_theme_colors()
+            db.save(); render_subs(); apply_theme_colors(); page.update()
 
     def on_export(e):
         try:
@@ -815,11 +791,6 @@ async def main(page: ft.Page):
         ], expand=True)
     )
 
-    # 初始化启动排版 (安全初始化)
-    switch_main_tab(0)
-    sw_forest(0)
-    sw_stat(0)
-    render_subs()
     apply_responsive_layout()
 
     async def heart_beat():
@@ -838,7 +809,10 @@ async def main(page: ft.Page):
                     st.mode = "pomodoro"
                     sel_pomo.disabled = False
                     st.elapsed = 0
+                    
+                    lbl_time.value = format_time(st.pomo_target)
                     apply_theme_colors()
+                    page.update()
             
             if not st.timer_active: continue
             
@@ -851,11 +825,12 @@ async def main(page: ft.Page):
                     show_success()
                     continue
                 update_focus_ui()
+                try: page.update()
+                except: pass
             except Exception: pass
 
     page.run_task(heart_beat)
 
-# ================= 4. 防崩沙盒入口 =================
 if __name__ == "__main__":
     try:
         ft.app(target=main)
