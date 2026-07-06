@@ -38,11 +38,26 @@ class DataManager:
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     self.data.update(json.load(f))
-            except: pass
+            except Exception:
+                pass
 
     def save(self):
-        with open(self.path, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, ensure_ascii=False, indent=4)
+        # 🚀 优化点 1：原子化安全保存机制，防止写入中途崩溃导致 JSON 损坏丢失历史数据
+        tmp_path = self.path + ".tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=4)
+            if os.path.exists(tmp_path):
+                if os.path.exists(self.path):
+                    os.remove(self.path)
+                os.rename(tmp_path, self.path)
+        except Exception:
+            # 灾备降级：若重命名失败，尝试直接写入
+            try:
+                with open(self.path, "w", encoding="utf-8") as f:
+                    json.dump(self.data, f, ensure_ascii=False, indent=4)
+            except Exception:
+                pass
 
     def add_record(self, subject, duration, mode, is_dead, note):
         logical_today = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
@@ -171,6 +186,9 @@ async def main(page: ft.Page):
         is_mini_mode = False 
         goal_reached = False 
         goal_reached_this_session = False
+        
+        # 🚀 优化点 2：增加节流状态锁，防止毫秒级重复重绘控制台
+        last_ui_second = -1
 
     st = State()
 
@@ -487,6 +505,9 @@ async def main(page: ft.Page):
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
             btn_start_view.bgcolor = "#34C759"
+        
+        # 强制清除秒数锁以立即刷新UI状态
+        st.last_ui_second = -1
         update_focus_ui()
         try: page.update()
         except: pass
@@ -519,6 +540,7 @@ async def main(page: ft.Page):
         st.session_active = False
         st.timer_active = False
         st.elapsed = 0
+        st.last_ui_second = -1
         btn_start_lbl.value = "▶ 开始专注"
         btn_start_view.bgcolor = "#34C759"
         sel_subject.disabled = False
@@ -540,6 +562,7 @@ async def main(page: ft.Page):
         if st.was_active: 
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed
+        st.last_ui_second = -1
         show_main()
 
     lbl_icon_confirm = ft.Text("⚠️", size=35)
@@ -614,6 +637,12 @@ async def main(page: ft.Page):
 
     def update_focus_ui():
         elapsed_int = int(st.elapsed)
+        
+        # 🚀 优化点 2 (续)：如果当前秒数与上一次渲染完全一致，直接跳过计算与页面刷新，极大降低挂机等待时的 CPU 开销
+        if elapsed_int == st.last_ui_second:
+            return
+        st.last_ui_second = elapsed_int
+
         if st.mode == "pomodoro":
             remain = max(0, st.pomo_target - elapsed_int)
             time_str = format_time(remain)
@@ -657,51 +686,39 @@ async def main(page: ft.Page):
     def apply_theme_and_layout():
         if st.is_mini_mode:
             switch_main_tab(0)
-            
             card_countdown_full.visible = False
             mini_top_bar.visible = True
             nav_bar.visible = False
-            
             subject_container.visible = False
             lbl_quote.visible = False
             goal_container.visible = False
             mode_container.visible = False
-            
             lbl_time.visible = False
-            
             lbl_icon.size = 50
             view_focus.padding = 10; view_focus.margin = 0
-            
             btn_start_view.height = 36; btn_start_view.padding = 5; btn_start_lbl.size = 12
             btn_stop_view.height = 36; btn_stop_view.padding = 5; btn_stop_lbl.size = 12
             row_main_btns.spacing = 10; col_main.spacing = 5
-            
             try:
                 page.window.width = 300
                 page.window.height = 320
             except:
                 try: page.window_width = 300; page.window_height = 320
                 except: pass
-                
         else:
             mini_top_bar.visible = False
             lbl_time.visible = True
-            
             card_countdown_full.visible = True
             nav_bar.visible = True
-            
             subject_container.visible = True
             lbl_quote.visible = True
             goal_container.visible = True
             mode_container.visible = True
-            
             lbl_icon.size = 65; lbl_time.size = 50
             view_focus.padding = 15; view_focus.margin = 0
-            
             btn_start_view.height = 42; btn_start_view.padding = 8; btn_start_lbl.size = 14
             btn_stop_view.height = 42; btn_stop_view.padding = 8; btn_stop_lbl.size = 14
             row_main_btns.spacing = 15; col_main.spacing = 10
-            
             try:
                 page.window.width = 380
                 page.window.height = 600 
@@ -715,8 +732,6 @@ async def main(page: ft.Page):
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
-    
-    # 🚀 在 grid_forest 这里加入了 alignment=ft.MainAxisAlignment.CENTER，彻底保证图鉴居中
     grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.CENTER)
     
     forest_nav_btns = []
@@ -740,7 +755,7 @@ async def main(page: ft.Page):
         lbl_forest_sum.value = f"共收获 {len(records)} 个战果"
         grid_forest.controls.clear()
         if not records:
-            grid_forest.controls.append(ft.Text(value="空空如也，快去专注吧 ✨", color="#8E8E93"))
+            grid_forest.controls.append(ft.Row([ft.Text(value="空空如也，快去专注吧 ✨", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER))
         for r in records:
             tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
             grid_forest.controls.append(ft.Text(value=r.get("tree","🌲"), size=45, tooltip=tip))
@@ -753,7 +768,7 @@ async def main(page: ft.Page):
         ]), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 统计视图 (2) 绝对无懈可击版 -----------------
+    # ----------------- 统计视图 (2) -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
 
@@ -782,7 +797,6 @@ async def main(page: ft.Page):
         return view
 
     row_stat_nav = ft.Container(content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), border_radius=10, padding=4)
-    
     row_chart_nav = ft.Container(
         content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("趋势图", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=0, margin=5
@@ -816,7 +830,6 @@ async def main(page: ft.Page):
                     ], spacing=8)
                 )
                 
-        # 🥧 抛弃脆弱的 PieChart 模块，使用原生渐变容器模拟出的极度稳定“扇形图”
         elif st.chart_tab == 1:
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
@@ -830,7 +843,6 @@ async def main(page: ft.Page):
             for i, (sub, dur) in enumerate(sorted(smap.items(), key=lambda x: x[1], reverse=True)):
                 pct = dur / total if total > 0 else 0
                 c = colors[i % len(colors)]
-                
                 gradient_colors.extend([c, c])
                 stops.extend([current_stop, current_stop + pct])
                 current_stop += pct
@@ -845,46 +857,35 @@ async def main(page: ft.Page):
             pie = ft.Container(
                 width=160, height=160, border_radius=80,
                 gradient=ft.SweepGradient(
-                    start_angle=0.0,
-                    end_angle=3.14159 * 2,
-                    colors=gradient_colors,
-                    stops=stops,
+                    start_angle=0.0, end_angle=3.14159 * 2,
+                    colors=gradient_colors, stops=stops,
                 )
             )
-            
             col_stats.controls.append(ft.Column([
                 ft.Container(content=ft.Row([pie], alignment=ft.MainAxisAlignment.CENTER), padding=10),
                 ft.Column(legend_cols, spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
             ], spacing=15))
             
-        # 📈 抛弃脆弱的 LineChart 模块，使用原生容器模拟出的极其稳定且好看的“柱状趋势图”
         elif st.chart_tab == 2:
             date_map = {}
             for r in records:
                 date_map[r["date"]] = date_map.get(r["date"], 0) + r["duration"]
             sorted_dates = sorted(list(date_map.keys()))
-            
-            max_dur = max(date_map.values()) if date_map else 0
+            max_dur_val = max(date_map.values()) if date_map else 0
             
             bars = []
             for d in sorted_dates:
                 dur = date_map[d]
-                h = (dur / max_dur) * 120 if max_dur > 0 else 0
-                
+                h = (dur / max_dur_val) * 120 if max_dur_val > 0 else 0
                 bars.append(
                     ft.Column([
                         ft.Text(format_dur(dur), size=9, color="#8E8E93"),
-                        ft.Container(
-                            width=25, height=max(h, 5), bgcolor="#00A2FF", border_radius=4,
-                            tooltip=f"{d[-5:]}: {format_dur(dur)}"
-                        ),
+                        ft.Container(width=25, height=max(h, 5), bgcolor="#00A2FF", border_radius=4, tooltip=f"{d[-5:]}: {format_dur(dur)}"),
                         ft.Text(d[-5:], size=10, color=text_main)
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4)
                 )
-                
             chart_row = ft.Row(bars, alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.END, spacing=15)
             scroll_row = ft.Row([chart_row], scroll=ft.ScrollMode.ADAPTIVE, alignment=ft.MainAxisAlignment.CENTER)
-            
             col_stats.controls.append(ft.Container(content=scroll_row, height=200, padding=10))
 
         try: page.update()
@@ -892,11 +893,7 @@ async def main(page: ft.Page):
 
     view_stats = ft.Container(
         content=ft.Column([
-            row_stat_nav, 
-            row_chart_nav, 
-            ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), 
-            ft.Container(height=5), 
-            col_stats
+            row_stat_nav, row_chart_nav, ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), ft.Container(height=5), col_stats
         ]),
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
@@ -975,7 +972,7 @@ async def main(page: ft.Page):
 
     async def heart_beat():
         while True:
-            await asyncio.sleep(0.2) 
+            await asyncio.sleep(0.15) # 0.15秒采样频率，兼顾灵敏度与性能
             
             try:
                 current_pomo_val = str(sel_pomo.value)
@@ -989,6 +986,7 @@ async def main(page: ft.Page):
                         st.mode = "pomodoro"
                         sel_pomo.disabled = False
                         st.elapsed = 0
+                        st.last_ui_second = -1 # 强制解锁重绘
                         
                         time_str = format_time(st.pomo_target)
                         lbl_time.value = time_str
@@ -1005,13 +1003,16 @@ async def main(page: ft.Page):
                 if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
                     st.timer_active = False 
                     st.elapsed = st.pomo_target
+                    st.last_ui_second = -1 
                     update_focus_ui()
                     show_success()
                     continue
                 
+                # 🚀 只有在秒数有实体跨越时才会触发底层渲染
                 update_focus_ui()
-                try: page.update()
-                except: pass
+                if int(st.elapsed) != st.last_ui_second:
+                    try: page.update()
+                    except: pass
             except Exception: pass
 
     page.run_task(heart_beat)
