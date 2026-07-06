@@ -115,18 +115,18 @@ async def main(page: ft.Page):
     page.title = "冲刺备考引擎"
     page.theme_mode = "light" 
     page.padding = 10
-    page.scroll = None # 绝对禁止外层滚动
+    page.scroll = None 
     
-    # 🚀 极其硬核的控制：完全禁用操作系统的窗口拉伸！
+    # 🚀 极其硬核的控制：完全禁用操作系统的窗口拉伸！缩小初始高度约 20%
     try:
         page.window.resizable = False
-        page.window.width = 380
-        page.window.height = 780
+        page.window.width = 400
+        page.window.height = 610
     except AttributeError:
         try:
             page.window_resizable = False
-            page.window_width = 380
-            page.window_height = 780
+            page.window_width = 400
+            page.window_height = 610
         except: pass
 
     def open_dlg(d):
@@ -423,20 +423,21 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 精细调整：将 content_padding 从 10 缩小到 5，让内部文字真正垂直居中
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=115, dense=True, content_padding=10, text_size=13,
+        value="60", width=115, dense=True, content_padding=5, text_size=13,
         border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
-    # 🚀 极其关键：添加 vertical_alignment，强迫症像素级居中对齐，杜绝高低脚！
+    # 🚀 强制十字轴居中（CrossAxisAlignment.CENTER），消除高低脚
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
             spacing=0, 
             alignment=ft.MainAxisAlignment.CENTER,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER 
+            vertical_alignment=ft.CrossAxisAlignment.CENTER
         ),
         height=42, border_radius=8, expand=True
     )
@@ -639,8 +640,7 @@ async def main(page: ft.Page):
     # ========================================================
     def apply_theme_and_layout():
         if st.is_mini_mode:
-            # 🚀 强制切回专注页，并隐藏所有多余的大卡片
-            switch_main_tab(0)
+            switch_main_tab(0) 
             
             card_countdown_full.visible = False
             mini_top_bar.visible = True
@@ -651,10 +651,8 @@ async def main(page: ft.Page):
             goal_container.visible = False
             mode_container.visible = False
             
-            # 🚀 隐藏中心大时间，显示顶栏小时间！
             lbl_time.visible = False
             
-            # 🚀 重新校准组件大小，完美适应挂件 (彻底紧缩间距)
             lbl_icon.size = 70
             view_focus.padding = 10; view_focus.margin = 0
             
@@ -662,29 +660,27 @@ async def main(page: ft.Page):
             btn_stop_view.height = 40; btn_stop_view.padding = 5; btn_stop_lbl.size = 13
             row_main_btns.spacing = 10; col_main.spacing = 10
             
-            # 🚀 极致压缩确认面板的间距，防止按钮被切掉！
-            lbl_icon_confirm.size = 35; lbl_title_confirm.size = 18; lbl_confirm_msg.size = 12
+            lbl_icon_confirm.size = 40; lbl_title_confirm.size = 18; lbl_confirm_msg.size = 12
             col_confirm.spacing = 8
-            btn_y.padding = 6; btn_y_lbl.size = 12
-            btn_n.padding = 6; btn_n_lbl.size = 12
-            btn_c.padding = 6; btn_c_lbl.size = 12
+            btn_y.padding = 8; btn_y_lbl.size = 12
+            btn_n.padding = 8; btn_n_lbl.size = 12
+            btn_c.padding = 8; btn_c_lbl.size = 12
             row_confirm_btns1.spacing = 10
             
-            lbl_icon_success.size = 45; lbl_title_success.size = 18; lbl_success_quote.size = 11
+            lbl_icon_success.size = 50; lbl_title_success.size = 18; lbl_success_quote.size = 12
             col_success.spacing = 8
             txt_note.content_padding = 5; txt_note.text_size = 12
-            btn_success_save.padding = 6; btn_success_save_lbl.size = 12
+            btn_success_save.padding = 8; btn_success_save_lbl.size = 12
             
-            # 🚀 锁定挂件尺寸：高度放宽到 500 保证无论任何面板都不截断
+            # 瞬间锁定极度紧凑的尺寸
             try:
-                page.window.width = 320
-                page.window.height = 500
+                page.window.width = 300
+                page.window.height = 280
             except:
-                try: page.window_width = 320; page.window_height = 500
+                try: page.window_width = 300; page.window_height = 280
                 except: pass
                 
         else:
-            # 完整模式：恢复黄金比例，展示所有卡片
             mini_top_bar.visible = False
             lbl_time.visible = True
             
@@ -715,12 +711,12 @@ async def main(page: ft.Page):
             txt_note.content_padding = 10; txt_note.text_size = 14
             btn_success_save.padding = 12; btn_success_save_lbl.size = 14
             
-            # 🚀 瞬间恢复到完整尺寸！
+            # 🚀 瞬间恢复到 610px 紧凑全尺寸
             try:
-                page.window.width = 380
-                page.window.height = 780
+                page.window.width = 400
+                page.window.height = 610
             except:
-                try: page.window_width = 380; page.window_height = 780
+                try: page.window_width = 400; page.window_height = 610
                 except: pass
         
         apply_theme_colors()
@@ -883,7 +879,6 @@ async def main(page: ft.Page):
         while True:
             await asyncio.sleep(0.2) 
             
-            # 🚀 后台检测下拉框更新
             try:
                 current_pomo_val = str(sel_pomo.value)
                 if current_pomo_val != st.last_pomo_val:
@@ -908,7 +903,6 @@ async def main(page: ft.Page):
             if not st.timer_active: continue
             
             try:
-                # 🚀 持续更新 UI 倒计时
                 st.elapsed = time.time() - st.start_tick
                 if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
                     st.timer_active = False 
