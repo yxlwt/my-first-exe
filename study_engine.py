@@ -109,7 +109,6 @@ def format_time(seconds):
     return f"{s//60:02d}:{s%60:02d}"
 
 def play_success_sound():
-    # 🚀 优化点 2：倒计时归零时通过 Windows API 触发清脆的系统提示音，提供触觉之外的实时结账反馈
     if sys.platform == "win32":
         try:
             import winsound
@@ -198,22 +197,26 @@ async def main(page: ft.Page):
 
     st = State()
 
-    # 🚀 优化点 1：自动数据断电/抢救守护机制。如果遭遇程序意外关闭，自动将当前的努力结算存盘
+    # 🚀 修复点2：彻底解决 X 关不掉的问题
     def on_window_event(e):
         if e.data == "close":
             if st.session_active and int(st.elapsed) >= 5:
                 try:
-                    # 强行紧急抢救数据写入本地磁盘
-                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序被意外关闭（数据已抢救）")
+                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序意外关闭 (数据已抢救)")
                 except Exception:
                     pass
-            page.window.destroy()
+            # 不再指望 Flet 的窗口销毁功能，直接使用 Python 操作系统底层命令，无视一切强制关闭进程！
+            os._exit(0)
             
     try:
         page.window.prevent_close = True
-        page.on_window_event = on_window_event
-    except Exception:
-        pass
+        page.window.on_event = on_window_event
+    except AttributeError:
+        try:
+            page.window_prevent_close = True
+            page.on_window_event = on_window_event
+        except Exception:
+            pass
 
     # ========================================================
     # 🚀 主题色调度中心
@@ -318,6 +321,11 @@ async def main(page: ft.Page):
     def toggle_theme(e):
         page.theme_mode = "dark" if page.theme_mode == "light" else "light"
         apply_theme_colors()
+        
+        # 🚀 修复点1：在切换主题时强制重新渲染统计图表和图鉴，这样它们就会用最新的主题色重新绘制，字就不会隐形了。
+        refresh_forest()
+        refresh_stats()
+        
         try: page.update()
         except: pass
 
@@ -680,7 +688,6 @@ async def main(page: ft.Page):
 
         logical_today = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
         
-        # 🚀 优化点 3：深夜作息守护机制。只有当会话处于非活跃状态时，才允许后台重置跨天进度条
         if logical_today != st.last_date and not st.session_active:
             st.last_date = logical_today
             st.goal_reached = False 
@@ -751,7 +758,7 @@ async def main(page: ft.Page):
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
-    grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.CENTER)
+    grid_forest = ft.Row(wrap=True, spacing=18, run_spacing=18, alignment=ft.MainAxisAlignment.CENTER)
     
     forest_nav_btns = []
     def sw_forest(idx):
@@ -766,8 +773,8 @@ async def main(page: ft.Page):
         return view
 
     row_forest_nav = ft.Container(content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), border_radius=10, padding=4)
-    col_forest_scroll = ft.Column([grid_forest], scroll=ft.ScrollMode.ADAPTIVE, expand=True)
-    container_forest_grid = ft.Container(content=col_forest_scroll, expand=True, padding=15, border_radius=10, bgcolor="transparent")
+    col_forest_scroll = ft.Column([grid_forest], scroll=ft.ScrollMode.ADAPTIVE, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    container_forest_grid = ft.Container(content=col_forest_scroll, expand=True, padding=5, border_radius=10, bgcolor="transparent")
 
     def refresh_forest():
         records = db.get_filtered(st.forest_scope)
@@ -777,7 +784,11 @@ async def main(page: ft.Page):
             grid_forest.controls.append(ft.Row([ft.Text(value="空空如也，快去专注吧 ✨", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER))
         for r in records:
             tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
-            grid_forest.controls.append(ft.Text(value=r.get("tree","🌲"), size=45, tooltip=tip))
+            icon_view = ft.Container(
+                content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment=ft.MainAxisAlignment.CENTER),
+                width=55, height=55
+            )
+            grid_forest.controls.append(icon_view)
         try: page.update()
         except: pass
 
@@ -1024,7 +1035,7 @@ async def main(page: ft.Page):
                     st.elapsed = st.pomo_target
                     st.last_ui_second = -1 
                     update_focus_ui()
-                    play_success_sound() # 触发声学结账提醒
+                    play_success_sound() 
                     show_success()
                     continue
                 
