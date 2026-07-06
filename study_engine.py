@@ -178,7 +178,7 @@ async def main(page: ft.Page):
     st = State()
 
     # ========================================================
-    # 🚀 主题色调度中心 (绝对安全，只使用 Hex 字符串)
+    # 🚀 主题色调度中心 (修复了死循环 BUG)
     # ========================================================
     def apply_theme_colors():
         is_dark = page.theme_mode == "dark"
@@ -250,11 +250,22 @@ async def main(page: ft.Page):
         btn_exp_lbl.color = text_main
         view_settings.bgcolor = surface
         
-        switch_main_tab(st.active_tab)
-        sw_forest(st.forest_tab)
-        sw_stat(st.stat_tab)
+        # 🚨 仅仅更新按钮颜色，绝对不要再调用外层的刷新函数导致死循环！
+        for i, item in enumerate(nav_buttons):
+            item["view"].bgcolor = surface if i == st.active_tab else "transparent"
+            item["lbl"].color = text_main if i == st.active_tab else text_sec
+            
+        for i, item in enumerate(forest_nav_btns):
+            item["view"].bgcolor = surface if i == st.forest_tab else "transparent"
+            item["lbl"].color = text_main if i == st.forest_tab else text_sec
+            
+        for i, item in enumerate(stat_nav_btns):
+            item["view"].bgcolor = surface if i == st.stat_tab else "transparent"
+            item["lbl"].color = text_main if i == st.stat_tab else text_sec
+
         render_subs()
-        page.update()
+        try: page.update()
+        except: pass
 
     # ----------------- 🎯 美化重构：内嵌式 App 顶栏 -----------------
     def toggle_theme(e):
@@ -293,7 +304,6 @@ async def main(page: ft.Page):
         st.active_tab = index
         is_dark = page.theme_mode == "dark"
         surface = "#1C1C1E" if is_dark else "#FFFFFF"
-        surface_variant = "#2C2C2E" if is_dark else "#E5E5EA"
         text_main = "#FFFFFF" if is_dark else "#1C1C1E"
         text_sec = "#8E8E93"
 
@@ -308,9 +318,11 @@ async def main(page: ft.Page):
         
         if index == 1: refresh_forest()
         if index == 2: refresh_stats()
+        try: page.update()
+        except: pass
 
     def make_nav_btn(text, idx):
-        view, lbl = create_btn(text, on_click=lambda e, i=idx: (switch_main_tab(i), page.update()), radius=8, expand=True, padding=8)
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: switch_main_tab(i), radius=8, expand=True, padding=8)
         nav_buttons.append({"view": view, "lbl": lbl})
         return view
 
@@ -320,13 +332,12 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 专注功能面板 (完全剥离引发报错的 alignment.center)
+    # 🚀 专注功能面板
     # ========================================================
     lbl_icon = ft.Text(value="🌰", size=90, text_align=ft.TextAlign.CENTER) 
     lbl_time = ft.Text(value="60:00", size=65, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=13, text_align=ft.TextAlign.CENTER)
     
-    # 🚨 终极安全：移除了 alignment=ft.alignment.center，杜绝老版本报错
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
@@ -365,7 +376,6 @@ async def main(page: ft.Page):
     mode_sw_view.height = 42
 
     mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD)
-    # 🚨 终极安全：同样移除了 alignment=ft.alignment.center
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
@@ -654,7 +664,15 @@ async def main(page: ft.Page):
     def sw_forest(idx):
         st.forest_tab = idx
         st.forest_scope = ["day", "week", "month"][idx]
-        apply_theme_colors()
+        
+        is_dark = page.theme_mode == "dark"
+        surface = "#1C1C1E" if is_dark else "#FFFFFF"
+        text_main = "#FFFFFF" if is_dark else "#1C1C1E"
+        text_sec = "#8E8E93"
+        for i, item in enumerate(forest_nav_btns):
+            item["view"].bgcolor = surface if i == idx else "transparent"
+            item["lbl"].color = text_main if i == idx else text_sec
+            
         refresh_forest()
 
     def make_forest_btn(text, idx):
@@ -674,7 +692,8 @@ async def main(page: ft.Page):
         for r in records:
             tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
             grid_forest.controls.append(ft.Text(value=r.get("tree","🌲"), size=45, tooltip=tip))
-        page.update()
+        try: page.update()
+        except: pass
 
     view_forest = ft.Container(
         content=ft.Column([
@@ -690,7 +709,15 @@ async def main(page: ft.Page):
     def sw_stat(idx):
         st.stat_tab = idx
         st.stats_scope = ["day", "week", "month"][idx]
-        apply_theme_colors()
+        
+        is_dark = page.theme_mode == "dark"
+        surface = "#1C1C1E" if is_dark else "#FFFFFF"
+        text_main = "#FFFFFF" if is_dark else "#1C1C1E"
+        text_sec = "#8E8E93"
+        for i, item in enumerate(stat_nav_btns):
+            item["view"].bgcolor = surface if i == idx else "transparent"
+            item["lbl"].color = text_main if i == idx else text_sec
+            
         refresh_stats()
 
     def make_stat_btn(text, idx):
@@ -718,6 +745,8 @@ async def main(page: ft.Page):
                     ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#2C2C2E" if is_dark else "#E5E5EA", height=10, border_radius=5)
                 ], spacing=8)
             )
+        try: page.update()
+        except: pass
 
     view_stats = ft.Container(
         content=ft.Column([row_stat_nav, ft.Container(height=15), ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), ft.Container(height=15), col_stats]),
@@ -786,7 +815,11 @@ async def main(page: ft.Page):
         ], expand=True)
     )
 
-    # 初始化启动
+    # 初始化启动排版 (安全初始化)
+    switch_main_tab(0)
+    sw_forest(0)
+    sw_stat(0)
+    render_subs()
     apply_responsive_layout()
 
     async def heart_beat():
