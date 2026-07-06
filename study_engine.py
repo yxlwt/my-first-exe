@@ -42,7 +42,6 @@ class DataManager:
                 pass
 
     def save(self):
-        # 🚀 优化点 1：原子化安全保存机制，防止写入中途崩溃导致 JSON 损坏丢失历史数据
         tmp_path = self.path + ".tmp"
         try:
             with open(tmp_path, "w", encoding="utf-8") as f:
@@ -52,7 +51,6 @@ class DataManager:
                     os.remove(self.path)
                 os.rename(tmp_path, self.path)
         except Exception:
-            # 灾备降级：若重命名失败，尝试直接写入
             try:
                 with open(self.path, "w", encoding="utf-8") as f:
                     json.dump(self.data, f, ensure_ascii=False, indent=4)
@@ -187,7 +185,6 @@ async def main(page: ft.Page):
         goal_reached = False 
         goal_reached_this_session = False
         
-        # 🚀 优化点 2：增加节流状态锁，防止毫秒级重复重绘控制台
         last_ui_second = -1
 
     st = State()
@@ -506,7 +503,6 @@ async def main(page: ft.Page):
             btn_start_lbl.value = "▶ 继续专注"
             btn_start_view.bgcolor = "#34C759"
         
-        # 强制清除秒数锁以立即刷新UI状态
         st.last_ui_second = -1
         update_focus_ui()
         try: page.update()
@@ -635,13 +631,9 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 优化点：移除内部多余的状态早退锁，纯粹负责根据当前 st.elapsed 同步更新所有文本数据
     def update_focus_ui():
         elapsed_int = int(st.elapsed)
-        
-        # 🚀 优化点 2 (续)：如果当前秒数与上一次渲染完全一致，直接跳过计算与页面刷新，极大降低挂机等待时的 CPU 开销
-        if elapsed_int == st.last_ui_second:
-            return
-        st.last_ui_second = elapsed_int
 
         if st.mode == "pomodoro":
             remain = max(0, st.pomo_target - elapsed_int)
@@ -972,7 +964,7 @@ async def main(page: ft.Page):
 
     async def heart_beat():
         while True:
-            await asyncio.sleep(0.15) # 0.15秒采样频率，兼顾灵敏度与性能
+            await asyncio.sleep(0.1) # 提高心跳采样率至0.1秒，确保计时极度灵敏
             
             try:
                 current_pomo_val = str(sel_pomo.value)
@@ -986,7 +978,7 @@ async def main(page: ft.Page):
                         st.mode = "pomodoro"
                         sel_pomo.disabled = False
                         st.elapsed = 0
-                        st.last_ui_second = -1 # 强制解锁重绘
+                        st.last_ui_second = -1 
                         
                         time_str = format_time(st.pomo_target)
                         lbl_time.value = time_str
@@ -1008,9 +1000,11 @@ async def main(page: ft.Page):
                     show_success()
                     continue
                 
-                # 🚀 只有在秒数有实体跨越时才会触发底层渲染
-                update_focus_ui()
-                if int(st.elapsed) != st.last_ui_second:
+                # 🚀 修复点：外层状态拦截。只有当整数秒数真正发生跳变时，才执行赋值、计算并提交 page.update()
+                elapsed_int = int(st.elapsed)
+                if elapsed_int != st.last_ui_second:
+                    st.last_ui_second = elapsed_int
+                    update_focus_ui()
                     try: page.update()
                     except: pass
             except Exception: pass
