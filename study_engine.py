@@ -364,7 +364,6 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align=ft.TextAlign.CENTER, max_lines=1)
     
-    # 🚀 修复点：彻底移除会导致崩溃的 alignment 属性，改用 text_align=ft.TextAlign.CENTER 实现文本完美居中
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
@@ -432,7 +431,6 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 同样为时间下拉框增加 text_align，确保文本居中对齐
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=125, dense=True, content_padding=5, text_size=13,
@@ -783,9 +781,10 @@ async def main(page: ft.Page):
 
     row_stat_nav = ft.Container(content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), border_radius=10, padding=4)
     
+    # 🚀 彻底移除 ft.margin.only，替换为原生整型 margin=5，杜绝报错
     row_chart_nav = ft.Container(
         content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("折线图", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
-        padding=0, margin=ft.margin.only(top=5, bottom=5)
+        padding=0, margin=5
     )
 
     def refresh_stats():
@@ -798,7 +797,6 @@ async def main(page: ft.Page):
         text_main = "#FFFFFF" if is_dark else "#1C1C1E"
         
         if not records:
-            # 🚀 修复点：彻底移除会导致崩溃的 alignment 属性，改用安全的 ft.Row 包裹实现水平居中
             empty_msg = ft.Row([ft.Text(value="当前时段无专注数据", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER)
             col_stats.controls.append(ft.Container(content=empty_msg, padding=20))
             try: page.update()
@@ -830,7 +828,8 @@ async def main(page: ft.Page):
                         title=f"{sub}\n{pct:.1f}%",
                         color=colors[i % len(colors)],
                         radius=60,
-                        title_style=ft.TextStyle(size=11, color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+                        # 🚀 替换 ft.colors.WHITE 为原生 "#FFFFFF"
+                        title_style=ft.TextStyle(size=11, color="#FFFFFF", weight=ft.FontWeight.BOLD)
                     )
                 )
             pie = ft.PieChart(sections=sections, sections_space=2, center_space_radius=30, expand=True)
@@ -863,7 +862,7 @@ async def main(page: ft.Page):
                 ],
                 left_axis=ft.ChartAxis(labels_size=30, title=ft.Text("H (时)", size=10, color="#8E8E93")),
                 bottom_axis=ft.ChartAxis(labels=labels, labels_size=20),
-                border=ft.border.all(1, "#2C2C2E" if is_dark else "#E5E5EA"),
+                # 🚀 移除了潜藏风险的 border 设置参数
                 expand=True,
                 min_y=0,
                 max_y=max_hrs * 1.2 if max_hrs > 0 else 1
