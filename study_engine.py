@@ -117,16 +117,16 @@ async def main(page: ft.Page):
     page.padding = 10
     page.scroll = None 
     
-    # 🚀 极其硬核的控制：完全禁用操作系统的窗口拉伸！
+    # 🚀 彻底禁绝拉伸！完全依靠按钮进行模式切换
     try:
         page.window.resizable = False
-        page.window.width = 380
-        page.window.height = 780
+        page.window.width = 400
+        page.window.height = 760
     except AttributeError:
         try:
             page.window_resizable = False
-            page.window_width = 380
-            page.window_height = 780
+            page.window_width = 400
+            page.window_height = 760
         except: pass
 
     def open_dlg(d):
@@ -201,6 +201,9 @@ async def main(page: ft.Page):
         nav_bar.bgcolor = surface_variant
         
         lbl_time.color = text_main
+        # 🚀 顶栏迷你时间的颜色同步
+        lbl_time_mini.color = text_main
+        
         lbl_quote.color = text_sec
         
         sel_subject.bgcolor = surface_variant
@@ -233,10 +236,7 @@ async def main(page: ft.Page):
         lbl_forest_sum.color = text_sec
         row_forest_nav.bgcolor = surface_variant
         view_forest.bgcolor = surface
-        
-        # 🎨 修复图鉴区域的灰色底漆，改为透明完美融入白卡
         container_forest_grid.bgcolor = "transparent"
-        
         lbl_stat_total.color = text_main
         row_stat_nav.bgcolor = surface_variant
         view_stats.bgcolor = surface
@@ -268,7 +268,7 @@ async def main(page: ft.Page):
             c.bgcolor = bg
             c.content.controls[0].color = text_main
 
-    # ----------------- 🎯 真假顶栏架构 (消除空白的核心) -----------------
+    # ----------------- 🎯 真假顶栏架构 (将时间移入迷你顶栏) -----------------
     def toggle_theme(e):
         page.theme_mode = "dark" if page.theme_mode == "light" else "light"
         apply_theme_colors()
@@ -309,11 +309,13 @@ async def main(page: ft.Page):
         border_radius=12, padding=12, margin=5 
     )
 
+    # 🚀 极其关键的新顶栏：把时间压缩到同一行展示！
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=8, width=40, on_click=toggle_mini_mode)
+    lbl_time_mini = ft.Text(value="60:00", size=26, weight=ft.FontWeight.BOLD, max_lines=1)
     btn_pin_mini, btn_pin_mini_lbl = create_btn("📌", padding=8, width=40, on_click=toggle_pin)
     
     mini_top_bar = ft.Container(
-        content=ft.Row([btn_mini_expand, btn_pin_mini], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        content=ft.Row([btn_mini_expand, lbl_time_mini, btn_pin_mini], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         padding=5, visible=False
     )
 
@@ -361,7 +363,7 @@ async def main(page: ft.Page):
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
-        width=180, border_radius=15, border_color="transparent", text_size=15
+        width=180, dense=True, border_radius=25, border_color="transparent", text_size=15, content_padding=15
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -383,14 +385,18 @@ async def main(page: ft.Page):
         st.elapsed = 0
         
         lbl_icon.value = "🌰" if m == "pomodoro" else "🚧"
-        lbl_time.value = format_time(st.pomo_target) if m == "pomodoro" else "00:00"
+        
+        # 强制同步所有时间显示
+        time_str = format_time(st.pomo_target) if m == "pomodoro" else "00:00"
+        lbl_time.value = time_str
+        lbl_time_mini.value = time_str
         
         apply_theme_colors() 
         try: page.update()
         except: pass
 
-    # 去掉绝对高度锁定，让容器自动撑开对齐
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=10, on_click=lambda e: switch_mode("stopwatch"))
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=8, on_click=lambda e: switch_mode("stopwatch"))
+    mode_sw_view.height = 42
 
     mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD, max_lines=1)
     mode_pm_click_area = ft.Container(
@@ -403,7 +409,6 @@ async def main(page: ft.Page):
     def on_pomo_change(e):
         if st.session_active:
             show_warning("🚨 专注期间禁止修改目标时间！")
-            sel_pomo.value = st.last_pomo_val
             page.update()
             return
         st.last_pomo_val = str(sel_pomo.value)
@@ -413,21 +418,26 @@ async def main(page: ft.Page):
         sel_pomo.disabled = False
         st.elapsed = 0
         
-        # 🚀 瞬间同步更新核心 UI 界面！杜绝主屏幕不同步
-        update_focus_ui()
-        page.update()
+        # 🚀 瞬间同步所有时间文本
+        time_str = format_time(st.pomo_target)
+        lbl_time.value = time_str
+        lbl_time_mini.value = time_str
+        
+        apply_theme_colors()
+        try: page.update()
+        except: pass
 
-    # 🎯 移除了 dense=True 和 padding，让 Flet 自动完美垂直居中！
+    # 🚀 加宽下拉框，杜绝右侧截断
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=110, text_size=13,
+        value="60", width=140, dense=True, content_padding=10, text_size=13,
         border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row([mode_pm_click_area, sel_pomo], spacing=0, alignment=ft.MainAxisAlignment.CENTER),
-        border_radius=8, expand=True
+        height=42, border_radius=8, expand=True
     )
 
     def stop_timer_handler(e):
@@ -584,18 +594,21 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 这里是每次计时都会调用的绝对 UI 刷新中心！
     def update_focus_ui():
         elapsed_int = int(st.elapsed)
         if st.mode == "pomodoro":
             remain = max(0, st.pomo_target - elapsed_int)
-            lbl_time.value = format_time(remain)
+            time_str = format_time(remain)
+            lbl_time.value = time_str
+            lbl_time_mini.value = time_str
             if remain <= 0: lbl_icon.value = "🌲"
             else:
                 prog = elapsed_int / max(1, st.pomo_target)
                 lbl_icon.value = "🌳" if prog >= 0.66 else "🌿" if prog >= 0.33 else "🌱" if elapsed_int >= 60 else "🌰"
         else:
-            lbl_time.value = format_time(elapsed_int)
+            time_str = format_time(elapsed_int)
+            lbl_time.value = time_str
+            lbl_time_mini.value = time_str
             if elapsed_int >= 3600: lbl_icon.value = "🏰"
             elif elapsed_int >= 1800: lbl_icon.value = "🏠"
             elif elapsed_int >= 60: lbl_icon.value = "🧱"
@@ -625,10 +638,10 @@ async def main(page: ft.Page):
     # ========================================================
     def apply_theme_and_layout():
         if st.is_mini_mode:
-            switch_main_tab(0) # 强制收回专注页
+            # 🚀 强制切回专注页，并隐藏所有多余的大卡片
+            switch_main_tab(0)
             
             card_countdown_full.visible = False
-            mini_top_bar.visible = True
             nav_bar.visible = False
             
             subject_container.visible = False
@@ -636,37 +649,43 @@ async def main(page: ft.Page):
             goal_container.visible = False
             mode_container.visible = False
             
-            # 🚀 加大高度防止截断，排版极其舒展
-            lbl_icon.size = 85; lbl_time.size = 70
-            view_focus.padding = 15; view_focus.margin = 0
+            # 🚀 隐藏中心大时间，显示顶栏小时间！
+            lbl_time.visible = False
+            mini_top_bar.visible = True
             
-            btn_start_view.height = 45; btn_start_view.padding = 10; btn_start_lbl.size = 14
-            btn_stop_view.height = 45; btn_stop_view.padding = 10; btn_stop_lbl.size = 14
-            row_main_btns.spacing = 15; col_main.spacing = 15
+            # 🚀 重新校准组件大小，完美适应挂件
+            lbl_icon.size = 70
+            view_focus.padding = 10; view_focus.margin = 0
             
-            lbl_icon_confirm.size = 45; lbl_title_confirm.size = 20; lbl_confirm_msg.size = 13
-            col_confirm.spacing = 10
-            btn_y.padding = 10; btn_y_lbl.size = 13
-            btn_n.padding = 10; btn_n_lbl.size = 13
-            btn_c.padding = 10; btn_c_lbl.size = 13
-            row_confirm_btns1.spacing = 15
+            btn_start_view.height = 40; btn_start_view.padding = 5; btn_start_lbl.size = 13
+            btn_stop_view.height = 40; btn_stop_view.padding = 5; btn_stop_lbl.size = 13
+            row_main_btns.spacing = 10; col_main.spacing = 10
             
-            lbl_icon_success.size = 55; lbl_title_success.size = 20; lbl_success_quote.size = 12
-            col_success.spacing = 10
-            txt_note.content_padding = 8; txt_note.text_size = 13
-            btn_success_save.padding = 10; btn_success_save_lbl.size = 13
+            lbl_icon_confirm.size = 40; lbl_title_confirm.size = 18; lbl_confirm_msg.size = 12
+            col_confirm.spacing = 8
+            btn_y.padding = 8; btn_y_lbl.size = 12
+            btn_n.padding = 8; btn_n_lbl.size = 12
+            btn_c.padding = 8; btn_c_lbl.size = 12
+            row_confirm_btns1.spacing = 10
             
-            # 🚀 瞬间锁定挂件尺寸！(高度调到 460，绝对不会切断底部的按钮)
+            lbl_icon_success.size = 50; lbl_title_success.size = 18; lbl_success_quote.size = 12
+            col_success.spacing = 8
+            txt_note.content_padding = 5; txt_note.text_size = 12
+            btn_success_save.padding = 8; btn_success_save_lbl.size = 12
+            
+            # 🚀 瞬间锁定极度紧凑的尺寸 (缩到了极致 300x280，一像素白边都没有！)
             try:
-                page.window.width = 320
-                page.window.height = 460
+                page.window.width = 300
+                page.window.height = 280
             except:
-                try: page.window_width = 320; page.window_height = 460
+                try: page.window_width = 300; page.window_height = 280
                 except: pass
                 
         else:
             # 完整模式：恢复黄金比例，展示所有卡片
             mini_top_bar.visible = False
+            lbl_time.visible = True
+            
             card_countdown_full.visible = True
             nav_bar.visible = True
             
@@ -696,10 +715,10 @@ async def main(page: ft.Page):
             
             # 🚀 瞬间恢复到完整尺寸！
             try:
-                page.window.width = 380
-                page.window.height = 780
+                page.window.width = 400
+                page.window.height = 760
             except:
-                try: page.window_width = 380; page.window_height = 780
+                try: page.window_width = 400; page.window_height = 760
                 except: pass
         
         apply_theme_colors()
@@ -724,8 +743,6 @@ async def main(page: ft.Page):
 
     row_forest_nav = ft.Container(content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0), border_radius=10, padding=4)
     col_forest_scroll = ft.Column([grid_forest], scroll=ft.ScrollMode.ADAPTIVE, expand=True)
-    
-    # 🎨 图鉴背景彻底透明，消除难看的灰底色框！
     container_forest_grid = ft.Container(content=col_forest_scroll, expand=True, padding=15, border_radius=10, bgcolor="transparent")
 
     def refresh_forest():
@@ -863,6 +880,29 @@ async def main(page: ft.Page):
     async def heart_beat():
         while True:
             await asyncio.sleep(0.2) 
+            
+            # 🚀 后台检测下拉框更新 (防老版本 Flet 丢事件)
+            try:
+                current_pomo_val = str(sel_pomo.value)
+                if current_pomo_val != st.last_pomo_val:
+                    if st.session_active:
+                        sel_pomo.value = st.last_pomo_val
+                        page.update()
+                    else:
+                        st.last_pomo_val = current_pomo_val
+                        st.pomo_target = int(current_pomo_val) * 60
+                        st.mode = "pomodoro"
+                        sel_pomo.disabled = False
+                        st.elapsed = 0
+                        
+                        # 同步大字和小字时间
+                        time_str = format_time(st.pomo_target)
+                        lbl_time.value = time_str
+                        lbl_time_mini.value = time_str
+                        
+                        apply_theme_colors()
+                        page.update()
+            except Exception: pass
             
             if not st.timer_active: continue
             
