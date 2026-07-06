@@ -455,4 +455,433 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    btn_start_view,
+    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=45, expand=True, on_click=toggle_timer)
+    btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", radius=25, height=45, expand=True, on_click=stop_timer_handler)
+
+    subject_container = ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER)
+    goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    mode_container = ft.Container(content=ft.Row([mode_sw_view, mode_pm_view], alignment=ft.MainAxisAlignment.CENTER, spacing=0), border_radius=10, padding=4)
+    row_main_btns = ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
+
+    col_main = ft.Column([
+        subject_container, lbl_icon, lbl_time, lbl_quote, goal_container, mode_container, row_main_btns
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15, expand=True)
+
+    # ========================================================
+    # 🚀 确认与结算面板
+    # ========================================================
+    def reset_timer():
+        st.session_active = False
+        st.timer_active = False
+        st.elapsed = 0
+        btn_start_lbl.value = "▶ 开始专注"
+        btn_start_view.bgcolor = "#34C759"
+        sel_subject.disabled = False
+        sel_pomo.disabled = (st.mode == "stopwatch") 
+        apply_theme_colors() 
+
+    def on_confirm_save(e):
+        db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "中途放弃")
+        reset_timer()
+        refresh_forest()
+        refresh_stats()
+        show_main()
+
+    def on_discard(e):
+        reset_timer()
+        show_main()
+
+    def on_cancel_dialog(e):
+        if st.was_active: 
+            st.timer_active = True
+            st.start_tick = time.time() - st.elapsed
+        show_main()
+
+    lbl_icon_confirm = ft.Text("⚠️", size=50)
+    lbl_title_confirm = ft.Text("确认结束", size=22, weight=ft.FontWeight.BOLD)
+    lbl_confirm_msg = ft.Text("", size=14, text_align=ft.TextAlign.CENTER)
+    
+    btn_y, btn_y_lbl = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", padding=12, expand=True, on_click=on_confirm_save)
+    btn_n, btn_n_lbl = create_btn("直接销毁", padding=12, expand=True, on_click=on_discard)
+    btn_c, btn_c_lbl = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", padding=12, expand=True, on_click=on_cancel_dialog)
+
+    row_confirm_btns1 = ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
+    row_confirm_btns2 = ft.Row([btn_c], alignment=ft.MainAxisAlignment.CENTER)
+
+    col_confirm = ft.Column([
+        lbl_icon_confirm, lbl_title_confirm, lbl_confirm_msg, row_confirm_btns1, row_confirm_btns2
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15, expand=True)
+
+    def on_success_save(e):
+        db.add_record(sel_subject.value, int(st.elapsed), st.mode, False, txt_note.value)
+        txt_note.value = ""
+        reset_timer()
+        refresh_forest()
+        refresh_stats()
+        show_main()
+
+    lbl_icon_success = ft.Text("🎉", size=60)
+    lbl_title_success = ft.Text("专注完成！", size=22, weight=ft.FontWeight.BOLD)
+    txt_note = ft.TextField(label="复盘便签 (选填)", expand=True)
+    row_note = ft.Row([txt_note], alignment=ft.MainAxisAlignment.CENTER)
+    btn_success_save, btn_success_save_lbl = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", padding=12, expand=True, on_click=on_success_save)
+    row_success_btn = ft.Row([btn_success_save], alignment=ft.MainAxisAlignment.CENTER)
+    lbl_success_quote = ft.Text("", size=13, text_align=ft.TextAlign.CENTER)
+
+    col_success = ft.Column([
+        lbl_icon_success, lbl_title_success, lbl_success_quote, row_note, row_success_btn
+    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15, expand=True)
+
+    def show_goal_reached_dialog():
+        dlg_goal = ft.AlertDialog(
+            title=ft.Text("🏆 目标达成！", weight=ft.FontWeight.BOLD),
+            content=ft.Text("恭喜你完成了今天的专注总目标！\n考研路漫漫，今天的你又干掉了一天的硬仗，请继续保持！"),
+            actions=[ft.TextButton("收下荣誉", on_click=lambda e: close_dlg(dlg_goal))]
+        )
+        open_dlg(dlg_goal)
+
+    view_focus = ft.Container(content=col_main, border_radius=15, expand=True)
+
+    def show_main():
+        view_focus.content = col_main
+        update_focus_ui()
+        apply_theme_colors()
+        try: page.update()
+        except: pass
+
+    def show_confirm(msg):
+        lbl_confirm_msg.value = msg
+        view_focus.content = col_confirm
+        apply_theme_colors()
+        try: page.update()
+        except: pass
+
+    def show_success():
+        if st.goal_reached_this_session:
+            lbl_success_quote.value = "🏆 太强了！不仅完成了本次专注，还达成了今日总目标！"
+            st.goal_reached_this_session = False
+        else:
+            lbl_success_quote.value = random.choice(ENCOURAGEMENTS)
+        view_focus.content = col_success
+        apply_theme_colors()
+        try: page.update()
+        except: pass
+
+    def update_focus_ui():
+        elapsed_int = int(st.elapsed)
+        if st.mode == "pomodoro":
+            remain = max(0, st.pomo_target - elapsed_int)
+            lbl_time.value = format_time(remain)
+            if remain <= 0: lbl_icon.value = "🌲"
+            else:
+                prog = elapsed_int / max(1, st.pomo_target)
+                lbl_icon.value = "🌳" if prog >= 0.66 else "🌿" if prog >= 0.33 else "🌱" if elapsed_int >= 60 else "🌰"
+        else:
+            lbl_time.value = format_time(elapsed_int)
+            if elapsed_int >= 3600: lbl_icon.value = "🏰"
+            elif elapsed_int >= 1800: lbl_icon.value = "🏠"
+            elif elapsed_int >= 60: lbl_icon.value = "🧱"
+            else: lbl_icon.value = "🚧"
+
+        logical_today = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
+        if logical_today != st.last_date:
+            st.last_date = logical_today
+            st.goal_reached = False 
+            refresh_forest()
+            refresh_stats()
+
+        records = [item for item in db.data["studyData"] if item.get("date") == logical_today]
+        total = sum(r["duration"] for r in records) + (elapsed_int if st.session_active or elapsed_int > 0 else 0)
+        goal = max(db.data["dailyGoal"], 1) 
+        
+        lbl_goal.value = f"🎯 今日进度: {format_dur(total)} / {format_dur(goal)}"
+        bar_goal.value = min(total / goal, 1.0)
+        
+        if total >= goal and not st.goal_reached and goal > 0:
+            st.goal_reached = True
+            st.goal_reached_this_session = True
+            show_goal_reached_dialog()
+
+    # ========================================================
+    # 🚀 完美的程序控制切换：通过按钮绝对锁定长宽！
+    # ========================================================
+    def apply_theme_and_layout():
+        if st.is_mini_mode:
+            btn_mini_lbl.value = "🔼"
+            btn_pin_lbl.visible = False
+            countdown_text.visible = False
+            btn_theme_lbl.visible = False
+            nav_bar.visible = False
+            subject_container.visible = False
+            lbl_quote.visible = False
+            goal_container.visible = False
+            mode_container.visible = False
+            
+            lbl_icon.size = 75; lbl_time.size = 55
+            # 🚨 极简模式安全间距赋值
+            view_focus.padding = 15; view_focus.margin = 0
+            btn_start_view.height = 40; btn_start_view.padding = 5; btn_start_lbl.size = 13
+            btn_stop_view.height = 40; btn_stop_view.padding = 5; btn_stop_lbl.size = 13
+            row_main_btns.spacing = 15; col_main.spacing = 10
+            
+            lbl_icon_confirm.size = 45; lbl_title_confirm.size = 20; lbl_confirm_msg.size = 13
+            col_confirm.spacing = 10
+            btn_y.padding = 8; btn_y_lbl.size = 13
+            btn_n.padding = 8; btn_n_lbl.size = 13
+            btn_c.padding = 8; btn_c_lbl.size = 13
+            row_confirm_btns1.spacing = 15
+            
+            lbl_icon_success.size = 55; lbl_title_success.size = 20; lbl_success_quote.size = 12
+            col_success.spacing = 10
+            txt_note.content_padding = 5; txt_note.text_size = 13
+            btn_success_save.padding = 8; btn_success_save_lbl.size = 13
+            
+            # 瞬间锁定悬浮窗尺寸
+            try:
+                page.window.width = 300
+                page.window.height = 360
+            except:
+                try: page.window_width = 300; page.window_height = 360
+                except: pass
+                
+        else:
+            btn_mini_lbl.value = "🔽"
+            btn_pin_lbl.visible = True
+            countdown_text.visible = True
+            btn_theme_lbl.visible = True
+            nav_bar.visible = True
+            subject_container.visible = True
+            lbl_quote.visible = True
+            goal_container.visible = True
+            mode_container.visible = True
+            
+            lbl_icon.size = 90; lbl_time.size = 65
+            # 🚨 完整模式安全间距赋值
+            view_focus.padding = 25; view_focus.margin = 5
+            btn_start_view.height = 45; btn_start_view.padding = 10; btn_start_lbl.size = 14
+            btn_stop_view.height = 45; btn_stop_view.padding = 10; btn_stop_lbl.size = 14
+            row_main_btns.spacing = 15; col_main.spacing = 15
+            
+            lbl_icon_confirm.size = 50; lbl_title_confirm.size = 22; lbl_confirm_msg.size = 14
+            col_confirm.spacing = 15
+            btn_y.padding = 12; btn_y_lbl.size = 14
+            btn_n.padding = 12; btn_n_lbl.size = 14
+            btn_c.padding = 12; btn_c_lbl.size = 14
+            row_confirm_btns1.spacing = 15
+            
+            lbl_icon_success.size = 60; lbl_title_success.size = 22; lbl_success_quote.size = 13
+            col_success.spacing = 15
+            txt_note.content_padding = 10; txt_note.text_size = 14
+            btn_success_save.padding = 12; btn_success_save_lbl.size = 14
+            
+            # 瞬间恢复到黄金比例大尺寸
+            try:
+                page.window.width = 400
+                page.window.height = 760
+            except:
+                try: page.window_width = 400; page.window_height = 760
+                except: pass
+        
+        apply_theme_colors()
+        try: page.update()
+        except: pass
+
+    # ----------------- 图鉴视图 (1) -----------------
+    lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
+    grid_forest = ft.Row(wrap=True, spacing=15, run_spacing=15)
+    
+    forest_nav_btns = []
+    def sw_forest(idx):
+        st.forest_tab = idx
+        st.forest_scope = ["day", "week", "month"][idx]
+        apply_theme_colors()
+        refresh_forest()
+
+    def make_forest_btn(text, idx):
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: (sw_forest(i), page.update()), radius=8, expand=True, padding=8)
+        forest_nav_btns.append({"view": view, "lbl": lbl})
+        return view
+
+    row_forest_nav = ft.Container(content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0), border_radius=10, padding=4)
+    # 图鉴区域滚动以容纳多数据
+    col_forest_scroll = ft.Column([grid_forest], scroll=ft.ScrollMode.ADAPTIVE, expand=True)
+    container_forest_grid = ft.Container(content=col_forest_scroll, expand=True, padding=15, border_radius=10)
+
+    def refresh_forest():
+        records = db.get_filtered(st.forest_scope)
+        lbl_forest_sum.value = f"共收获 {len(records)} 个战果"
+        grid_forest.controls.clear()
+        if not records:
+            grid_forest.controls.append(ft.Text(value="空空如也，快去专注吧 ✨", color="#8E8E93"))
+        for r in records:
+            tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
+            grid_forest.controls.append(ft.Text(value=r.get("tree","🌲"), size=45, tooltip=tip))
+        try: page.update()
+        except: pass
+
+    view_forest = ft.Container(
+        content=ft.Column([
+            row_forest_nav, ft.Container(height=5), ft.Row([lbl_forest_sum], alignment=ft.MainAxisAlignment.CENTER), container_forest_grid
+        ]), border_radius=15, padding=25, expand=True, visible=False, margin=5
+    )
+
+    # ----------------- 统计视图 (2) -----------------
+    lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
+    col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
+
+    stat_nav_btns = []
+    def sw_stat(idx):
+        st.stat_tab = idx
+        st.stats_scope = ["day", "week", "month"][idx]
+        apply_theme_colors()
+        refresh_stats()
+
+    def make_stat_btn(text, idx):
+        view, lbl = create_btn(text, on_click=lambda e, i=idx: (sw_stat(i), page.update()), radius=8, expand=True, padding=8)
+        stat_nav_btns.append({"view": view, "lbl": lbl})
+        return view
+
+    row_stat_nav = ft.Container(content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0), border_radius=10, padding=4)
+
+    def refresh_stats():
+        records = db.get_filtered(st.stats_scope)
+        total = sum(r["duration"] for r in records)
+        lbl_stat_total.value = format_dur(total)
+        col_stats.controls.clear()
+        if not records:
+            col_stats.controls.append(ft.Text(value="当前时段无专注数据", color="#8E8E93"))
+        smap = {}
+        for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
+        for sub, dur in sorted(smap.items(), key=lambda x: x[1], reverse=True):
+            pct = dur / total if total > 0 else 0
+            is_dark = page.theme_mode == "dark"
+            col_stats.controls.append(
+                ft.Column([
+                    ft.Row([ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight=ft.FontWeight.BOLD, color="#FFFFFF" if is_dark else "#1C1C1E"), ft.Text(value=format_dur(dur), color="#8E8E93")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#2C2C2E" if is_dark else "#E5E5EA", height=10, border_radius=5)
+                ], spacing=8)
+            )
+        try: page.update()
+        except: pass
+
+    view_stats = ft.Container(
+        content=ft.Column([row_stat_nav, ft.Container(height=15), ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), ft.Container(height=15), col_stats]),
+        border_radius=15, padding=25, expand=True, visible=False, margin=5
+    )
+
+    # ----------------- 设置视图 (3) -----------------
+    lbl_setting_1 = ft.Text(value="🎯 目标设置", weight=ft.FontWeight.BOLD)
+    lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight=ft.FontWeight.BOLD)
+    lbl_setting_3 = ft.Text(value="💾 数据安全", weight=ft.FontWeight.BOLD)
+    
+    txt_goal = ft.TextField(value=str(db.data["dailyGoal"] // 3600), label="每日专注目标 (小时)")
+    def on_goal_blur(e):
+        try: db.data["dailyGoal"] = float(txt_goal.value) * 3600; db.save(); update_focus_ui(); page.update()
+        except: txt_goal.value = str(db.data["dailyGoal"] // 3600); page.update()
+    txt_goal.on_blur = on_goal_blur
+
+    col_subs = ft.Column(spacing=8)
+    txt_new_sub = ft.TextField(hint_text="新科目", expand=True)
+
+    def render_subs():
+        is_dark = page.theme_mode == "dark"
+        bg = "#000000" if is_dark else "#F2F2F7"
+        text_main = "#FFFFFF" if is_dark else "#1C1C1E"
+        
+        col_subs.controls.clear()
+        for sub in db.data["subjects"]:
+            btn_del, _ = create_btn("删除", txt_color="#FF3B30", on_click=lambda e, s=sub: del_sub(s))
+            col_subs.controls.append(ft.Container(content=ft.Row([ft.Text(value=sub, weight=ft.FontWeight.BOLD, expand=True, color=text_main), btn_del]), bgcolor=bg, padding=8, border_radius=10))
+
+    def add_sub(e):
+        v = txt_new_sub.value.strip()
+        if v and v not in db.data["subjects"]:
+            db.data["subjects"].append(v); db.save()
+            sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+            txt_new_sub.value = ""; render_subs(); apply_theme_colors(); page.update()
+            
+    btn_add, _ = create_btn("添加", bgcolor="#34C759", txt_color="white", padding=12, on_click=add_sub)
+
+    def del_sub(s):
+        if len(db.data["subjects"]) > 1:
+            db.data["subjects"].remove(s); db.save()
+            sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+            sel_subject.value = db.data["subjects"][0]
+            db.data["currentSubject"] = sel_subject.value
+            db.save(); render_subs(); apply_theme_colors(); page.update()
+
+    def on_export(e):
+        try:
+            with open("StudyEngine_Backup.json", "w", encoding="utf-8") as f: json.dump(db.data, f, ensure_ascii=False, indent=4)
+        except: pass
+
+    btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份 (同目录)", padding=15, on_click=on_export)
+
+    view_settings = ft.Container(
+        content=ft.Column([
+            lbl_setting_1, txt_goal, lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=10), lbl_setting_3, btn_exp
+        ], scroll=ft.ScrollMode.ADAPTIVE),
+        border_radius=15, padding=25, expand=True, visible=False, margin=5
+    )
+
+    # ----------------- 组装与循环 -----------------
+    page.add(
+        ft.Column([
+            card_countdown, nav_bar, view_focus, view_forest, view_stats, view_settings
+        ], expand=True)
+    )
+
+    # 🚀 初始化启动强制排版配置
+    st.is_mini_mode = False
+    switch_main_tab(0)
+    sw_forest(0)
+    sw_stat(0)
+    render_subs()
+    apply_theme_and_layout()
+
+    async def heart_beat():
+        while True:
+            await asyncio.sleep(0.2) 
+            
+            current_pomo_val = str(sel_pomo.value)
+            if current_pomo_val != st.last_pomo_val:
+                if st.session_active:
+                    sel_pomo.value = st.last_pomo_val
+                    try: page.update()
+                    except: pass
+                else:
+                    st.last_pomo_val = current_pomo_val
+                    try: st.pomo_target = int(current_pomo_val) * 60
+                    except: st.pomo_target = 60 * 60
+                    st.mode = "pomodoro"
+                    sel_pomo.disabled = False
+                    st.elapsed = 0
+                    
+                    lbl_time.value = format_time(st.pomo_target)
+                    apply_theme_colors()
+            
+            if not st.timer_active: continue
+            
+            try:
+                # 🚀 核心秒表逻辑恢复正常运作
+                st.elapsed = time.time() - st.start_tick
+                if st.mode == "pomodoro" and int(st.elapsed) >= st.pomo_target:
+                    st.timer_active = False 
+                    st.elapsed = st.pomo_target
+                    update_focus_ui()
+                    show_success()
+                    continue
+                
+                # 每隔 0.2 秒同步刷新屏幕时间
+                update_focus_ui()
+                try: page.update()
+                except: pass
+            except Exception: pass
+
+    page.run_task(heart_beat)
+
+if __name__ == "__main__":
+    try:
+        ft.app(target=main)
+    except Exception:
+        with open("crash_log.txt", "w", encoding="utf-8") as f: traceback.print_exc(file=f)
