@@ -92,6 +92,9 @@ class DataManager:
         elif range_str == "month":
             prefix = logical_now.strftime("%Y-%m-")
             return [i for i in self.data["studyData"] if str(i.get("date")).startswith(prefix)]
+        elif range_str.startswith("custom:"): # 🚀 新增：自定义日期范围截取
+            target_date = range_str.split(":")[1]
+            return [i for i in self.data["studyData"] if i.get("date") == target_date]
         return []
 
 # ================= 2. 辅助函数 =================
@@ -197,6 +200,25 @@ async def main(page: ft.Page):
 
     st = State()
 
+    def on_window_event(e):
+        if e.data == "close":
+            if st.session_active and int(st.elapsed) >= 5:
+                try:
+                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序意外关闭 (数据已抢救)")
+                except Exception:
+                    pass
+            os._exit(0)
+            
+    try:
+        page.window.prevent_close = True
+        page.window.on_event = on_window_event
+    except AttributeError:
+        try:
+            page.window_prevent_close = True
+            page.on_window_event = on_window_event
+        except Exception:
+            pass
+
     # ========================================================
     # 🚀 主题色调度中心
     # ========================================================
@@ -225,7 +247,6 @@ async def main(page: ft.Page):
         
         lbl_time.color = text_main
         lbl_time_mini.color = text_main
-        
         lbl_quote.color = text_sec
         
         sel_subject.bgcolor = "transparent"
@@ -275,6 +296,17 @@ async def main(page: ft.Page):
         btn_exp.bgcolor = surface_variant
         btn_exp_lbl.color = text_main
         view_settings.bgcolor = surface
+        
+        # 🚀 同步历史选择下拉框的颜色
+        lbl_forest_history.color = text_sec
+        forest_history_dropdown.bgcolor = "transparent"
+        forest_history_dropdown.border_color = "#38383A" if is_dark else "#C7C7CC"
+        forest_history_dropdown.color = text_main
+        
+        lbl_stat_history.color = text_sec
+        history_dropdown.bgcolor = "transparent"
+        history_dropdown.border_color = "#38383A" if is_dark else "#C7C7CC"
+        history_dropdown.color = text_main
         
         for i, item in enumerate(nav_buttons):
             item["view"].bgcolor = surface if i == st.active_tab else "transparent"
@@ -732,16 +764,44 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # ----------------- 🚀 彻底重构的图鉴视图：绝对数学居中 -----------------
+    # ----------------- 🚀 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
-    
-    # 彻底弃用有缺陷的 Row(wrap=True)，改为使用纯 Column 承载每一行的精确居中 Row
     grid_forest = ft.Column(spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     
+    # 🚀 图鉴的新增：历史日历下拉组件
+    lbl_forest_history = ft.Text("选择日期:", size=12, weight=ft.FontWeight.BOLD)
+    forest_history_dropdown = ft.Dropdown(
+        options=[], width=140, dense=True, content_padding=5, text_size=13, text_align=ft.TextAlign.CENTER
+    )
+    def on_forest_history_change(e):
+        if forest_history_dropdown.value:
+            st.forest_scope = f"custom:{forest_history_dropdown.value}"
+        refresh_forest()
+    forest_history_dropdown.on_change = on_forest_history_change
+    
+    row_forest_history = ft.Row([lbl_forest_history, forest_history_dropdown], alignment=ft.MainAxisAlignment.CENTER, visible=False)
+
     forest_nav_btns = []
     def sw_forest(idx):
         st.forest_tab = idx
-        st.forest_scope = ["day", "week", "month"][idx]
+        if idx == 0: st.forest_scope = "day"
+        elif idx == 1: st.forest_scope = "week"
+        elif idx == 2: st.forest_scope = "month"
+        elif idx == 3:
+            # 自动拉取数据库里存在的所有日期
+            unique_dates = sorted(list(set(item["date"] for item in db.data["studyData"])), reverse=True)
+            forest_history_dropdown.options = [ft.dropdown.Option(key=d) for d in unique_dates]
+            if unique_dates and (forest_history_dropdown.value not in unique_dates):
+                forest_history_dropdown.value = unique_dates[0]
+            elif not unique_dates:
+                forest_history_dropdown.value = None
+            
+            if forest_history_dropdown.value:
+                st.forest_scope = f"custom:{forest_history_dropdown.value}"
+            else:
+                st.forest_scope = "custom:none"
+                
+        row_forest_history.visible = (idx == 3)
         apply_theme_colors()
         refresh_forest()
 
@@ -750,7 +810,10 @@ async def main(page: ft.Page):
         forest_nav_btns.append({"view": view, "lbl": lbl})
         return view
 
-    row_forest_nav = ft.Container(content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), border_radius=10, padding=4)
+    row_forest_nav = ft.Container(
+        content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2), make_forest_btn("历史", 3)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), 
+        border_radius=10, padding=4
+    )
     col_forest_scroll = ft.Column([grid_forest], scroll=ft.ScrollMode.ADAPTIVE, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     container_forest_grid = ft.Container(content=col_forest_scroll, expand=True, padding=5, border_radius=10, bgcolor="transparent")
 
@@ -762,7 +825,6 @@ async def main(page: ft.Page):
         if not records:
             grid_forest.controls.append(ft.Row([ft.Text(value="空空如也，快去专注吧 ✨", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER))
         else:
-            # 🚀 采用“每组4个”的硬分块算法，保证每一排都绝对独立且完全居中
             current_row = []
             for r in records:
                 tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
@@ -772,12 +834,9 @@ async def main(page: ft.Page):
                 )
                 current_row.append(icon_view)
                 
-                # 满4个打成一排，强制放入父网格中居中
                 if len(current_row) == 4:
                     grid_forest.controls.append(ft.Row(current_row, alignment=ft.MainAxisAlignment.CENTER, spacing=15))
                     current_row = []
-            
-            # 将最后不满4个的残余项也打成一排居中放入
             if current_row:
                 grid_forest.controls.append(ft.Row(current_row, alignment=ft.MainAxisAlignment.CENTER, spacing=15))
                 
@@ -786,20 +845,49 @@ async def main(page: ft.Page):
 
     view_forest = ft.Container(
         content=ft.Column([
-            row_forest_nav, ft.Container(height=5), ft.Row([lbl_forest_sum], alignment=ft.MainAxisAlignment.CENTER), container_forest_grid
+            row_forest_nav, row_forest_history, ft.Container(height=5), ft.Row([lbl_forest_sum], alignment=ft.MainAxisAlignment.CENTER), container_forest_grid
         ]), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 统计视图 (2) -----------------
+    # ----------------- 🚀 统计视图 (2) -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
+    
+    # 🚀 统计的新增：历史日历下拉组件
+    lbl_stat_history = ft.Text("选择日期:", size=12, weight=ft.FontWeight.BOLD)
+    history_dropdown = ft.Dropdown(
+        options=[], width=140, dense=True, content_padding=5, text_size=13, text_align=ft.TextAlign.CENTER
+    )
+    def on_history_change(e):
+        if history_dropdown.value:
+            st.stats_scope = f"custom:{history_dropdown.value}"
+        refresh_stats()
+    history_dropdown.on_change = on_history_change
+    row_history_select = ft.Row([lbl_stat_history, history_dropdown], alignment=ft.MainAxisAlignment.CENTER, visible=False)
 
     stat_nav_btns = []
     chart_nav_btns = []
     
     def sw_stat(idx):
         st.stat_tab = idx
-        st.stats_scope = ["day", "week", "month"][idx]
+        if idx == 0: st.stats_scope = "day"
+        elif idx == 1: st.stats_scope = "week"
+        elif idx == 2: st.stats_scope = "month"
+        elif idx == 3:
+            # 自动拉取数据库里存在的所有日期
+            unique_dates = sorted(list(set(item["date"] for item in db.data["studyData"])), reverse=True)
+            history_dropdown.options = [ft.dropdown.Option(key=d) for d in unique_dates]
+            if unique_dates and (history_dropdown.value not in unique_dates):
+                history_dropdown.value = unique_dates[0]
+            elif not unique_dates:
+                history_dropdown.value = None
+            
+            if history_dropdown.value:
+                st.stats_scope = f"custom:{history_dropdown.value}"
+            else:
+                st.stats_scope = "custom:none"
+                
+        row_history_select.visible = (idx == 3)
         apply_theme_colors()
         refresh_stats()
 
@@ -818,7 +906,10 @@ async def main(page: ft.Page):
         chart_nav_btns.append({"view": view, "lbl": lbl})
         return view
 
-    row_stat_nav = ft.Container(content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), border_radius=10, padding=4)
+    row_stat_nav = ft.Container(
+        content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2), make_stat_btn("历史", 3)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), 
+        border_radius=10, padding=4
+    )
     row_chart_nav = ft.Container(
         content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("趋势图", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
         padding=0, margin=5
@@ -915,7 +1006,7 @@ async def main(page: ft.Page):
 
     view_stats = ft.Container(
         content=ft.Column([
-            row_stat_nav, row_chart_nav, ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), ft.Container(height=5), col_stats
+            row_stat_nav, row_history_select, row_chart_nav, ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), ft.Container(height=5), col_stats
         ]),
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
@@ -925,10 +1016,11 @@ async def main(page: ft.Page):
     lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight=ft.FontWeight.BOLD)
     lbl_setting_3 = ft.Text(value="💾 数据安全", weight=ft.FontWeight.BOLD)
     
-    txt_goal = ft.TextField(value=str(db.data["dailyGoal"] // 3600), label="每日专注目标 (小时)")
+    # 🚀 修复点：强制转换为整型加载，解决浮点数 6.0 或 8.0 显示问题
+    txt_goal = ft.TextField(value=str(int(db.data["dailyGoal"] // 3600)), label="每日专注目标 (小时)")
     def on_goal_blur(e):
         try: db.data["dailyGoal"] = float(txt_goal.value) * 3600; db.save(); update_focus_ui(); page.update()
-        except: txt_goal.value = str(db.data["dailyGoal"] // 3600); page.update()
+        except: txt_goal.value = str(int(db.data["dailyGoal"] // 3600)); page.update()
     txt_goal.on_blur = on_goal_blur
 
     col_subs = ft.Column(spacing=8)
@@ -991,6 +1083,9 @@ async def main(page: ft.Page):
     sw_stat(0)
     sw_chart(0) 
     render_subs()
+    
+    # 🚀 修复点：强制初始渲染UI状态，一打开软件就能看到今天精准的学习进度！
+    update_focus_ui()
 
     async def heart_beat():
         while True:
