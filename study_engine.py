@@ -120,12 +120,12 @@ async def main(page: ft.Page):
     try:
         page.window.resizable = False
         page.window.width = 380
-        page.window.height = 560
+        page.window.height = 600  # 🚀 提升到 600，应对 Windows DPI 缩放带来的底部遮挡
     except AttributeError:
         try:
             page.window_resizable = False
             page.window_width = 380
-            page.window_height = 560
+            page.window_height = 600
         except: pass
 
     def open_dlg(d):
@@ -351,10 +351,10 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 专注功能面板与组件美化 (极简瘦身版)
+    # 🚀 专注功能面板与组件美化
     # ========================================================
-    lbl_icon = ft.Text(value="🌰", size=65, text_align=ft.TextAlign.CENTER, max_lines=1) # 缩小大图标
-    lbl_time = ft.Text(value="60:00", size=50, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1) # 缩小时间
+    lbl_icon = ft.Text(value="🌰", size=65, text_align=ft.TextAlign.CENTER, max_lines=1) 
+    lbl_time = ft.Text(value="60:00", size=50, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align=ft.TextAlign.CENTER, max_lines=1)
     
     sel_subject = ft.Dropdown(
@@ -422,9 +422,10 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 加宽下拉框，放大字体，彻底解决文字拥挤被遮挡问题
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=100, dense=True, content_padding=5, text_size=12,
+        value="60", width=125, dense=True, content_padding=5, text_size=13,
         border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
@@ -496,15 +497,14 @@ async def main(page: ft.Page):
         ), 
         border_radius=10, padding=4
     )
-    row_main_btns = ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
+    row_main_btns = ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
 
-    # 缩小内容区元素间距
     col_main = ft.Column([
         subject_container, lbl_icon, lbl_time, lbl_quote, goal_container, mode_container, row_main_btns
     ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10, expand=True)
 
     # ========================================================
-    # 🚀 确认与结算面板 (适配 Mini 窗口，绝对不会再遮挡！)
+    # 🚀 确认与结算面板
     # ========================================================
     def reset_timer():
         st.session_active = False
@@ -533,7 +533,6 @@ async def main(page: ft.Page):
             st.start_tick = time.time() - st.elapsed
         show_main()
 
-    # 大幅度缩小确认弹窗内部元素尺寸
     lbl_icon_confirm = ft.Text("⚠️", size=35)
     lbl_title_confirm = ft.Text("确认结束", size=18, weight=ft.FontWeight.BOLD)
     lbl_confirm_msg = ft.Text("", size=12, text_align=ft.TextAlign.CENTER)
@@ -577,7 +576,7 @@ async def main(page: ft.Page):
         )
         open_dlg(dlg_goal)
 
-    view_focus = ft.Container(content=col_main, border_radius=15, expand=True, margin=0, padding=10)
+    view_focus = ft.Container(content=col_main, border_radius=15, expand=True, margin=0, padding=15)
 
     def show_main():
         view_focus.content = col_main
@@ -662,7 +661,7 @@ async def main(page: ft.Page):
             lbl_time.visible = False
             
             lbl_icon.size = 50
-            view_focus.padding = 5; view_focus.margin = 0
+            view_focus.padding = 10; view_focus.margin = 0
             
             btn_start_view.height = 36; btn_start_view.padding = 5; btn_start_lbl.size = 12
             btn_stop_view.height = 36; btn_stop_view.padding = 5; btn_stop_lbl.size = 12
@@ -670,7 +669,7 @@ async def main(page: ft.Page):
             
             try:
                 page.window.width = 300
-                page.window.height = 320 # 微微调高，留足确认界面的展示空间
+                page.window.height = 320
             except:
                 try: page.window_width = 300; page.window_height = 320
                 except: pass
@@ -688,17 +687,17 @@ async def main(page: ft.Page):
             mode_container.visible = True
             
             lbl_icon.size = 65; lbl_time.size = 50
-            view_focus.padding = 10; view_focus.margin = 0
+            view_focus.padding = 15; view_focus.margin = 0  # 🚀 给主容器内边距，提供完美呼吸感
             
             btn_start_view.height = 42; btn_start_view.padding = 8; btn_start_lbl.size = 14
             btn_stop_view.height = 42; btn_stop_view.padding = 8; btn_stop_lbl.size = 14
-            row_main_btns.spacing = 10; col_main.spacing = 10
+            row_main_btns.spacing = 15; col_main.spacing = 10
             
             try:
                 page.window.width = 380
-                page.window.height = 560
+                page.window.height = 600  # 🚀 同步提升高度，绝对杜绝按钮被遮挡
             except:
-                try: page.window_width = 380; page.window_height = 560
+                try: page.window_width = 380; page.window_height = 600
                 except: pass
         
         apply_theme_colors()
@@ -845,7 +844,6 @@ async def main(page: ft.Page):
     )
 
     # ----------------- 组装与循环 -----------------
-    # 彻底清除主容器间距，压榨出所有排版空间
     page.add(
         ft.Column([
             mini_top_bar, card_countdown_full, nav_bar, view_focus, view_forest, view_stats, view_settings
