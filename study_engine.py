@@ -14,7 +14,6 @@ if getattr(sys, 'frozen', False):
 else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(application_path, "study_data.json")
-BACKUP_FILE = os.path.join(application_path, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
@@ -231,13 +230,6 @@ async def main(page: ft.Page):
             snack.open = True
             page.update()
 
-    def show_popup(title_text, content_text):
-        dlg = ft.AlertDialog(
-            title=ft.Text(title_text, weight="bold"),
-            content=ft.Text(content_text, size=13),
-        )
-        open_dlg(dlg)
-
     class State:
         session_active = False  
         timer_active = False 
@@ -306,7 +298,7 @@ async def main(page: ft.Page):
         mode_sw_view.bgcolor = surface if st.mode == "stopwatch" else "transparent"
         mode_sw_lbl.color = text_main if st.mode == "stopwatch" else text_sec
         mode_pm_view.bgcolor = surface if st.mode == "pomodoro" else "transparent"
-        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
+        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_main
         sel_pomo.color = text_main
         
         if st.session_active:
@@ -519,11 +511,10 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 完全采纳你发来的完美 UI 代码
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=6, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
-
+    
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
@@ -551,12 +542,10 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 使用 text_align="center" 原生安全属性保证文字居中
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=125, dense=True, content_padding=5, text_size=13,
-        text_align="center",
-        border_color="transparent", bgcolor="transparent"
+        value="60", width=125, dense=True, content_padding=0, text_size=13,
+        text_align="center", border="none", filled=False, bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
@@ -567,7 +556,7 @@ async def main(page: ft.Page):
             alignment="center",
             vertical_alignment="center" 
         ),
-        border_radius=8, expand=True
+        border_radius=8, expand=True, height=40, padding=0
     )
 
     def stop_timer_handler(e):
@@ -1141,6 +1130,48 @@ async def main(page: ft.Page):
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
+    # ----------------- 🚀 提取融合点：引入原生文件弹窗对话框 -----------------
+    def process_export(e: ft.FilePickerResultEvent):
+        if e.path:
+            try:
+                with open(e.path, "w", encoding="utf-8") as f: 
+                    json.dump(db.data, f, ensure_ascii=False, indent=4)
+                show_warning(f"✅ 备份导出成功！")
+            except Exception as ex: 
+                show_warning(f"❌ 导出失败: {str(ex)}")
+
+    def process_import(e: ft.FilePickerResultEvent):
+        if e.files and len(e.files) > 0:
+            path = e.files[0].path
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    backup_data = json.load(f)
+                db.data.clear()
+                db.data.update(backup_data)
+                db.save()
+                
+                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
+                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
+                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+                if db.data["subjects"]:
+                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
+                
+                update_countdown()
+                update_focus_ui()
+                render_subs()
+                refresh_forest()
+                refresh_stats()
+                apply_theme_colors()
+                page.update()
+                show_warning("✅ 历史专注战果已成功导入！")
+            except Exception as ex:
+                show_warning(f"❌ 导入崩溃: {str(ex)}")
+
+    export_picker = ft.FilePicker(on_result=process_export)
+    import_picker = ft.FilePicker(on_result=process_import)
+    page.overlay.append(export_picker)
+    page.overlay.append(import_picker)
+
     # ----------------- 设置视图 (3) -----------------
     lbl_setting_1 = ft.Text(value="🎯 目标设置", weight="bold")
     lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight="bold")
@@ -1196,50 +1227,8 @@ async def main(page: ft.Page):
             db.data["currentSubject"] = sel_subject.value
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    def show_popup(title_text, content_text):
-        dlg = ft.AlertDialog(
-            title=ft.Text(title_text, weight="bold"),
-            content=ft.Text(content_text, size=13),
-        )
-        open_dlg(dlg)
-
-    def on_export(e):
-        try:
-            with open(BACKUP_FILE, "w", encoding="utf-8") as f: json.dump(db.data, f, ensure_ascii=False, indent=4)
-            show_popup("✅ 导出成功", f"备份已安全保存至:\n{BACKUP_FILE}")
-        except Exception as ex: 
-            show_popup("❌ 导出失败", str(ex))
-
-    def on_import(e):
-        if os.path.exists(BACKUP_FILE):
-            try:
-                with open(BACKUP_FILE, "r", encoding="utf-8") as f:
-                    backup_data = json.load(f)
-                db.data.clear()
-                db.data.update(backup_data)
-                db.save()
-                
-                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
-                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
-                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-                if db.data["subjects"]:
-                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
-                
-                update_countdown()
-                update_focus_ui()
-                render_subs()
-                refresh_forest()
-                refresh_stats()
-                apply_theme_colors()
-                page.update()
-                show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
-            except Exception as ex:
-                show_popup("❌ 导入崩溃", str(ex))
-        else:
-            show_popup("⚠️ 未找到备份", f"请确保备份文件位于:\n{BACKUP_FILE}")
-
-    btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
-    btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
+    btn_exp, btn_exp_lbl = create_btn("⬇ 导出备份", padding=12, expand=True, on_click=lambda _: export_picker.save_file(allowed_extensions=["json"], file_name="StudyEngine_Backup.json"))
+    btn_imp, btn_imp_lbl = create_btn("⬆ 导入备份", padding=12, expand=True, on_click=lambda _: import_picker.pick_files(allowed_extensions=["json"]))
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
     col_settings_scroll = ft.Column([
