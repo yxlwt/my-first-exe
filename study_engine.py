@@ -152,6 +152,8 @@ async def main(page: ft.Page):
             page.window_height = 600
         except: pass
 
+    # 🚀 彻底删除掉 page.window.prevent_close 和 on_window_event 代码，将控制权完全交回给操作系统！右上角X恢复秒关！
+
     def open_dlg(d):
         if hasattr(page, "open"): page.open(d)
         else:
@@ -200,25 +202,6 @@ async def main(page: ft.Page):
 
     st = State()
 
-    def on_window_event(e):
-        if e.data == "close":
-            if st.session_active and int(st.elapsed) >= 5:
-                try:
-                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序意外关闭 (数据已抢救)")
-                except Exception:
-                    pass
-            os._exit(0)
-            
-    try:
-        page.window.prevent_close = True
-        page.window.on_event = on_window_event
-    except AttributeError:
-        try:
-            page.window_prevent_close = True
-            page.on_window_event = on_window_event
-        except Exception:
-            pass
-
     # ========================================================
     # 🚀 主题色调度中心
     # ========================================================
@@ -263,7 +246,6 @@ async def main(page: ft.Page):
         mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
         sel_pomo.color = text_main
         
-        # 🚀 修复点 2：根据当前专注状态（st.session_active），动态维持按钮的醒目颜色，防止切换主题或窗口大小时掉色
         if st.session_active:
             btn_stop_view.bgcolor = "#FF3B30"
             btn_stop_lbl.color = "white"
@@ -341,7 +323,17 @@ async def main(page: ft.Page):
             c.bgcolor = bg
             c.content.controls[0].color = text_main
 
-    # ----------------- 🎯 内嵌顶栏与按钮组件 -----------------
+    # ----------------- 🎯 内嵌顶栏 -----------------
+    def update_countdown():
+        try:
+            today = datetime.now().date()
+            exam = datetime.strptime(db.data.get("examDate", "2026-12-20"), "%Y-%m-%d").date()
+            diff = (exam - today).days
+            countdown_text.value = f"距离初试仅剩 {diff} 天"
+            countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
+        except:
+            countdown_text.value = "距离初试仅剩 -- 天"
+
     def toggle_theme(e):
         page.theme_mode = "dark" if page.theme_mode == "light" else "light"
         apply_theme_colors()
@@ -364,24 +356,12 @@ async def main(page: ft.Page):
         st.is_mini_mode = not st.is_mini_mode
         apply_theme_and_layout()
 
-    # 🚀 修复点 1：将按钮创建放在调用它们的容器之前，彻底消灭初始化引发的 NameError
     btn_pin_full, btn_pin_full_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
     btn_mini_shrink, btn_mini_shrink_lbl = create_btn("🔽", padding=6, width=35, on_click=toggle_mini_mode)
     btn_theme, btn_theme_lbl = create_btn("🌙", padding=6, width=35, on_click=toggle_theme)
 
-    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=15, weight=ft.FontWeight.BOLD, color="#007AFF", max_lines=1)
-    
-    def update_countdown():
-        try:
-            today = datetime.now().date()
-            exam = datetime.strptime(db.data.get("examDate", "2026-12-20"), "%Y-%m-%d").date()
-            diff = (exam - today).days
-            countdown_text.value = f"距离初试仅剩 {diff} 天"
-            countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
-        except:
-            countdown_text.value = "距离初试仅剩 -- 天"
-
     row_left_controls_full = ft.Row([btn_pin_full, btn_mini_shrink], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=15, weight=ft.FontWeight.BOLD, color="#007AFF", max_lines=1)
 
     card_countdown_full = ft.Container(
         content=ft.Row([row_left_controls_full, countdown_text, btn_theme], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -838,14 +818,17 @@ async def main(page: ft.Page):
         grid_forest.controls.clear()
         
         if not records:
+            # 🚀 修复点：移除了导致报错的 alignment=ft.alignment.center，改用原生 Row 包裹并居中，安全100%
             grid_forest.controls.append(
-                ft.Container(
-                    content=ft.Column([
-                        ft.Text("🌱 这里的土地还在等待播种", size=14, weight=ft.FontWeight.BOLD, color="#8E8E93"),
-                        ft.Text("种一棵树最好的时间是十年前，其次是现在。\n请回到[专注]面板开启属于你的高能筑城！", size=12, color="#8E8E93", text_align=ft.TextAlign.CENTER)
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
-                    padding=20, alignment=ft.alignment.center
-                )
+                ft.Row([
+                    ft.Container(
+                        content=ft.Column([
+                            ft.Text("🌱 这里的土地还在等待播种", size=14, weight=ft.FontWeight.BOLD, color="#8E8E93"),
+                            ft.Text("种一棵树最好的时间是十年前，其次是现在。\n请回到[专注]面板开启属于你的高能筑城！", size=12, color="#8E8E93", text_align=ft.TextAlign.CENTER)
+                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                        padding=20
+                    )
+                ], alignment=ft.MainAxisAlignment.CENTER)
             )
         else:
             current_row = []
