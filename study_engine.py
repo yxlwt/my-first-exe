@@ -9,30 +9,10 @@ import traceback
 from datetime import datetime, timedelta
 
 # ================= 1. 初始化与绝对安全的数据管理 =================
-def get_safe_app_dir():
-    """
-    终极防御机制：解决任务栏固定启动时工作目录变为 System32 导致的白屏崩溃。
-    程序会先尝试在 exe 所在目录读写，如果权限被拒，自动降级到用户安全目录。
-    """
-    if getattr(sys, 'frozen', False):
-        base_dir = os.path.dirname(sys.executable)
-    else:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        
-    # 探针：测试当前目录是否有写入权限
-    test_file = os.path.join(base_dir, ".write_test_probe")
-    try:
-        with open(test_file, 'w') as f:
-            f.write('ok')
-        os.remove(test_file)
-        return base_dir
-    except Exception:
-        # 如果没有权限（例如任务栏启动指向了只读系统目录），退维到用户主目录
-        safe_fallback_dir = os.path.join(os.path.expanduser("~"), "StudyEngine_Data")
-        os.makedirs(safe_fallback_dir, exist_ok=True)
-        return safe_fallback_dir
-
-APP_DIR = get_safe_app_dir()
+# 🚀 终极路径方案：彻底抛弃相对路径和运行目录猜测。
+# 直接在 C:\Users\你的用户名\StudyEngineData 创建数据中心。绝对防崩溃。
+APP_DIR = os.path.join(os.path.expanduser("~"), "StudyEngineData")
+os.makedirs(APP_DIR, exist_ok=True)
 DATA_FILE = os.path.join(APP_DIR, "study_data.json")
 
 def get_backup_path():
@@ -480,10 +460,7 @@ async def main(page: ft.Page):
 
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=6, width=35, on_click=toggle_mini_mode)
     
-    # 🚀 迷你模式重构：加入可点击切换的交互科目标签
     lbl_time_mini = ft.Text(value="60:00", size=26, weight="bold", max_lines=1)
-    
-    # 加上 🔄 图标提示用户这里是可点击切换的
     lbl_mini_subject = ft.Text(value=f"🔄 [{db.data['currentSubject']}]", size=12, weight="bold")
     
     def on_mini_subject_click(e):
@@ -499,7 +476,6 @@ async def main(page: ft.Page):
         next_idx = (curr_idx + 1) % len(subs)
         new_sub = subs[next_idx]
         
-        # 🚀 绝对双向绑定：小窗口点击 -> 同步更新主窗口选择器
         sel_subject.value = new_sub
         db.data["currentSubject"] = new_sub
         lbl_mini_subject.value = f"🔄 [{new_sub}]"
@@ -575,10 +551,12 @@ async def main(page: ft.Page):
         width=160, dense=True, border_radius=8, 
         text_size=14, content_padding=10
     )
+    
+    # 🚀 修复核心：绝对双向绑定。无论主窗口怎么选，小窗口必定同步。
     def on_sub_change(e):
-        db.data["currentSubject"] = sel_subject.value
-        # 🚀 绝对双向绑定：主窗口改变 -> 同步更新小窗口文字
-        lbl_mini_subject.value = f"🔄 [{sel_subject.value}]" 
+        new_val = e.control.value
+        db.data["currentSubject"] = new_val
+        lbl_mini_subject.value = f"🔄 [{new_val}]" 
         db.save()
         try: page.update()
         except: pass
