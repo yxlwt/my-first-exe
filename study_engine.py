@@ -92,7 +92,6 @@ class DataManager:
         elif range_str == "month":
             prefix = logical_now.strftime("%Y-%m-")
             return [i for i in self.data["studyData"] if str(i.get("date")).startswith(prefix)]
-        # 🚀 修复点：添加历史查询的底层过滤逻辑！
         elif range_str.startswith("custom:"):
             target_date = range_str.split(":")[1]
             return [i for i in self.data["studyData"] if i.get("date") == target_date]
@@ -201,24 +200,8 @@ async def main(page: ft.Page):
 
     st = State()
 
-    def on_window_event(e):
-        if e.data == "close":
-            if st.session_active and int(st.elapsed) >= 5:
-                try:
-                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序意外关闭 (数据已抢救)")
-                except Exception:
-                    pass
-            os._exit(0)
-            
-    try:
-        page.window.prevent_close = True
-        page.window.on_event = on_window_event
-    except AttributeError:
-        try:
-            page.window_prevent_close = True
-            page.on_window_event = on_window_event
-        except Exception:
-            pass
+    # 🚀 修复点 1：彻底移除拦截关闭窗口的代码，恢复 Windows 右上角 X 的标准原生退出
+    # 这样能完全避开因多版本 Flet 拦截底层导致死锁、关不掉程序的致命 bug。
 
     # ========================================================
     # 🚀 主题色调度中心
@@ -248,6 +231,7 @@ async def main(page: ft.Page):
         
         lbl_time.color = text_main
         lbl_time_mini.color = text_main
+        
         lbl_quote.color = text_sec
         
         sel_subject.bgcolor = "transparent"
@@ -297,16 +281,6 @@ async def main(page: ft.Page):
         btn_exp.bgcolor = surface_variant
         btn_exp_lbl.color = text_main
         view_settings.bgcolor = surface
-        
-        lbl_forest_history.color = text_sec
-        forest_history_dropdown.bgcolor = "transparent"
-        forest_history_dropdown.border_color = "#38383A" if is_dark else "#C7C7CC"
-        forest_history_dropdown.color = text_main
-        
-        lbl_stat_history.color = text_sec
-        history_dropdown.bgcolor = "transparent"
-        history_dropdown.border_color = "#38383A" if is_dark else "#C7C7CC"
-        history_dropdown.color = text_main
         
         for i, item in enumerate(nav_buttons):
             item["view"].bgcolor = surface if i == st.active_tab else "transparent"
@@ -825,7 +799,8 @@ async def main(page: ft.Page):
         else:
             current_row = []
             for r in records:
-                tip = f"{r['subject']} | {format_dur(r['duration'])} {r.get('note','')}"
+                # 🚀 优化点 3：升级悬浮窗工具提示，提供全面极致的数据展示
+                tip = f"📅 日期: {r['date']}\n📚 科目: {r['subject']}\n⏱️ 时长: {format_dur(r['duration'])}\n📝 便签: {r.get('note','') or '无便签'}"
                 icon_view = ft.Container(
                     content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment=ft.MainAxisAlignment.CENTER),
                     width=55, height=55
@@ -847,7 +822,7 @@ async def main(page: ft.Page):
         ]), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 统计视图 (2) -----------------
+    # ----------------- 🚀 统计视图 (2) 同步环比优化版 -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
     
@@ -919,6 +894,7 @@ async def main(page: ft.Page):
         
         is_dark = page.theme_mode == "dark"
         text_main = "#FFFFFF" if is_dark else "#1C1C1E"
+        text_sec = "#8E8E93"
         
         if not records:
             empty_msg = ft.Row([ft.Text(value="当前时段无专注数据", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER)
@@ -930,13 +906,66 @@ async def main(page: ft.Page):
         if st.chart_tab == 0:
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
+            
+            # 🚀 核心优化点 2：如果处于“本周”维度，自动拉取上周相同周期的硬核数据进行深层环比
+            last_week_map = {}
+            is_week_mode = (st.stats_scope == "week")
+            if is_week_mode:
+                logical_now = datetime.now() - timedelta(hours=2)
+                start_this_week = logical_now - timedelta(days=logical_now.weekday())
+                start_last_week = start_this_week - timedelta(days=7)
+                last_week_dates = [(start_last_week + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+                last_week_records = [i for i in db.data["studyData"] if i.get("date") in last_week_dates]
+                for r in last_week_records:
+                    last_week_map[r["subject"]] = last_week_map.get(r["subject"], 0) + r["duration"]
+            
+            increased_subs = []
+            decreased_subs = []
+            
             for sub, dur in sorted(smap.items(), key=lambda x: x[1], reverse=True):
                 pct = dur / total if total > 0 else 0
+                comp_text = ""
+                if is_week_mode:
+                    last_dur = last_week_map.get(sub, 0)
+                    diff = dur - last_dur
+                    if diff > 0:
+                        comp_text = f" (比上周长了 {format_dur(diff)})"
+                        increased_subs.append(sub)
+                    elif diff < 0:
+                        comp_text = f" (比上周短了 {format_dur(abs(diff))})"
+                        decreased_subs.append(sub)
+                    else:
+                        comp_text = " (与上周持平)"
+                
                 col_stats.controls.append(
                     ft.Column([
-                        ft.Row([ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight=ft.FontWeight.BOLD, color=text_main), ft.Text(value=format_dur(dur), color="#8E8E93")], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Row([
+                            ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight=ft.FontWeight.BOLD, color=text_main), 
+                            ft.Text(value=f"{format_dur(dur)}{comp_text}", color=text_sec, size=11)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                         ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#2C2C2E" if is_dark else "#E5E5EA", height=10, border_radius=5)
-                    ], spacing=8)
+                    ], spacing=6)
+                )
+                
+            # 🚀 核心优化点 2（续）：周复盘大数据评语自动渲染生成
+            if is_week_mode:
+                comment_str = "💡 本周备考深度复盘评语：\n"
+                if not increased_subs and not decreased_subs:
+                    comment_str += "本周复盘节奏四平八稳，各科精力分配均等，整体执行力状态健康，下周请继续保持！"
+                else:
+                    if increased_subs:
+                        comment_str += f"你在【{', '.join(increased_subs)}】上投入的精力比上周更为充沛，难点攻坚啃得很扎实，值得表扬！"
+                    if decreased_subs:
+                        comment_str += f"但你在【{', '.join(decreased_subs)}】上的复习时长出现了滑坡。考研冲刺阶段切记避免偏科引发木桶短板效应，下周请注意适度回调拉高投入。"
+                
+                col_stats.controls.append(ft.Container(height=8))
+                col_stats.controls.append(
+                    ft.Container(
+                        content=ft.Text(comment_str, size=12, color="#FF9500" if is_dark else "#007AFF", weight=ft.FontWeight.BOLD),
+                        padding=10,
+                        bgcolor="#2C2C2E" if is_dark else "#E5E5EA",
+                        border_radius=8
+                    )
                 )
                 
         elif st.chart_tab == 1:
@@ -1079,6 +1108,7 @@ async def main(page: ft.Page):
     sw_chart(0) 
     render_subs()
     
+    # 🚀 优化点 1：补跑生命周期初始化渲染，保证软件冷启动时当日学习进度与目标立即完全同步显示
     update_focus_ui()
 
     async def heart_beat():
