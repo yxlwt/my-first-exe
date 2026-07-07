@@ -14,6 +14,8 @@ if getattr(sys, 'frozen', False):
 else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(application_path, "study_data.json")
+# 🚀 修复点 1：将备份文件路径进行绝对路径环境锁定，彻底杜绝打包后因工作目录漂移产生的读写失败
+BACKUP_FILE = os.path.join(application_path, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
@@ -298,7 +300,7 @@ async def main(page: ft.Page):
         mode_sw_view.bgcolor = surface if st.mode == "stopwatch" else "transparent"
         mode_sw_lbl.color = text_main if st.mode == "stopwatch" else text_sec
         mode_pm_view.bgcolor = surface if st.mode == "pomodoro" else "transparent"
-        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
+        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_main
         sel_pomo.color = text_main
         
         if st.session_active:
@@ -511,11 +513,9 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 提取融合点：精准使用你截图验证过的参数尺寸，保证绝对对称居中
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=6, on_click=lambda e: switch_mode("stopwatch"))
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=0, height=40, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
-    
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
@@ -543,22 +543,20 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 融合点：完美采纳去掉多余 UI 饰边的极简无感纯净文本样式，文字与图标视觉无缝融为一体
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=125, dense=True, content_padding=5, text_size=13,
-        text_align="center",
-        border_color="transparent", bgcolor="transparent"
+        value="60", width=110, dense=True, content_padding=0, text_size=13,
+        text_align="center", border="none", filled=False, bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
-            spacing=0, 
-            alignment="center",
-            vertical_alignment="center" 
+            spacing=2, alignment="center", vertical_alignment="center"
         ),
-        border_radius=8, expand=True
+        border_radius=8, expand=True, height=40, padding=0
     )
 
     def stop_timer_handler(e):
@@ -605,11 +603,10 @@ async def main(page: ft.Page):
     subject_container = ft.Row([sel_subject], alignment="center")
     goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment="center")
     
-    # 🚀 提取融合点：遵循你的无缝平衡间距 spacing=0 和 padding=4
     mode_container = ft.Container(
         content=ft.Row(
             [mode_sw_view, mode_pm_view], 
-            alignment="center", vertical_alignment="center", spacing=0
+            alignment="center", vertical_alignment="center", spacing=5
         ), 
         border_radius=10, padding=4
     )
@@ -1190,14 +1187,14 @@ async def main(page: ft.Page):
 
     def on_export(e):
         try:
-            with open("StudyEngine_Backup.json", "w", encoding="utf-8") as f: json.dump(db.data, f, ensure_ascii=False, indent=4)
+            with open(BACKUP_FILE, "w", encoding="utf-8") as f: json.dump(db.data, f, ensure_ascii=False, indent=4)
             show_warning("⬇ 备份导出成功 (StudyEngine_Backup.json)")
         except: pass
 
     def on_import(e):
-        if os.path.exists("StudyEngine_Backup.json"):
+        if os.path.exists(BACKUP_FILE):
             try:
-                with open("StudyEngine_Backup.json", "r", encoding="utf-8") as f:
+                with open(BACKUP_FILE, "r", encoding="utf-8") as f:
                     backup_data = json.load(f)
                 db.data.clear()
                 db.data.update(backup_data)
@@ -1206,8 +1203,8 @@ async def main(page: ft.Page):
                 txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
                 txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
                 sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-                if db.data["subjects"]:
-                    sel_subject.value = db.data["subjects"][0]
+                # 🚀 修复点 2：优先恢复原本备份选中的科目，实现状态的完美同步还原
+                sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0] if db.data["subjects"] else None)
                 
                 update_countdown()
                 update_focus_ui()
