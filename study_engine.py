@@ -511,10 +511,9 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=6, on_click=lambda e: switch_mode("stopwatch"))
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=0, height=40, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
-    
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
@@ -544,7 +543,7 @@ async def main(page: ft.Page):
 
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=125, dense=True, content_padding=0, text_size=13,
+        value="60", width=110, dense=True, content_padding=0, text_size=13,
         text_align="center", border="none", filled=False, bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
@@ -552,9 +551,7 @@ async def main(page: ft.Page):
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
-            spacing=0, 
-            alignment="center",
-            vertical_alignment="center" 
+            spacing=2, alignment="center", vertical_alignment="center"
         ),
         border_radius=8, expand=True, height=40, padding=0
     )
@@ -1130,8 +1127,8 @@ async def main(page: ft.Page):
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 🚀 提取融合点：引入原生文件弹窗对话框 -----------------
-    def process_export(e: ft.FilePickerResultEvent):
+    # ----------------- 🚀 导入导出功能 (修复了 Type Hint 报错) -----------------
+    def process_export(e):
         if e.path:
             try:
                 with open(e.path, "w", encoding="utf-8") as f: 
@@ -1140,7 +1137,7 @@ async def main(page: ft.Page):
             except Exception as ex: 
                 show_warning(f"❌ 导出失败: {str(ex)}")
 
-    def process_import(e: ft.FilePickerResultEvent):
+    def process_import(e):
         if e.files and len(e.files) > 0:
             path = e.files[0].path
             try:
