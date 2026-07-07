@@ -287,7 +287,6 @@ async def main(page: ft.Page):
         lbl_time_mini.color = text_main
         lbl_quote.color = text_sec
         
-        # 🚀 修复点：科目下拉框内部文字同样使用 alignment 强力居中
         sel_subject.bgcolor = "transparent"
         sel_subject.border_color = "#38383A" if is_dark else "#C7C7CC"
         sel_subject.color = text_main
@@ -476,12 +475,11 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
-    # 🚀 科目下拉框文字绝对居中
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
         width=180, dense=True, border_radius=12, 
-        alignment=ft.alignment.center,  
+        text_align="center",  
         text_size=15, content_padding=8
     )
     def on_sub_change(e):
@@ -519,7 +517,7 @@ async def main(page: ft.Page):
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=ft.padding.only(left=8, right=4),
+        padding=5,
         bgcolor="transparent"
     )
 
@@ -543,11 +541,11 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 种树下拉框文字绝对居中
+    # 🚀 坚决只使用 text_align="center" 原理解决居中，完全舍弃容易报错的 alignment
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=95, dense=True, content_padding=5, text_size=12,
-        alignment=ft.alignment.center, border_color="transparent", bgcolor="transparent"
+        value="60", width=110, dense=True, content_padding=8, text_size=13,
+        text_align="center", border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
@@ -906,7 +904,7 @@ async def main(page: ft.Page):
         ], spacing=5), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 🚀 统计视图 (2) 环比对比与精细悬浮拆解 -----------------
+    # ----------------- 🚀 统计视图 (2) -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight="bold")
     lbl_stat_compare = ft.Text(value="", size=12, text_align="center", weight="bold")
     col_stats = ft.Column(scroll="adaptive", expand=True)
