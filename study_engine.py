@@ -97,7 +97,7 @@ class DataManager:
             return [i for i in self.data["studyData"] if i.get("date") == target_date]
         return []
 
-# ================= 2. 辅助函数与对比逻辑 =================
+# ================= 2. 辅助函数 =================
 def format_dur(seconds):
     s = max(0, int(seconds))
     h = s // 3600
@@ -119,10 +119,11 @@ def play_success_sound():
         except Exception:
             pass
 
+# 🚀 优化点：使用字符串常量 "center" 等替代容易报错的 Flet 枚举对象，100% 免疫版本冲突
 def create_btn(text, on_click=None, bgcolor="transparent", txt_color=None, radius=8, expand=False, width=None, height=None, padding=8):
-    lbl = ft.Text(value=text, color=txt_color, weight=ft.FontWeight.BOLD, max_lines=1)
+    lbl = ft.Text(value=text, color=txt_color, weight="bold", max_lines=1)
     cnt = ft.Container(
-        content=ft.Row([lbl], alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        content=ft.Row([lbl], alignment="center", vertical_alignment="center"),
         bgcolor=bgcolor,
         border_radius=radius,
         padding=padding,
@@ -132,62 +133,6 @@ def create_btn(text, on_click=None, bgcolor="transparent", txt_color=None, radiu
         height=height
     )
     return cnt, lbl
-
-# 🚀 核心新增：全局高级周期同比评估引擎
-def get_period_comparison(scope, data):
-    logical_now = datetime.now() - timedelta(hours=2)
-    today_str = logical_now.strftime("%Y-%m-%d")
-    
-    cur_dur = 0
-    prev_dur = 0
-    period_name = ""
-    prev_name = ""
-
-    if scope == "day":
-        period_name = "今日"
-        prev_name = "昨日"
-        prev_date = (logical_now - timedelta(days=1)).strftime("%Y-%m-%d")
-        cur_dur = sum(r["duration"] for r in data if r.get("date") == today_str)
-        prev_dur = sum(r["duration"] for r in data if r.get("date") == prev_date)
-    elif scope == "week":
-        period_name = "本周"
-        prev_name = "上周"
-        start_this = logical_now - timedelta(days=logical_now.weekday())
-        start_prev = start_this - timedelta(days=7)
-        this_dates = [(start_this + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-        prev_dates = [(start_prev + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-        cur_dur = sum(r["duration"] for r in data if r.get("date") in this_dates)
-        prev_dur = sum(r["duration"] for r in data if r.get("date") in prev_dates)
-    elif scope == "month":
-        period_name = "本月"
-        prev_name = "上月"
-        this_prefix = logical_now.strftime("%Y-%m-")
-        first_day_this_month = logical_now.replace(day=1)
-        last_day_prev_month = first_day_this_month - timedelta(days=1)
-        prev_prefix = last_day_prev_month.strftime("%Y-%m-")
-        cur_dur = sum(r["duration"] for r in data if str(r.get("date")).startswith(this_prefix))
-        prev_dur = sum(r["duration"] for r in data if str(r.get("date")).startswith(prev_prefix))
-    elif scope.startswith("custom:"):
-        target_date = scope.split(":")[1]
-        period_name = f"{target_date[-5:]}"
-        prev_name = "前一天"
-        td = datetime.strptime(target_date, "%Y-%m-%d")
-        prev_date = (td - timedelta(days=1)).strftime("%Y-%m-%d")
-        cur_dur = sum(r["duration"] for r in data if r.get("date") == target_date)
-        prev_dur = sum(r["duration"] for r in data if r.get("date") == prev_date)
-    else:
-        return ""
-
-    diff = cur_dur - prev_dur
-    if diff > 0:
-        return f"🔥 {period_name}比{prev_name}多学了 {format_dur(diff)}！继续保持冲劲！"
-    elif diff < 0:
-        return f"⚠️ {period_name}比{prev_name}少学了 {format_dur(abs(diff))}。注意调整状态哦！"
-    else:
-        if cur_dur == 0:
-            return f"💤 {period_name}和{prev_name}都还没学习，快去筑城吧！"
-        else:
-            return f"⚖️ {period_name}与{prev_name}时长完全持平，节奏稳健！"
 
 # ================= 3. 核心 UI 引擎 =================
 async def main(page: ft.Page):
@@ -208,11 +153,7 @@ async def main(page: ft.Page):
             page.window_height = 600
         except: pass
 
-    # 🚀 彻底释放 Windows 关闭控制权，右上角 X 秒杀退出，绝生死锁！
-    try:
-        page.window.prevent_close = False
-    except AttributeError:
-        pass
+    # 🚀 彻底干净地删除了所有的 page.window.prevent_close 拦截代码！现在点击 X 会完美退出程序。
 
     def open_dlg(d):
         if hasattr(page, "open"): page.open(d)
@@ -228,7 +169,7 @@ async def main(page: ft.Page):
             page.update()
 
     def show_warning(msg):
-        snack = ft.SnackBar(content=ft.Text(msg, color="white", weight=ft.FontWeight.BOLD), bgcolor="#FF3B30")
+        snack = ft.SnackBar(content=ft.Text(msg, color="white", weight="bold"), bgcolor="#FF3B30")
         if hasattr(page, "open"): page.open(snack)
         else:
             page.snack_bar = snack
@@ -308,7 +249,7 @@ async def main(page: ft.Page):
         
         if st.session_active:
             btn_stop_view.bgcolor = "#FF3B30"
-            btn_stop_lbl.color = "white"
+            btn_stop_lbl.color = "#FFFFFF"
             if st.timer_active:
                 btn_start_view.bgcolor = "#FF9500"
             else:
@@ -422,20 +363,20 @@ async def main(page: ft.Page):
     btn_mini_shrink, btn_mini_shrink_lbl = create_btn("🔽", padding=6, width=35, on_click=toggle_mini_mode)
     btn_theme, btn_theme_lbl = create_btn("🌙", padding=6, width=35, on_click=toggle_theme)
 
-    row_left_controls_full = ft.Row([btn_pin_full, btn_mini_shrink], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER)
-    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=15, weight=ft.FontWeight.BOLD, color="#007AFF", max_lines=1)
+    row_left_controls_full = ft.Row([btn_pin_full, btn_mini_shrink], spacing=5, vertical_alignment="center")
+    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=15, weight="bold", color="#007AFF", max_lines=1)
 
     card_countdown_full = ft.Container(
-        content=ft.Row([row_left_controls_full, countdown_text, btn_theme], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        content=ft.Row([row_left_controls_full, countdown_text, btn_theme], alignment="spaceBetween", vertical_alignment="center"),
         border_radius=12, padding=8, margin=5 
     )
 
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=6, width=35, on_click=toggle_mini_mode)
-    lbl_time_mini = ft.Text(value="60:00", size=24, weight=ft.FontWeight.BOLD, max_lines=1)
+    lbl_time_mini = ft.Text(value="60:00", size=24, weight="bold", max_lines=1)
     btn_pin_mini, btn_pin_mini_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
     
     mini_top_bar = ft.Container(
-        content=ft.Row([btn_mini_expand, lbl_time_mini, btn_pin_mini], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        content=ft.Row([btn_mini_expand, lbl_time_mini, btn_pin_mini], alignment="spaceBetween", vertical_alignment="center"),
         padding=5, margin=0, visible=False
     )
 
@@ -469,22 +410,22 @@ async def main(page: ft.Page):
         return view
 
     nav_bar = ft.Container(
-        content=ft.Row([make_nav_btn("专注", 0), make_nav_btn("图鉴", 1), make_nav_btn("统计", 2), make_nav_btn("设置", 3)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        content=ft.Row([make_nav_btn("专注", 0), make_nav_btn("图鉴", 1), make_nav_btn("统计", 2), make_nav_btn("设置", 3)], alignment="center", spacing=0, vertical_alignment="center"),
         border_radius=10, padding=4, margin=5
     )
 
     # ========================================================
     # 🚀 专注功能面板与组件美化
     # ========================================================
-    lbl_icon = ft.Text(value="🌰", size=65, text_align=ft.TextAlign.CENTER, max_lines=1) 
-    lbl_time = ft.Text(value="60:00", size=50, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER, max_lines=1) 
-    lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align=ft.TextAlign.CENTER, max_lines=1)
+    lbl_icon = ft.Text(value="🌰", size=65, text_align="center", max_lines=1) 
+    lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
+    lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
         width=180, dense=True, border_radius=12, 
-        text_align=ft.TextAlign.CENTER,  
+        text_align="center",  
         text_size=15, content_padding=8
     )
     def on_sub_change(e):
@@ -493,7 +434,7 @@ async def main(page: ft.Page):
     sel_subject.on_change = on_sub_change
 
     bar_goal = ft.ProgressBar(value=0, color="#34C759", height=6)
-    lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=11, weight=ft.FontWeight.BOLD, max_lines=1)
+    lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=11, weight="bold", max_lines=1)
 
     def switch_mode(m):
         if st.session_active:
@@ -516,14 +457,14 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 修复点 2：统一筑城和种树按钮的高度、对齐和内边距，达到 100% 绝对对称
+    # 🚀 细节修正：这里将 "筑城" 和 "种树" 的结构彻底一致化，解决高低和对称问题！
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=0, height=40, on_click=lambda e: switch_mode("stopwatch"))
 
-    mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD, max_lines=1)
+    mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=ft.padding.only(left=8, right=4),
+        padding=5,
         bgcolor="transparent"
     )
 
@@ -550,17 +491,14 @@ async def main(page: ft.Page):
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=95, dense=True, content_padding=5, text_size=12,
-        text_align=ft.TextAlign.CENTER,
-        border_color="transparent", bgcolor="transparent"
+        text_align="center", border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
-            spacing=0, 
-            alignment=ft.MainAxisAlignment.CENTER,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER 
+            spacing=0, alignment="center", vertical_alignment="center"
         ),
         border_radius=8, expand=True, height=40, padding=0
     )
@@ -597,32 +535,30 @@ async def main(page: ft.Page):
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
         
-        apply_theme_colors() # 动态更新按钮状态色
+        apply_theme_colors()
         st.last_ui_second = -1
         update_focus_ui()
         try: page.update()
         except: pass
 
-    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="white", radius=25, height=42, expand=True, on_click=toggle_timer)
+    btn_start_view, btn_start_lbl = create_btn("▶ 开始专注", bgcolor="#34C759", txt_color="#FFFFFF", radius=25, height=42, expand=True, on_click=toggle_timer)
     btn_stop_view, btn_stop_lbl = create_btn("⏹ 结束", radius=25, height=42, expand=True, on_click=stop_timer_handler)
 
-    subject_container = ft.Row([sel_subject], alignment=ft.MainAxisAlignment.CENTER)
-    goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    subject_container = ft.Row([sel_subject], alignment="center")
+    goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment="center")
     
     mode_container = ft.Container(
         content=ft.Row(
             [mode_sw_view, mode_pm_view], 
-            alignment=ft.MainAxisAlignment.CENTER, 
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=5
+            alignment="center", vertical_alignment="center", spacing=5
         ), 
         border_radius=10, padding=4
     )
-    row_main_btns = ft.Row([btn_start_view, btn_stop_view], alignment=ft.MainAxisAlignment.CENTER, spacing=15)
+    row_main_btns = ft.Row([btn_start_view, btn_stop_view], alignment="center", spacing=15)
 
     col_main = ft.Column([
         subject_container, lbl_icon, lbl_time, lbl_quote, goal_container, mode_container, row_main_btns
-    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10, expand=True)
+    ], alignment="center", horizontal_alignment="center", spacing=10, expand=True)
 
     # ========================================================
     # 🚀 确认与结算面板
@@ -656,19 +592,19 @@ async def main(page: ft.Page):
         show_main()
 
     lbl_icon_confirm = ft.Text("⚠️", size=35)
-    lbl_title_confirm = ft.Text("确认结束", size=18, weight=ft.FontWeight.BOLD)
-    lbl_confirm_msg = ft.Text("", size=12, text_align=ft.TextAlign.CENTER)
+    lbl_title_confirm = ft.Text("确认结束", size=18, weight="bold")
+    lbl_confirm_msg = ft.Text("", size=12, text_align="center")
     
-    btn_y, btn_y_lbl = create_btn("保存战果", txt_color="white", bgcolor="#FF3B30", padding=5, height=36, expand=True, on_click=on_confirm_save)
+    btn_y, btn_y_lbl = create_btn("保存战果", txt_color="#FFFFFF", bgcolor="#FF3B30", padding=5, height=36, expand=True, on_click=on_confirm_save)
     btn_n, btn_n_lbl = create_btn("直接销毁", padding=5, height=36, expand=True, on_click=on_discard)
-    btn_c, btn_c_lbl = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="white", padding=5, height=36, expand=True, on_click=on_cancel_dialog)
+    btn_c, btn_c_lbl = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="#FFFFFF", padding=5, height=36, expand=True, on_click=on_cancel_dialog)
 
-    row_confirm_btns1 = ft.Row([btn_y, btn_n], alignment=ft.MainAxisAlignment.CENTER, spacing=10)
-    row_confirm_btns2 = ft.Row([btn_c], alignment=ft.MainAxisAlignment.CENTER)
+    row_confirm_btns1 = ft.Row([btn_y, btn_n], alignment="center", spacing=10)
+    row_confirm_btns2 = ft.Row([btn_c], alignment="center")
 
     col_confirm = ft.Column([
         lbl_icon_confirm, lbl_title_confirm, lbl_confirm_msg, row_confirm_btns1, row_confirm_btns2
-    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=6, expand=True)
+    ], alignment="center", horizontal_alignment="center", spacing=6, expand=True)
 
     def on_success_save(e):
         db.add_record(sel_subject.value, int(st.elapsed), st.mode, False, txt_note.value)
@@ -679,20 +615,20 @@ async def main(page: ft.Page):
         show_main()
 
     lbl_icon_success = ft.Text("🎉", size=40)
-    lbl_title_success = ft.Text("专注完成！", size=18, weight=ft.FontWeight.BOLD)
+    lbl_title_success = ft.Text("专注完成！", size=18, weight="bold")
     txt_note = ft.TextField(label="复盘便签 (选填)", expand=True, content_padding=5, text_size=12)
-    row_note = ft.Row([txt_note], alignment=ft.MainAxisAlignment.CENTER)
-    btn_success_save, btn_success_save_lbl = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="white", padding=5, height=36, expand=True, on_click=on_success_save)
-    row_success_btn = ft.Row([btn_success_save], alignment=ft.MainAxisAlignment.CENTER)
-    lbl_success_quote = ft.Text("", size=11, text_align=ft.TextAlign.CENTER)
+    row_note = ft.Row([txt_note], alignment="center")
+    btn_success_save, btn_success_save_lbl = create_btn("保存战果并返回", bgcolor="#34C759", txt_color="#FFFFFF", padding=5, height=36, expand=True, on_click=on_success_save)
+    row_success_btn = ft.Row([btn_success_save], alignment="center")
+    lbl_success_quote = ft.Text("", size=11, text_align="center")
 
     col_success = ft.Column([
         lbl_icon_success, lbl_title_success, lbl_success_quote, row_note, row_success_btn
-    ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=6, expand=True)
+    ], alignment="center", horizontal_alignment="center", spacing=6, expand=True)
 
     def show_goal_reached_dialog():
         dlg_goal = ft.AlertDialog(
-            title=ft.Text("🏆 目标达成！", weight=ft.FontWeight.BOLD),
+            title=ft.Text("🏆 目标达成！", weight="bold"),
             content=ft.Text("恭喜你完成了今天的专注总目标！\n考研路漫漫，今天的你又干掉了一天的硬仗，请继续保持！"),
             actions=[ft.TextButton("收下荣誉", on_click=lambda e: close_dlg(dlg_goal))]
         )
@@ -817,13 +753,13 @@ async def main(page: ft.Page):
         except: pass
 
     # ----------------- 图鉴视图 (1) -----------------
-    lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
-    lbl_forest_compare = ft.Text(value="", size=11, text_align=ft.TextAlign.CENTER)
-    grid_forest = ft.Column(spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight="bold")
+    lbl_forest_compare = ft.Text(value="", size=11, text_align="center")
+    grid_forest = ft.Column(spacing=15, horizontal_alignment="center")
     
-    lbl_forest_history = ft.Text("选择日期:", size=12, weight=ft.FontWeight.BOLD)
+    lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
     forest_history_dropdown = ft.Dropdown(
-        options=[], width=140, dense=True, content_padding=5, text_size=13, text_align=ft.TextAlign.CENTER
+        options=[], width=140, dense=True, content_padding=5, text_size=13, text_align="center"
     )
     def on_forest_history_change(e):
         if forest_history_dropdown.value:
@@ -831,7 +767,7 @@ async def main(page: ft.Page):
         refresh_forest()
     forest_history_dropdown.on_change = on_forest_history_change
     
-    row_forest_history = ft.Row([lbl_forest_history, forest_history_dropdown], alignment=ft.MainAxisAlignment.CENTER, visible=False)
+    row_forest_history = ft.Row([lbl_forest_history, forest_history_dropdown], alignment="center", visible=False)
 
     forest_nav_btns = []
     def sw_forest(idx):
@@ -862,10 +798,10 @@ async def main(page: ft.Page):
         return view
 
     row_forest_nav = ft.Container(
-        content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2), make_forest_btn("历史", 3)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), 
+        content=ft.Row([make_forest_btn("今日", 0), make_forest_btn("本周", 1), make_forest_btn("本月", 2), make_forest_btn("历史", 3)], alignment="center", spacing=0, vertical_alignment="center"), 
         border_radius=10, padding=4
     )
-    col_forest_scroll = ft.Column([grid_forest], scroll=ft.ScrollMode.ADAPTIVE, expand=True, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    col_forest_scroll = ft.Column([grid_forest], scroll="adaptive", expand=True, horizontal_alignment="center")
     container_forest_grid = ft.Container(content=col_forest_scroll, expand=True, padding=5, border_radius=10, bgcolor="transparent")
 
     def refresh_forest():
@@ -875,32 +811,33 @@ async def main(page: ft.Page):
         
         grid_forest.controls.clear()
         if not records:
+            # 🚀 彻底修复 `alignment.center` 崩溃：使用绝对安全的 Row 容器包裹来居中！
             grid_forest.controls.append(
                 ft.Row([
                     ft.Container(
                         content=ft.Column([
-                            ft.Text("🌱 这里的土地还在等待播种", size=14, weight=ft.FontWeight.BOLD, color="#8E8E93"),
-                            ft.Text("种一棵树最好的时间是十年前，其次是现在。\n请前往专注面板开启新一轮复习吧！", size=12, color="#8E8E93", text_align=ft.TextAlign.CENTER)
-                        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                            ft.Text("🌱 这里的土地还在等待播种", size=14, weight="bold", color="#8E8E93"),
+                            ft.Text("种一棵树最好的时间是十年前，其次是现在。\n请前往专注面板开启新一轮复习吧！", size=12, color="#8E8E93", text_align="center")
+                        ], horizontal_alignment="center", spacing=8),
                         padding=20
                     )
-                ], alignment=ft.MainAxisAlignment.CENTER)
+                ], alignment="center")
             )
         else:
             current_row = []
             for r in records:
                 tip = f"📅 {r['date']}\n📚 {r['subject']}\n⏱️ {format_dur(r['duration'])}\n📝 {r.get('note','') or '无便签'}"
                 icon_view = ft.Container(
-                    content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment=ft.MainAxisAlignment.CENTER),
+                    content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment="center"),
                     width=55, height=55
                 )
                 current_row.append(icon_view)
                 
                 if len(current_row) == 4:
-                    grid_forest.controls.append(ft.Row(current_row, alignment=ft.MainAxisAlignment.CENTER, spacing=15))
+                    grid_forest.controls.append(ft.Row(current_row, alignment="center", spacing=15))
                     current_row = []
             if current_row:
-                grid_forest.controls.append(ft.Row(current_row, alignment=ft.MainAxisAlignment.CENTER, spacing=15))
+                grid_forest.controls.append(ft.Row(current_row, alignment="center", spacing=15))
                 
         try: page.update()
         except: pass
@@ -908,27 +845,27 @@ async def main(page: ft.Page):
     view_forest = ft.Container(
         content=ft.Column([
             row_forest_nav, row_forest_history, ft.Container(height=2), 
-            ft.Row([lbl_forest_sum], alignment=ft.MainAxisAlignment.CENTER),
-            ft.Row([lbl_forest_compare], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Row([lbl_forest_sum], alignment="center"),
+            ft.Row([lbl_forest_compare], alignment="center"),
             container_forest_grid
         ], spacing=5), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
     # ----------------- 🚀 统计视图 (2) 环比对比与精细悬浮拆解 -----------------
-    lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
-    lbl_stat_compare = ft.Text(value="", size=12, text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD)
-    col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
+    lbl_stat_total = ft.Text(value="0s", size=42, weight="bold")
+    lbl_stat_compare = ft.Text(value="", size=12, text_align="center", weight="bold")
+    col_stats = ft.Column(scroll="adaptive", expand=True)
     
-    lbl_stat_history = ft.Text("选择日期:", size=12, weight=ft.FontWeight.BOLD)
+    lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
     history_dropdown = ft.Dropdown(
-        options=[], width=140, dense=True, content_padding=5, text_size=13, text_align=ft.TextAlign.CENTER
+        options=[], width=140, dense=True, content_padding=5, text_size=13, text_align="center"
     )
     def on_history_change(e):
         if history_dropdown.value:
             st.stats_scope = f"custom:{history_dropdown.value}"
         refresh_stats()
     history_dropdown.on_change = on_history_change
-    row_history_select = ft.Row([lbl_stat_history, history_dropdown], alignment=ft.MainAxisAlignment.CENTER, visible=False)
+    row_history_select = ft.Row([lbl_stat_history, history_dropdown], alignment="center", visible=False)
 
     stat_nav_btns = []
     chart_nav_btns = []
@@ -981,11 +918,11 @@ async def main(page: ft.Page):
         return view
 
     row_stat_nav = ft.Container(
-        content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2), make_stat_btn("历史", 3)], alignment=ft.MainAxisAlignment.CENTER, spacing=0, vertical_alignment=ft.CrossAxisAlignment.CENTER), 
+        content=ft.Row([make_stat_btn("今日", 0), make_stat_btn("本周", 1), make_stat_btn("本月", 2), make_stat_btn("历史", 3)], alignment="center", spacing=0, vertical_alignment="center"), 
         border_radius=10, padding=4
     )
     row_chart_nav = ft.Container(
-        content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("趋势图", 2)], alignment=ft.MainAxisAlignment.CENTER, spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+        content=ft.Row([make_chart_btn("条形图", 0), make_chart_btn("扇形图", 1), make_chart_btn("趋势图", 2)], alignment="center", spacing=5, vertical_alignment="center"),
         padding=0, margin=5
     )
 
@@ -1001,7 +938,7 @@ async def main(page: ft.Page):
         text_sec = "#8E8E93"
         
         if not records:
-            empty_msg = ft.Row([ft.Text(value="当前时段无专注数据", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER)
+            empty_msg = ft.Row([ft.Text(value="当前时段无专注数据", color="#8E8E93")], alignment="center")
             col_stats.controls.append(ft.Container(content=empty_msg, padding=20))
             try: page.update()
             except: pass
@@ -1014,7 +951,7 @@ async def main(page: ft.Page):
             for sub, dur in sorted(smap.items(), key=lambda x: x[1], reverse=True):
                 pct = dur / total if total > 0 else 0
                 
-                # 🚀 细节 1：条形图超强智能 Tooltip
+                # 🚀 悬浮在条形图上的精准明细提示
                 sub_records = [r for r in records if r["subject"] == sub]
                 tooltip_lines = [f"【{sub}】详细记录:"]
                 
@@ -1043,9 +980,9 @@ async def main(page: ft.Page):
                 col_stats.controls.append(
                     ft.Column([
                         ft.Row([
-                            ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight=ft.FontWeight.BOLD, color=text_main), 
+                            ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight="bold", color=text_main), 
                             ft.Text(value=f"{format_dur(dur)}", color=text_sec, size=11)
-                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ], alignment="spaceBetween"),
                         prog_bar
                     ], spacing=6)
                 )
@@ -1067,7 +1004,6 @@ async def main(page: ft.Page):
                 stops.extend([current_stop, current_stop + pct])
                 current_stop += pct
                 
-                # 🚀 细节 2：扇形图图例支持明细悬浮查看
                 sub_records = [r for r in records if r["subject"] == sub]
                 tip_lines = [f"【{sub}】({pct*100:.1f}%)"]
                 for r in sub_records: tip_lines.append(f"• {r['date'][-5:]}: {format_dur(r['duration'])}")
@@ -1077,7 +1013,7 @@ async def main(page: ft.Page):
                         content=ft.Row([
                             ft.Container(width=12, height=12, bgcolor=c, border_radius=6),
                             ft.Text(f"{sub} {pct*100:.1f}%", size=12, color=text_main)
-                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        ], alignment="center"),
                         tooltip="\n".join(tip_lines)
                     )
                 )
@@ -1090,8 +1026,8 @@ async def main(page: ft.Page):
                 )
             )
             col_stats.controls.append(ft.Column([
-                ft.Container(content=ft.Row([pie], alignment=ft.MainAxisAlignment.CENTER), padding=10),
-                ft.Column(legend_cols, spacing=5, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+                ft.Container(content=ft.Row([pie], alignment="center"), padding=10),
+                ft.Column(legend_cols, spacing=5, horizontal_alignment="center")
             ], spacing=15))
             
         elif st.chart_tab == 2:
@@ -1106,7 +1042,6 @@ async def main(page: ft.Page):
                 dur = date_map[d]
                 h = (dur / max_dur_val) * 120 if max_dur_val > 0 else 0
                 
-                # 🚀 细节 3：趋势图柱状体高级科目结构拆解展示
                 day_records = [r for r in records if r["date"] == d]
                 day_smap = {}
                 for r in day_records: day_smap[r["subject"]] = day_smap.get(r["subject"], 0) + r["duration"]
@@ -1122,10 +1057,10 @@ async def main(page: ft.Page):
                             on_click=lambda e, target_d=d: drill_down_to_date(target_d)
                         ),
                         ft.Text(d[-5:], size=10, color=text_main)
-                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4)
+                    ], horizontal_alignment="center", spacing=4)
                 )
-            chart_row = ft.Row(bars, alignment=ft.MainAxisAlignment.CENTER, vertical_alignment=ft.CrossAxisAlignment.END, spacing=15)
-            scroll_row = ft.Row([chart_row], scroll=ft.ScrollMode.ADAPTIVE, alignment=ft.MainAxisAlignment.CENTER)
+            chart_row = ft.Row(bars, alignment="center", vertical_alignment="end", spacing=15)
+            scroll_row = ft.Row([chart_row], scroll="adaptive", alignment="center")
             col_stats.controls.append(ft.Container(content=scroll_row, height=200, padding=10))
 
         try: page.update()
@@ -1134,17 +1069,17 @@ async def main(page: ft.Page):
     view_stats = ft.Container(
         content=ft.Column([
             row_stat_nav, row_history_select, row_chart_nav, 
-            ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), 
-            ft.Row([lbl_stat_compare], alignment=ft.MainAxisAlignment.CENTER), 
+            ft.Row([lbl_stat_total], alignment="center"), 
+            ft.Row([lbl_stat_compare], alignment="center"), 
             ft.Container(height=5), col_stats
         ], spacing=5),
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
     # ----------------- 设置视图 (3) -----------------
-    lbl_setting_1 = ft.Text(value="🎯 目标设置", weight=ft.FontWeight.BOLD)
-    lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight=ft.FontWeight.BOLD)
-    lbl_setting_3 = ft.Text(value="💾 数据安全", weight=ft.FontWeight.BOLD)
+    lbl_setting_1 = ft.Text(value="🎯 目标设置", weight="bold")
+    lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight="bold")
+    lbl_setting_3 = ft.Text(value="💾 数据安全", weight="bold")
     
     txt_goal = ft.TextField(value=str(int(db.data["dailyGoal"] // 3600)), label="每日专注目标 (小时)")
     def on_goal_blur(e):
@@ -1177,7 +1112,7 @@ async def main(page: ft.Page):
         col_subs.controls.clear()
         for sub in db.data["subjects"]:
             btn_del, _ = create_btn("删除", txt_color="#FF3B30", on_click=lambda e, s=sub: del_sub(s))
-            col_subs.controls.append(ft.Container(content=ft.Row([ft.Text(value=sub, weight=ft.FontWeight.BOLD, expand=True, color=text_main), btn_del]), bgcolor=bg, padding=8, border_radius=10))
+            col_subs.controls.append(ft.Container(content=ft.Row([ft.Text(value=sub, weight="bold", expand=True, color=text_main), btn_del]), bgcolor=bg, padding=8, border_radius=10))
 
     def add_sub(e):
         v = txt_new_sub.value.strip()
@@ -1186,7 +1121,7 @@ async def main(page: ft.Page):
             sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
             txt_new_sub.value = ""; render_subs(); apply_theme_colors(); page.update()
             
-    btn_add, _ = create_btn("添加", bgcolor="#34C759", txt_color="white", padding=12, on_click=add_sub)
+    btn_add, _ = create_btn("添加", bgcolor="#34C759", txt_color="#FFFFFF", padding=12, on_click=add_sub)
 
     def del_sub(s):
         if len(db.data["subjects"]) > 1:
@@ -1232,13 +1167,13 @@ async def main(page: ft.Page):
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
     btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
-    row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment=ft.MainAxisAlignment.CENTER)
+    row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
     col_settings_scroll = ft.Column([
         lbl_setting_1, txt_goal, txt_exam_date, ft.Container(height=5),
         lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=5), 
         lbl_setting_3, row_backup_group
-    ], scroll=ft.ScrollMode.AUTO, expand=True)
+    ], scroll="auto", expand=True)
 
     view_settings = ft.Container(
         content=col_settings_scroll,
