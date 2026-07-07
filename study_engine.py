@@ -8,22 +8,20 @@ import random
 import traceback
 from datetime import datetime, timedelta
 
-# ================= 1. 初始化与绝对安全的数据管理 =================
-# 🚀 终极路径方案：彻底抛弃相对路径和运行目录猜测。
-# 直接在 C:\Users\你的用户名\StudyEngineData 创建数据中心。绝对防崩溃。
-APP_DIR = os.path.join(os.path.expanduser("~"), "StudyEngineData")
-os.makedirs(APP_DIR, exist_ok=True)
-DATA_FILE = os.path.join(APP_DIR, "study_data.json")
+# ================= 1. 初始化与纯净绿色版数据管理 =================
+def get_app_path():
+    """
+    纯净路径解析器：放弃对工作目录的强制修改，做最纯粹的绿色单体软件。
+    只要用户不乱固定快捷方式，数据永远跟随 exe。
+    """
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
 
-def get_backup_path():
-    """智能获取备份路径，优先保存到用户桌面"""
-    try:
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        if os.path.exists(desktop):
-            return os.path.join(desktop, "StudyEngine_Backup.json")
-    except:
-        pass
-    return os.path.join(APP_DIR, "StudyEngine_Backup.json")
+application_path = get_app_path()
+DATA_FILE = os.path.join(application_path, "study_data.json")
+BACKUP_FILE = os.path.join(application_path, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
@@ -444,6 +442,8 @@ async def main(page: ft.Page):
 
     def toggle_mini_mode(e):
         st.is_mini_mode = not st.is_mini_mode
+        # 🚀 展开/收起时进行安全同步
+        lbl_mini_subject.value = f"🔄 [{db.data['currentSubject']}]"
         apply_theme_and_layout()
 
     btn_pin_full, btn_pin_full_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
@@ -460,6 +460,7 @@ async def main(page: ft.Page):
 
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=6, width=35, on_click=toggle_mini_mode)
     
+    # 迷你模式下的UI组件
     lbl_time_mini = ft.Text(value="60:00", size=26, weight="bold", max_lines=1)
     lbl_mini_subject = ft.Text(value=f"🔄 [{db.data['currentSubject']}]", size=12, weight="bold")
     
@@ -476,12 +477,14 @@ async def main(page: ft.Page):
         next_idx = (curr_idx + 1) % len(subs)
         new_sub = subs[next_idx]
         
+        # 🚀 小窗口切换 -> 主下拉框强制更新
         sel_subject.value = new_sub
         db.data["currentSubject"] = new_sub
         lbl_mini_subject.value = f"🔄 [{new_sub}]"
         
         db.save()
-        page.update()
+        try: page.update()
+        except: pass
 
     mini_subject_container = ft.Container(
         content=lbl_mini_subject,
@@ -552,9 +555,10 @@ async def main(page: ft.Page):
         text_size=14, content_padding=10
     )
     
-    # 🚀 修复核心：绝对双向绑定。无论主窗口怎么选，小窗口必定同步。
     def on_sub_change(e):
-        new_val = e.control.value
+        # 🚀 强制通过 e.control.value 获取最新值，绝不延迟
+        new_val = str(e.control.value)
+        sel_subject.value = new_val
         db.data["currentSubject"] = new_val
         lbl_mini_subject.value = f"🔄 [{new_val}]" 
         db.save()
