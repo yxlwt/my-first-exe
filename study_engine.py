@@ -154,6 +154,9 @@ def get_period_comparison(scope, data):
         prev_dur = sum(r["duration"] for r in data if str(r.get("date")).startswith(prev_prefix))
     elif scope.startswith("custom:"):
         target_date = scope.split(":")[1]
+        # 🚀 修复点：拦截空数据导致的时间解析崩溃
+        if target_date == "none":
+            return ""
         period_name = f"{target_date[-5:]}"
         prev_name = "前一天"
         td = datetime.strptime(target_date, "%Y-%m-%d")
@@ -296,7 +299,7 @@ async def main(page: ft.Page):
         mode_sw_view.bgcolor = surface if st.mode == "stopwatch" else "transparent"
         mode_sw_lbl.color = text_main if st.mode == "stopwatch" else text_sec
         mode_pm_view.bgcolor = surface if st.mode == "pomodoro" else "transparent"
-        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
+        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_main # 修复高亮问题
         sel_pomo.color = text_main
         
         if st.session_active:
@@ -509,7 +512,6 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 绝对安全：再也没有 .only！完全使用单一数字 padding=5 保证全版本不报错
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=0, height=40, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
@@ -540,9 +542,10 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 修复点：加宽下拉框，加大内边距防止文字溢出
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=95, dense=True, content_padding=5, text_size=12,
+        value="60", width=120, dense=True, content_padding=8, text_size=13,
         text_align="center", border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
@@ -902,7 +905,7 @@ async def main(page: ft.Page):
         ], spacing=5), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 🚀 统计视图 (2) 环比对比与精细悬浮拆解 -----------------
+    # ----------------- 🚀 统计视图 (2) -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight="bold")
     lbl_stat_compare = ft.Text(value="", size=12, text_align="center", weight="bold")
     col_stats = ft.Column(scroll="adaptive", expand=True)
@@ -999,34 +1002,8 @@ async def main(page: ft.Page):
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
             
-            last_week_map = {}
-            is_week_mode = (st.stats_scope == "week")
-            if is_week_mode:
-                logical_now = datetime.now() - timedelta(hours=2)
-                start_this_week = logical_now - timedelta(days=logical_now.weekday())
-                start_last_week = start_this_week - timedelta(days=7)
-                last_week_dates = [(start_last_week + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-                last_week_records = [i for i in db.data["studyData"] if i.get("date") in last_week_dates]
-                for r in last_week_records:
-                    last_week_map[r["subject"]] = last_week_map.get(r["subject"], 0) + r["duration"]
-            
-            increased_subs = []
-            decreased_subs = []
-            
             for sub, dur in sorted(smap.items(), key=lambda x: x[1], reverse=True):
                 pct = dur / total if total > 0 else 0
-                comp_text = ""
-                if is_week_mode:
-                    last_dur = last_week_map.get(sub, 0)
-                    diff = dur - last_dur
-                    if diff > 0:
-                        comp_text = f" (比上周长了 {format_dur(diff)})"
-                        increased_subs.append(sub)
-                    elif diff < 0:
-                        comp_text = f" (比上周短了 {format_dur(abs(diff))})"
-                        decreased_subs.append(sub)
-                    else:
-                        comp_text = " (与上周持平)"
                 
                 sub_records = [r for r in records if r["subject"] == sub]
                 tooltip_lines = [f"【{sub}】详细记录:"]
@@ -1057,28 +1034,10 @@ async def main(page: ft.Page):
                     ft.Column([
                         ft.Row([
                             ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight="bold", color=text_main), 
-                            ft.Text(value=f"{format_dur(dur)}{comp_text}", color=text_sec, size=11)
+                            ft.Text(value=f"{format_dur(dur)}", color=text_sec, size=11)
                         ], alignment="spaceBetween"),
                         prog_bar
                     ], spacing=6)
-                )
-                
-            if is_week_mode:
-                comment_str = "💡 本周冲刺复盘建议：\n"
-                if not increased_subs and not decreased_subs:
-                    comment_str += "本周各科目的推进效率与上周高度一致，状态沉稳。冲刺期保持心流平稳至关重要，稳扎稳打！"
-                else:
-                    if increased_subs:
-                        comment_str += f"你在【{', '.join(increased_subs)}】上的复习时长比上周更加强悍，难点巩坚正在起效！"
-                    if decreased_subs:
-                        comment_str += f"但在【{', '.join(decreased_subs)}】上投入出现了滑坡。后期切忌偏科，下周请微调拉高该科目的学习配比。"
-                
-                col_stats.controls.append(ft.Container(height=5))
-                col_stats.controls.append(
-                    ft.Container(
-                        content=ft.Text(comment_str, size=12, color="#FF9500" if is_dark else "#007AFF", weight="bold"),
-                        padding=10, bgcolor="#2C2C2E" if is_dark else "#E5E5EA", border_radius=8
-                    )
                 )
                 
         elif st.chart_tab == 1:
