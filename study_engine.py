@@ -298,7 +298,7 @@ async def main(page: ft.Page):
         mode_sw_view.bgcolor = surface if st.mode == "stopwatch" else "transparent"
         mode_sw_lbl.color = text_main if st.mode == "stopwatch" else text_sec
         mode_pm_view.bgcolor = surface if st.mode == "pomodoro" else "transparent"
-        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_main
+        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
         sel_pomo.color = text_main
         
         if st.session_active:
@@ -511,13 +511,15 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=0, height=40, on_click=lambda e: switch_mode("stopwatch"))
+    # 🚀 提取融合点：精准使用你截图验证过的参数尺寸，保证绝对对称居中
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=6, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
+    
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=0, 
+        padding=5,
         bgcolor="transparent"
     )
 
@@ -541,20 +543,22 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 绝杀修复点：彻底去掉边框、背景填色和内边距，让下拉框化身为“纯净文本”
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=95, dense=True, content_padding=0, text_size=13,
-        text_align="center", border="none", filled=False, bgcolor="transparent"
+        value="60", width=125, dense=True, content_padding=5, text_size=13,
+        text_align="center",
+        border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
-            spacing=2, alignment="center", vertical_alignment="center"
+            spacing=0, 
+            alignment="center",
+            vertical_alignment="center" 
         ),
-        border_radius=8, expand=True, height=40, padding=0
+        border_radius=8, expand=True
     )
 
     def stop_timer_handler(e):
@@ -601,10 +605,11 @@ async def main(page: ft.Page):
     subject_container = ft.Row([sel_subject], alignment="center")
     goal_container = ft.Column([lbl_goal, bar_goal], spacing=5, horizontal_alignment="center")
     
+    # 🚀 提取融合点：遵循你的无缝平衡间距 spacing=0 和 padding=4
     mode_container = ft.Container(
         content=ft.Row(
             [mode_sw_view, mode_pm_view], 
-            alignment="center", vertical_alignment="center", spacing=5
+            alignment="center", vertical_alignment="center", spacing=0
         ), 
         border_radius=10, padding=4
     )
