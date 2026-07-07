@@ -14,7 +14,7 @@ if getattr(sys, 'frozen', False):
 else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(application_path, "study_data.json")
-# 🚀 修复点 1：将备份文件路径进行绝对路径环境锁定，彻底杜绝打包后因工作目录漂移产生的读写失败
+# 🚀 修复点 1：将备份文件路径绝对锁定，彻底杜绝找不到文件的“路径漂移”Bug
 BACKUP_FILE = os.path.join(application_path, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
@@ -231,6 +231,14 @@ async def main(page: ft.Page):
             page.snack_bar = snack
             snack.open = True
             page.update()
+
+    # 🚀 修复点 2：专属的系统级弹窗助手，针对数据导入导出反馈提供无法被吞掉的强力视觉反馈！
+    def show_popup(title_text, content_text):
+        dlg = ft.AlertDialog(
+            title=ft.Text(title_text, weight="bold"),
+            content=ft.Text(content_text, size=13),
+        )
+        open_dlg(dlg)
 
     class State:
         session_active = False  
@@ -543,7 +551,6 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 融合点：完美采纳去掉多余 UI 饰边的极简无感纯净文本样式，文字与图标视觉无缝融为一体
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=110, dense=True, content_padding=0, text_size=13,
@@ -606,7 +613,7 @@ async def main(page: ft.Page):
     mode_container = ft.Container(
         content=ft.Row(
             [mode_sw_view, mode_pm_view], 
-            alignment="center", vertical_alignment="center", spacing=5
+            alignment="center", vertical_alignment="center", spacing=0
         ), 
         border_radius=10, padding=4
     )
@@ -1185,11 +1192,20 @@ async def main(page: ft.Page):
             db.data["currentSubject"] = sel_subject.value
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
+    # 🚀 使用强提醒弹出框展示备份与导入结果
+    def show_popup(title_text, content_text):
+        dlg = ft.AlertDialog(
+            title=ft.Text(title_text, weight="bold"),
+            content=ft.Text(content_text, size=13),
+        )
+        open_dlg(dlg)
+
     def on_export(e):
         try:
             with open(BACKUP_FILE, "w", encoding="utf-8") as f: json.dump(db.data, f, ensure_ascii=False, indent=4)
-            show_warning("⬇ 备份导出成功 (StudyEngine_Backup.json)")
-        except: pass
+            show_popup("✅ 导出成功", f"备份已安全保存至:\n{BACKUP_FILE}")
+        except Exception as ex: 
+            show_popup("❌ 导出失败", str(ex))
 
     def on_import(e):
         if os.path.exists(BACKUP_FILE):
@@ -1203,8 +1219,8 @@ async def main(page: ft.Page):
                 txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
                 txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
                 sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-                # 🚀 修复点 2：优先恢复原本备份选中的科目，实现状态的完美同步还原
-                sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0] if db.data["subjects"] else None)
+                if db.data["subjects"]:
+                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
                 
                 update_countdown()
                 update_focus_ui()
@@ -1213,11 +1229,11 @@ async def main(page: ft.Page):
                 refresh_stats()
                 apply_theme_colors()
                 page.update()
-                show_warning("✅ 历史专注战果已全部成功同步导入！")
+                show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
             except Exception as ex:
-                show_warning(f"❌ 导入崩溃: {str(ex)}")
+                show_popup("❌ 导入崩溃", str(ex))
         else:
-            show_warning("⚠️ 未在同目录下检测到 StudyEngine_Backup.json 备份")
+            show_popup("⚠️ 未找到备份", f"请确保备份文件位于:\n{BACKUP_FILE}")
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
     btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
