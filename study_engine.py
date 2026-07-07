@@ -200,9 +200,6 @@ async def main(page: ft.Page):
 
     st = State()
 
-    # 🚀 修复点 1：彻底移除拦截关闭窗口的代码，恢复 Windows 右上角 X 的标准原生退出
-    # 这样能完全避开因多版本 Flet 拦截底层导致死锁、关不掉程序的致命 bug。
-
     # ========================================================
     # 🚀 主题色调度中心
     # ========================================================
@@ -231,7 +228,6 @@ async def main(page: ft.Page):
         
         lbl_time.color = text_main
         lbl_time_mini.color = text_main
-        
         lbl_quote.color = text_sec
         
         sel_subject.bgcolor = "transparent"
@@ -276,11 +272,25 @@ async def main(page: ft.Page):
         lbl_setting_3.color = text_main
         txt_goal.border_color = text_sec
         txt_goal.color = text_main
+        txt_exam_date.border_color = text_sec
+        txt_exam_date.color = text_main
         txt_new_sub.border_color = text_sec
         txt_new_sub.color = text_main
         btn_exp.bgcolor = surface_variant
         btn_exp_lbl.color = text_main
+        btn_imp.bgcolor = surface_variant
+        btn_imp_lbl.color = text_main
         view_settings.bgcolor = surface
+        
+        lbl_forest_history.color = text_sec
+        forest_history_dropdown.bgcolor = "transparent"
+        forest_history_dropdown.border_color = "#38383A" if is_dark else "#C7C7CC"
+        forest_history_dropdown.color = text_main
+        
+        lbl_stat_history.color = text_sec
+        history_dropdown.bgcolor = "transparent"
+        history_dropdown.border_color = "#38383A" if is_dark else "#C7C7CC"
+        history_dropdown.color = text_main
         
         for i, item in enumerate(nav_buttons):
             item["view"].bgcolor = surface if i == st.active_tab else "transparent"
@@ -303,42 +313,18 @@ async def main(page: ft.Page):
             c.content.controls[0].color = text_main
 
     # ----------------- 🎯 内嵌顶栏 -----------------
-    def toggle_theme(e):
-        page.theme_mode = "dark" if page.theme_mode == "light" else "light"
-        apply_theme_colors()
-        refresh_forest()
-        refresh_stats()
-        try: page.update()
-        except: pass
-
-    def toggle_pin(e):
-        st.is_pinned = not st.is_pinned
-        try: page.window.always_on_top = st.is_pinned
-        except AttributeError:
-            try: page.window_always_on_top = st.is_pinned
-            except: pass
-        apply_theme_colors()
-        try: page.update()
-        except: pass
-
-    def toggle_mini_mode(e):
-        st.is_mini_mode = not st.is_mini_mode
-        apply_theme_and_layout()
-
-    btn_pin_full, btn_pin_full_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
-    btn_mini_shrink, btn_mini_shrink_lbl = create_btn("🔽", padding=6, width=35, on_click=toggle_mini_mode)
-    btn_theme, btn_theme_lbl = create_btn("🌙", padding=6, width=35, on_click=toggle_theme)
+    def update_countdown():
+        try:
+            today = datetime.now().date()
+            exam = datetime.strptime(db.data.get("examDate", "2026-12-20"), "%Y-%m-%d").date()
+            diff = (exam - today).days
+            countdown_text.value = f"距离初试仅剩 {diff} 天"
+            countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
+        except:
+            countdown_text.value = "距离初试仅剩 -- 天"
 
     row_left_controls_full = ft.Row([btn_pin_full, btn_mini_shrink], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER)
-
     countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=15, weight=ft.FontWeight.BOLD, color="#007AFF", max_lines=1)
-    try:
-        today = datetime.now().date()
-        exam = datetime.strptime(db.data["examDate"], "%Y-%m-%d").date()
-        diff = (exam - today).days
-        countdown_text.value = f"距离初试仅剩 {diff} 天"
-        countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
-    except: pass
 
     card_countdown_full = ft.Container(
         content=ft.Row([row_left_controls_full, countdown_text, btn_theme], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -795,12 +781,21 @@ async def main(page: ft.Page):
         grid_forest.controls.clear()
         
         if not records:
-            grid_forest.controls.append(ft.Row([ft.Text(value="空空如也，快去专注吧 ✨", color="#8E8E93")], alignment=ft.MainAxisAlignment.CENTER))
+            # 🚀 优化点 3：升级高级空状态自适应提示卡片
+            grid_forest.controls.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("🌱 这里的土地还在等待播种", size=14, weight=ft.FontWeight.BOLD, color="#8E8E93"),
+                        ft.Text("种一棵树最好的时间是十年前，其次是现在。\n请回到[专注]面板开启属于你的高能筑城！", size=12, color="#8E8E93", text_align=ft.TextAlign.CENTER)
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
+                    padding=20, alignment=ft.alignment.center
+                )
+            )
         else:
             current_row = []
             for r in records:
-                # 🚀 优化点 3：升级悬浮窗工具提示，提供全面极致的数据展示
-                tip = f"📅 日期: {r['date']}\n📚 科目: {r['subject']}\n⏱️ 时长: {format_dur(r['duration'])}\n📝 便签: {r.get('note','') or '无便签'}"
+                # 🚀 细节追加 3：将悬浮提示卡片重构为多行极其详实的信息
+                tip = f"📅 专注日期: {r['date']}\n📚 打卡科目: {r['subject']}\n⏱️ 精准时长: {format_dur(r['duration'])}\n📝 复盘便签: {r.get('note','') or '无便签描述'}"
                 icon_view = ft.Container(
                     content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment=ft.MainAxisAlignment.CENTER),
                     width=55, height=55
@@ -822,7 +817,7 @@ async def main(page: ft.Page):
         ]), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 🚀 统计视图 (2) 同步环比优化版 -----------------
+    # ----------------- 🚀 统计视图 (2) 环比对比与动态追溯 -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
     
@@ -861,6 +856,17 @@ async def main(page: ft.Page):
         row_history_select.visible = (idx == 3)
         apply_theme_colors()
         refresh_stats()
+
+    # 🚀 联动追溯函数：点击柱子直接下钻穿透到历史某一天的精细数据
+    def drill_down_to_date(target_date):
+        sw_stat(3) 
+        history_dropdown.value = target_date
+        forest_history_dropdown.value = target_date
+        st.stats_scope = f"custom:{target_date}"
+        st.forest_scope = f"custom:{target_date}"
+        page.update()
+        refresh_stats()
+        refresh_forest()
 
     def sw_chart(idx):
         st.chart_tab = idx
@@ -907,7 +913,7 @@ async def main(page: ft.Page):
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
             
-            # 🚀 核心优化点 2：如果处于“本周”维度，自动拉取上周相同周期的硬核数据进行深层环比
+            # 🚀 优化点 2：如果点击【本周】，自动抓取“上周同一跨度”的底层数据进行大模型化周环比运算
             last_week_map = {}
             is_week_mode = (st.stats_scope == "week")
             if is_week_mode:
@@ -947,24 +953,22 @@ async def main(page: ft.Page):
                     ], spacing=6)
                 )
                 
-            # 🚀 核心优化点 2（续）：周复盘大数据评语自动渲染生成
+            # 🚀 细节追加 2：全自动组装硬核周环比复盘科学评语卡片
             if is_week_mode:
-                comment_str = "💡 本周备考深度复盘评语：\n"
+                comment_str = "💡 本周冲刺复盘建议：\n"
                 if not increased_subs and not decreased_subs:
-                    comment_str += "本周复盘节奏四平八稳，各科精力分配均等，整体执行力状态健康，下周请继续保持！"
+                    comment_str += "本周各科目的推进效率与上周高度一致，状态沉稳。冲刺期保持心流平稳至关重要，稳扎稳打！"
                 else:
                     if increased_subs:
-                        comment_str += f"你在【{', '.join(increased_subs)}】上投入的精力比上周更为充沛，难点攻坚啃得很扎实，值得表扬！"
+                        comment_str += f"你在【{', '.join(increased_subs)}】上的复习时长比上周更加强悍，难点巩坚正在起效！"
                     if decreased_subs:
-                        comment_str += f"但你在【{', '.join(decreased_subs)}】上的复习时长出现了滑坡。考研冲刺阶段切记避免偏科引发木桶短板效应，下周请注意适度回调拉高投入。"
+                        comment_str += f"但在【{', '.join(decreased_subs)}】上投入出现了滑坡。后期切忌偏科，下周请微调拉高该科目的学习配比。"
                 
-                col_stats.controls.append(ft.Container(height=8))
+                col_stats.controls.append(ft.Container(height=5))
                 col_stats.controls.append(
                     ft.Container(
                         content=ft.Text(comment_str, size=12, color="#FF9500" if is_dark else "#007AFF", weight=ft.FontWeight.BOLD),
-                        padding=10,
-                        bgcolor="#2C2C2E" if is_dark else "#E5E5EA",
-                        border_radius=8
+                        padding=10, bgcolor="#2C2C2E" if is_dark else "#E5E5EA", border_radius=8
                     )
                 )
                 
@@ -1018,7 +1022,12 @@ async def main(page: ft.Page):
                 bars.append(
                     ft.Column([
                         ft.Text(format_dur(dur), size=9, color="#8E8E93"),
-                        ft.Container(width=25, height=max(h, 5), bgcolor="#00A2FF", border_radius=4, tooltip=f"{d[-5:]}: {format_dur(dur)}"),
+                        # 🚀 细节追加：在柱子上附加 on_click，点击瞬间触发动态历史穿透追溯！
+                        ft.Container(
+                            width=25, height=max(h, 5), bgcolor="#00A2FF", border_radius=4, 
+                            tooltip=f"点击钻取复盘 {d[-5:]} 数据\n总时长: {format_dur(dur)}",
+                            on_click=lambda e, target_d=d: drill_down_to_date(target_d)
+                        ),
                         ft.Text(d[-5:], size=10, color=text_main)
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=4)
                 )
@@ -1046,6 +1055,21 @@ async def main(page: ft.Page):
         try: db.data["dailyGoal"] = float(txt_goal.value) * 3600; db.save(); update_focus_ui(); page.update()
         except: txt_goal.value = str(int(db.data["dailyGoal"] // 3600)); page.update()
     txt_goal.on_blur = on_goal_blur
+
+    # 🚀 细节追加 1：新增初试目标日期动态编辑输入框组件
+    txt_exam_date = ft.TextField(value=str(db.data.get("examDate", "2026-12-20")), label="初试目标日期 (YYYY-MM-DD)")
+    def on_exam_date_blur(e):
+        val = txt_exam_date.value.strip()
+        try:
+            datetime.strptime(val, "%Y-%m-%d")
+            db.data["examDate"] = val
+            db.save()
+            update_countdown()
+            page.update()
+        except:
+            txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
+            page.update()
+    txt_exam_date.on_blur = on_exam_date_blur
 
     col_subs = ft.Column(spacing=8)
     txt_new_sub = ft.TextField(hint_text="新科目", expand=True)
@@ -1080,12 +1104,47 @@ async def main(page: ft.Page):
     def on_export(e):
         try:
             with open("StudyEngine_Backup.json", "w", encoding="utf-8") as f: json.dump(db.data, f, ensure_ascii=False, indent=4)
+            show_warning("⬇ 备份导出成功 (StudyEngine_Backup.json)")
         except: pass
 
-    btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份 (同目录)", padding=15, on_click=on_export)
+    # 🚀 细节追加 1：全新开发“一键导入本地备份数据”功能模块
+    def on_import(e):
+        if os.path.exists("StudyEngine_Backup.json"):
+            try:
+                with open("StudyEngine_Backup.json", "r", encoding="utf-8") as f:
+                    backup_data = json.load(f)
+                db.data.clear()
+                db.data.update(backup_data)
+                db.save()
+                
+                # 重新刷新重置所有UI核心变量
+                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
+                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
+                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+                if db.data["subjects"]:
+                    sel_subject.value = db.data["subjects"][0]
+                
+                update_countdown()
+                update_focus_ui()
+                render_subs()
+                refresh_forest()
+                refresh_stats()
+                apply_theme_colors()
+                page.update()
+                show_warning("✅ 历史专注战果已全部成功同步导入！")
+            except Exception as ex:
+                show_warning(f"❌ 导入崩溃: {str(ex)}")
+        else:
+            show_warning("⚠️ 未在同目录下检测到 StudyEngine_Backup.json 备份")
+
+    btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
+    btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入本地备份", padding=12, expand=True, on_click=on_import)
+    row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment=ft.MainAxisAlignment.CENTER)
 
     col_settings_scroll = ft.Column([
-        lbl_setting_1, txt_goal, lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=10), lbl_setting_3, btn_exp
+        lbl_setting_1, txt_goal, txt_exam_date, ft.Container(height=5),
+        lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=5), 
+        lbl_setting_3, row_backup_group
     ], scroll=ft.ScrollMode.AUTO, expand=True)
 
     view_settings = ft.Container(
@@ -1093,7 +1152,9 @@ async def main(page: ft.Page):
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 组装与循环 -----------------
+    # ========================================================
+    # 🚀 组装与生命周期挂载
+    # ========================================================
     page.add(
         ft.Column([
             mini_top_bar, card_countdown_full, nav_bar, view_focus, view_forest, view_stats, view_settings
@@ -1108,7 +1169,8 @@ async def main(page: ft.Page):
     sw_chart(0) 
     render_subs()
     
-    # 🚀 优化点 1：补跑生命周期初始化渲染，保证软件冷启动时当日学习进度与目标立即完全同步显示
+    # 🚀 生命周期冷启动双重守护：挂机立即触发倒计时、学习进度与备份日期的三维同步加载
+    update_countdown()
     update_focus_ui()
 
     async def heart_beat():
