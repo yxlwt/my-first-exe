@@ -35,6 +35,16 @@ def get_safe_app_dir():
 APP_DIR = get_safe_app_dir()
 DATA_FILE = os.path.join(APP_DIR, "study_data.json")
 
+def get_backup_path():
+    """智能获取备份路径，优先保存到用户桌面"""
+    try:
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        if os.path.exists(desktop):
+            return os.path.join(desktop, "StudyEngine_Backup.json")
+    except:
+        pass
+    return os.path.join(APP_DIR, "StudyEngine_Backup.json")
+
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
     "你做三四月的事，在十二月自有答案。",
@@ -263,56 +273,6 @@ async def main(page: ft.Page):
         )
         open_dlg(dlg)
 
-    # ================= 🚀 安全挂载的文件弹窗系统 =================
-    export_picker = ft.FilePicker()
-    import_picker = ft.FilePicker()
-    
-    def on_export_result(e):
-        if e.path:
-            try:
-                with open(e.path, "w", encoding="utf-8") as f:
-                    json.dump(db.data, f, ensure_ascii=False, indent=4)
-                show_popup("✅ 导出成功", f"数据已安全备份至:\n{e.path}")
-            except Exception as ex:
-                show_popup("❌ 导出失败", str(ex))
-
-    def on_import_result(e):
-        if getattr(e, "files", None) and len(e.files) > 0:
-            import_path = e.files[0].path
-            try:
-                with open(import_path, "r", encoding="utf-8") as f:
-                    backup_data = json.load(f)
-                
-                db.data.clear()
-                db.data.update(backup_data)
-                db.save()
-                
-                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
-                txt_exam_name.value = str(db.data.get("examName", "初试"))
-                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
-                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-                if db.data["subjects"]:
-                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
-                
-                lbl_mini_subject.value = f"🔄 [{sel_subject.value}]"
-                
-                update_countdown()
-                update_focus_ui()
-                render_subs()
-                refresh_forest()
-                refresh_stats()
-                apply_theme_colors()
-                page.update()
-                show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续您的冲刺。")
-            except Exception as ex:
-                show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
-
-    # 延迟绑定回调，避开早期版本 Flet 报错
-    export_picker.on_result = on_export_result
-    import_picker.on_result = on_import_result
-    page.overlay.extend([export_picker, import_picker])
-    # ==============================================================
-
     class State:
         session_active = False  
         timer_active = False 
@@ -512,7 +472,6 @@ async def main(page: ft.Page):
         lbl_mini_subject.value = f"🔄 [{current_sub}]"
         st.last_subject_val = current_sub
         sel_subject.value = current_sub
-        
         apply_theme_and_layout()
         try: page.update()
         except: pass
@@ -971,6 +930,10 @@ async def main(page: ft.Page):
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         content_padding=10
     )
+    def on_forest_history_change(e):
+        if e.control.value:
+            st.forest_scope = f"custom:{e.control.value}"
+        refresh_forest()
     
     row_forest_history = ft.Row([lbl_forest_history, forest_history_dropdown], alignment="center", visible=False)
 
@@ -1071,6 +1034,10 @@ async def main(page: ft.Page):
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         content_padding=10
     )
+    def on_history_change(e):
+        if e.control.value:
+            st.stats_scope = f"custom:{e.control.value}"
+        refresh_stats()
 
     row_history_select = ft.Row([lbl_stat_history, history_dropdown], alignment="center", visible=False)
 
@@ -1302,7 +1269,7 @@ async def main(page: ft.Page):
     # ----------------- 设置视图 (3) -----------------
     lbl_setting_1 = ft.Text(value="🎯 目标设置", weight="bold")
     lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight="bold")
-    lbl_setting_3 = ft.Text(value="💾 数据备份 (弹窗选择文件)", weight="bold")
+    lbl_setting_3 = ft.Text(value="💾 数据备份 (桌面级快速同步)", weight="bold")
     
     txt_goal = ft.TextField(value=str(int(db.data["dailyGoal"] // 3600)), label="每日专注目标 (小时)")
     def on_goal_blur(e):
@@ -1361,23 +1328,52 @@ async def main(page: ft.Page):
             
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    # 🚀 呼出文件保存弹窗
-    def on_export_btn_click(e):
-        export_picker.save_file(
-            dialog_title="选择备份保存位置",
-            file_name=f"StudyEngine_Backup_{datetime.now().strftime('%Y%m%d')}.json",
-            allowed_extensions=["json"]
-        )
+    def on_export(e):
+        bp = get_backup_path()
+        try:
+            with open(bp, "w", encoding="utf-8") as f:
+                json.dump(db.data, f, ensure_ascii=False, indent=4)
+            show_popup("✅ 一键导出成功", f"已安全将数据备份至：\n{bp}")
+        except Exception as ex:
+            show_popup("❌ 导出失败", str(ex))
 
-    # 🚀 呼出文件选择弹窗
-    def on_import_btn_click(e):
-        import_picker.pick_files(
-            dialog_title="选择历史备份文件",
-            allowed_extensions=["json"]
-        )
+    def on_import(e):
+        bp = get_backup_path()
+        if not os.path.exists(bp):
+            show_popup("⚠️ 未找到备份文件", f"未找到备份文件：\n{bp}\n\n请确保您之前点击过导出。")
+            return
+            
+        try:
+            with open(bp, "r", encoding="utf-8") as f:
+                backup_data = json.load(f)
+            
+            db.data.clear()
+            db.data.update(backup_data)
+            db.save()
+            
+            txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
+            txt_exam_name.value = str(db.data.get("examName", "初试"))
+            txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
+            sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+            if db.data["subjects"]:
+                sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
+            
+            lbl_mini_subject.value = f"🔄 [{sel_subject.value}]"
+            st.last_subject_val = sel_subject.value
+            
+            update_countdown()
+            update_focus_ui()
+            render_subs()
+            refresh_forest()
+            refresh_stats()
+            apply_theme_colors()
+            page.update()
+            show_popup("✅ 一键导入成功", "历史专注战果已全部同步恢复！")
+        except Exception as ex:
+            show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
 
-    btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export_btn_click)
-    btn_imp, btn_imp_lbl = create_btn("⬆ 导入历史备份", padding=12, expand=True, on_click=on_import_btn_click)
+    btn_exp, btn_exp_lbl = create_btn("⬇ 一键备份到桌面", padding=12, expand=True, on_click=on_export)
+    btn_imp, btn_imp_lbl = create_btn("⬆ 从桌面恢复备份", padding=12, expand=True, on_click=on_import)
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
     col_settings_scroll = ft.Column([
@@ -1389,7 +1385,7 @@ async def main(page: ft.Page):
         lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=15), 
         lbl_setting_3, row_backup_group, 
         ft.Container(height=5),
-        ft.Text("小贴士: 点击导出/导入将弹出系统窗口供您自由选择数据存储位置。", size=10, color="#8E8E93")
+        ft.Text("小贴士: 为保证稳定性，导入导出功能不再呼出弹窗，直接与您的 Windows 桌面进行交互。", size=10, color="#8E8E93")
     ], scroll="auto", expand=True)
 
     view_settings = ft.Container(
