@@ -97,7 +97,7 @@ class DataManager:
             return [i for i in self.data["studyData"] if i.get("date") == target_date]
         return []
 
-# ================= 2. 辅助函数 =================
+# ================= 2. 辅助函数与对比逻辑 =================
 def format_dur(seconds):
     s = max(0, int(seconds))
     h = s // 3600
@@ -133,6 +133,62 @@ def create_btn(text, on_click=None, bgcolor="transparent", txt_color=None, radiu
     )
     return cnt, lbl
 
+# 🚀 核心新增：全局高级周期同比评估引擎
+def get_period_comparison(scope, data):
+    logical_now = datetime.now() - timedelta(hours=2)
+    today_str = logical_now.strftime("%Y-%m-%d")
+    
+    cur_dur = 0
+    prev_dur = 0
+    period_name = ""
+    prev_name = ""
+
+    if scope == "day":
+        period_name = "今日"
+        prev_name = "昨日"
+        prev_date = (logical_now - timedelta(days=1)).strftime("%Y-%m-%d")
+        cur_dur = sum(r["duration"] for r in data if r.get("date") == today_str)
+        prev_dur = sum(r["duration"] for r in data if r.get("date") == prev_date)
+    elif scope == "week":
+        period_name = "本周"
+        prev_name = "上周"
+        start_this = logical_now - timedelta(days=logical_now.weekday())
+        start_prev = start_this - timedelta(days=7)
+        this_dates = [(start_this + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+        prev_dates = [(start_prev + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+        cur_dur = sum(r["duration"] for r in data if r.get("date") in this_dates)
+        prev_dur = sum(r["duration"] for r in data if r.get("date") in prev_dates)
+    elif scope == "month":
+        period_name = "本月"
+        prev_name = "上月"
+        this_prefix = logical_now.strftime("%Y-%m-")
+        first_day_this_month = logical_now.replace(day=1)
+        last_day_prev_month = first_day_this_month - timedelta(days=1)
+        prev_prefix = last_day_prev_month.strftime("%Y-%m-")
+        cur_dur = sum(r["duration"] for r in data if str(r.get("date")).startswith(this_prefix))
+        prev_dur = sum(r["duration"] for r in data if str(r.get("date")).startswith(prev_prefix))
+    elif scope.startswith("custom:"):
+        target_date = scope.split(":")[1]
+        period_name = f"{target_date[-5:]}"
+        prev_name = "前一天"
+        td = datetime.strptime(target_date, "%Y-%m-%d")
+        prev_date = (td - timedelta(days=1)).strftime("%Y-%m-%d")
+        cur_dur = sum(r["duration"] for r in data if r.get("date") == target_date)
+        prev_dur = sum(r["duration"] for r in data if r.get("date") == prev_date)
+    else:
+        return ""
+
+    diff = cur_dur - prev_dur
+    if diff > 0:
+        return f"🔥 {period_name}比{prev_name}多学了 {format_dur(diff)}！继续保持冲劲！"
+    elif diff < 0:
+        return f"⚠️ {period_name}比{prev_name}少学了 {format_dur(abs(diff))}。注意调整状态哦！"
+    else:
+        if cur_dur == 0:
+            return f"💤 {period_name}和{prev_name}都还没学习，快去筑城吧！"
+        else:
+            return f"⚖️ {period_name}与{prev_name}时长完全持平，节奏稳健！"
+
 # ================= 3. 核心 UI 引擎 =================
 async def main(page: ft.Page):
     db = DataManager(DATA_FILE)
@@ -152,7 +208,11 @@ async def main(page: ft.Page):
             page.window_height = 600
         except: pass
 
-    # 🚀 彻底删除掉 page.window.prevent_close 和 on_window_event 代码，将控制权完全交回给操作系统！右上角X恢复秒关！
+    # 🚀 彻底释放 Windows 关闭控制权，右上角 X 秒杀退出，绝生死锁！
+    try:
+        page.window.prevent_close = False
+    except AttributeError:
+        pass
 
     def open_dlg(d):
         if hasattr(page, "open"): page.open(d)
@@ -270,12 +330,14 @@ async def main(page: ft.Page):
         
         view_focus.bgcolor = surface
         lbl_forest_sum.color = text_sec
+        lbl_forest_compare.color = "#FF9500" if is_dark else "#007AFF"
         row_forest_nav.bgcolor = surface_variant
         view_forest.bgcolor = surface
         container_forest_grid.bgcolor = "transparent"
-        lbl_stat_total.color = text_main
-        row_stat_nav.bgcolor = surface_variant
         
+        lbl_stat_total.color = text_main
+        lbl_stat_compare.color = "#FF9500" if is_dark else "#007AFF"
+        row_stat_nav.bgcolor = surface_variant
         view_stats.bgcolor = surface
         
         lbl_setting_1.color = text_main
@@ -454,14 +516,14 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=6, on_click=lambda e: switch_mode("stopwatch"))
+    # 🚀 修复点 2：统一筑城和种树按钮的高度、对齐和内边距，达到 100% 绝对对称
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=0, height=40, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight=ft.FontWeight.BOLD, max_lines=1)
-    
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=5,
+        padding=ft.padding.only(left=8, right=4),
         bgcolor="transparent"
     )
 
@@ -487,7 +549,7 @@ async def main(page: ft.Page):
 
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=125, dense=True, content_padding=5, text_size=13,
+        value="60", width=95, dense=True, content_padding=5, text_size=12,
         text_align=ft.TextAlign.CENTER,
         border_color="transparent", bgcolor="transparent"
     )
@@ -500,7 +562,7 @@ async def main(page: ft.Page):
             alignment=ft.MainAxisAlignment.CENTER,
             vertical_alignment=ft.CrossAxisAlignment.CENTER 
         ),
-        border_radius=8, expand=True
+        border_radius=8, expand=True, height=40, padding=0
     )
 
     def stop_timer_handler(e):
@@ -524,9 +586,6 @@ async def main(page: ft.Page):
                 except: pass
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
-            btn_start_view.bgcolor = "#FF9500"
-            btn_stop_view.bgcolor = "#FF3B30"
-            btn_stop_lbl.color = "white"
             sel_subject.disabled = True
             sel_pomo.disabled = True  
             lbl_quote.value = random.choice(ENCOURAGEMENTS)
@@ -534,14 +593,11 @@ async def main(page: ft.Page):
             st.timer_active = True
             st.start_tick = time.time() - st.elapsed
             btn_start_lbl.value = "⏸ 暂停"
-            btn_start_view.bgcolor = "#FF9500"
-            btn_stop_view.bgcolor = "#FF3B30"
-            btn_stop_lbl.color = "white"
         else:
             st.timer_active = False 
             btn_start_lbl.value = "▶ 继续专注"
-            btn_start_view.bgcolor = "#34C759"
         
+        apply_theme_colors() # 动态更新按钮状态色
         st.last_ui_second = -1
         update_focus_ui()
         try: page.update()
@@ -558,7 +614,7 @@ async def main(page: ft.Page):
             [mode_sw_view, mode_pm_view], 
             alignment=ft.MainAxisAlignment.CENTER, 
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=0
+            spacing=5
         ), 
         border_radius=10, padding=4
     )
@@ -577,7 +633,6 @@ async def main(page: ft.Page):
         st.elapsed = 0
         st.last_ui_second = -1
         btn_start_lbl.value = "▶ 开始专注"
-        btn_start_view.bgcolor = "#34C759"
         sel_subject.disabled = False
         sel_pomo.disabled = (st.mode == "stopwatch") 
         apply_theme_colors() 
@@ -763,6 +818,7 @@ async def main(page: ft.Page):
 
     # ----------------- 图鉴视图 (1) -----------------
     lbl_forest_sum = ft.Text(value="共收获 0 个战果", weight=ft.FontWeight.BOLD)
+    lbl_forest_compare = ft.Text(value="", size=11, text_align=ft.TextAlign.CENTER)
     grid_forest = ft.Column(spacing=15, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight=ft.FontWeight.BOLD)
@@ -815,16 +871,16 @@ async def main(page: ft.Page):
     def refresh_forest():
         records = db.get_filtered(st.forest_scope)
         lbl_forest_sum.value = f"共收获 {len(records)} 个战果"
-        grid_forest.controls.clear()
+        lbl_forest_compare.value = get_period_comparison(st.forest_scope, db.data["studyData"])
         
+        grid_forest.controls.clear()
         if not records:
-            # 🚀 修复点：移除了导致报错的 alignment=ft.alignment.center，改用原生 Row 包裹并居中，安全100%
             grid_forest.controls.append(
                 ft.Row([
                     ft.Container(
                         content=ft.Column([
                             ft.Text("🌱 这里的土地还在等待播种", size=14, weight=ft.FontWeight.BOLD, color="#8E8E93"),
-                            ft.Text("种一棵树最好的时间是十年前，其次是现在。\n请回到[专注]面板开启属于你的高能筑城！", size=12, color="#8E8E93", text_align=ft.TextAlign.CENTER)
+                            ft.Text("种一棵树最好的时间是十年前，其次是现在。\n请前往专注面板开启新一轮复习吧！", size=12, color="#8E8E93", text_align=ft.TextAlign.CENTER)
                         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=8),
                         padding=20
                     )
@@ -833,7 +889,7 @@ async def main(page: ft.Page):
         else:
             current_row = []
             for r in records:
-                tip = f"📅 专注日期: {r['date']}\n📚 打卡科目: {r['subject']}\n⏱️ 精准时长: {format_dur(r['duration'])}\n📝 复盘便签: {r.get('note','') or '无便签描述'}"
+                tip = f"📅 {r['date']}\n📚 {r['subject']}\n⏱️ {format_dur(r['duration'])}\n📝 {r.get('note','') or '无便签'}"
                 icon_view = ft.Container(
                     content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment=ft.MainAxisAlignment.CENTER),
                     width=55, height=55
@@ -851,12 +907,16 @@ async def main(page: ft.Page):
 
     view_forest = ft.Container(
         content=ft.Column([
-            row_forest_nav, row_forest_history, ft.Container(height=5), ft.Row([lbl_forest_sum], alignment=ft.MainAxisAlignment.CENTER), container_forest_grid
-        ]), border_radius=15, padding=15, expand=True, visible=False, margin=0
+            row_forest_nav, row_forest_history, ft.Container(height=2), 
+            ft.Row([lbl_forest_sum], alignment=ft.MainAxisAlignment.CENTER),
+            ft.Row([lbl_forest_compare], alignment=ft.MainAxisAlignment.CENTER),
+            container_forest_grid
+        ], spacing=5), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 统计视图 (2) -----------------
+    # ----------------- 🚀 统计视图 (2) 环比对比与精细悬浮拆解 -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
+    lbl_stat_compare = ft.Text(value="", size=12, text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight=ft.FontWeight.BOLD)
@@ -933,6 +993,7 @@ async def main(page: ft.Page):
         records = db.get_filtered(st.stats_scope)
         total = sum(r["duration"] for r in records)
         lbl_stat_total.value = format_dur(total)
+        lbl_stat_compare.value = get_period_comparison(st.stats_scope, db.data["studyData"])
         col_stats.controls.clear()
         
         is_dark = page.theme_mode == "dark"
@@ -950,61 +1011,43 @@ async def main(page: ft.Page):
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
             
-            last_week_map = {}
-            is_week_mode = (st.stats_scope == "week")
-            if is_week_mode:
-                logical_now = datetime.now() - timedelta(hours=2)
-                start_this_week = logical_now - timedelta(days=logical_now.weekday())
-                start_last_week = start_this_week - timedelta(days=7)
-                last_week_dates = [(start_last_week + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
-                last_week_records = [i for i in db.data["studyData"] if i.get("date") in last_week_dates]
-                for r in last_week_records:
-                    last_week_map[r["subject"]] = last_week_map.get(r["subject"], 0) + r["duration"]
-            
-            increased_subs = []
-            decreased_subs = []
-            
             for sub, dur in sorted(smap.items(), key=lambda x: x[1], reverse=True):
                 pct = dur / total if total > 0 else 0
-                comp_text = ""
-                if is_week_mode:
-                    last_dur = last_week_map.get(sub, 0)
-                    diff = dur - last_dur
-                    if diff > 0:
-                        comp_text = f" (比上周长了 {format_dur(diff)})"
-                        increased_subs.append(sub)
-                    elif diff < 0:
-                        comp_text = f" (比上周短了 {format_dur(abs(diff))})"
-                        decreased_subs.append(sub)
-                    else:
-                        comp_text = " (与上周持平)"
+                
+                # 🚀 细节 1：条形图超强智能 Tooltip
+                sub_records = [r for r in records if r["subject"] == sub]
+                tooltip_lines = [f"【{sub}】详细记录:"]
+                
+                if st.stats_scope == "day" or st.stats_scope.startswith("custom:"):
+                    for r in sub_records:
+                        n_str = f" - {r.get('note','')}" if r.get('note','') else ""
+                        tooltip_lines.append(f"• {format_dur(r['duration'])}{n_str}")
+                elif st.stats_scope == "week":
+                    day_map = {}
+                    for r in sub_records: day_map[r["date"]] = day_map.get(r["date"], 0) + r["duration"]
+                    for d in sorted(day_map.keys()): tooltip_lines.append(f"• {d[-5:]}: {format_dur(day_map[d])}")
+                elif st.stats_scope == "month":
+                    month_week_map = {"第1周":0, "第2周":0, "第3周":0, "第4周":0, "第5周":0}
+                    for r in sub_records:
+                        dt = datetime.strptime(r["date"], "%Y-%m-%d")
+                        w_idx = (dt.day - 1) // 7 + 1
+                        month_week_map[f"第{w_idx}周"] += r["duration"]
+                    for w in ["第1周", "第2周", "第3周", "第4周", "第5周"]:
+                        if month_week_map[w] > 0: tooltip_lines.append(f"• {w}: {format_dur(month_week_map[w])}")
+                
+                prog_bar = ft.Container(
+                    content=ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#2C2C2E" if is_dark else "#E5E5EA", height=10, border_radius=5),
+                    tooltip="\n".join(tooltip_lines)
+                )
                 
                 col_stats.controls.append(
                     ft.Column([
                         ft.Row([
                             ft.Text(value=f"{sub} ({round(pct*100,1)}%)", weight=ft.FontWeight.BOLD, color=text_main), 
-                            ft.Text(value=f"{format_dur(dur)}{comp_text}", color=text_sec, size=11)
+                            ft.Text(value=f"{format_dur(dur)}", color=text_sec, size=11)
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.ProgressBar(value=pct, color="#00A2FF", bgcolor="#2C2C2E" if is_dark else "#E5E5EA", height=10, border_radius=5)
+                        prog_bar
                     ], spacing=6)
-                )
-                
-            if is_week_mode:
-                comment_str = "💡 本周冲刺复盘建议：\n"
-                if not increased_subs and not decreased_subs:
-                    comment_str += "本周各科目的推进效率与上周高度一致，状态沉稳。冲刺期保持心流平稳至关重要，稳扎稳打！"
-                else:
-                    if increased_subs:
-                        comment_str += f"你在【{', '.join(increased_subs)}】上的复习时长比上周更加强悍，难点巩坚正在起效！"
-                    if decreased_subs:
-                        comment_str += f"但在【{', '.join(decreased_subs)}】上投入出现了滑坡。后期切忌偏科，下周请微调拉高该科目的学习配比。"
-                
-                col_stats.controls.append(ft.Container(height=5))
-                col_stats.controls.append(
-                    ft.Container(
-                        content=ft.Text(comment_str, size=12, color="#FF9500" if is_dark else "#007AFF", weight=ft.FontWeight.BOLD),
-                        padding=10, bgcolor="#2C2C2E" if is_dark else "#E5E5EA", border_radius=8
-                    )
                 )
                 
         elif st.chart_tab == 1:
@@ -1024,11 +1067,19 @@ async def main(page: ft.Page):
                 stops.extend([current_stop, current_stop + pct])
                 current_stop += pct
                 
+                # 🚀 细节 2：扇形图图例支持明细悬浮查看
+                sub_records = [r for r in records if r["subject"] == sub]
+                tip_lines = [f"【{sub}】({pct*100:.1f}%)"]
+                for r in sub_records: tip_lines.append(f"• {r['date'][-5:]}: {format_dur(r['duration'])}")
+                
                 legend_cols.append(
-                    ft.Row([
-                        ft.Container(width=12, height=12, bgcolor=c, border_radius=6),
-                        ft.Text(f"{sub} {pct*100:.1f}%", size=12, color=text_main)
-                    ], alignment=ft.MainAxisAlignment.CENTER)
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Container(width=12, height=12, bgcolor=c, border_radius=6),
+                            ft.Text(f"{sub} {pct*100:.1f}%", size=12, color=text_main)
+                        ], alignment=ft.MainAxisAlignment.CENTER),
+                        tooltip="\n".join(tip_lines)
+                    )
                 )
                 
             pie = ft.Container(
@@ -1054,12 +1105,20 @@ async def main(page: ft.Page):
             for d in sorted_dates:
                 dur = date_map[d]
                 h = (dur / max_dur_val) * 120 if max_dur_val > 0 else 0
+                
+                # 🚀 细节 3：趋势图柱状体高级科目结构拆解展示
+                day_records = [r for r in records if r["date"] == d]
+                day_smap = {}
+                for r in day_records: day_smap[r["subject"]] = day_smap.get(r["subject"], 0) + r["duration"]
+                breakdown = "\n".join([f"• {s}: {format_dur(s_dur)}" for s, s_dur in day_smap.items()])
+                tip = f"📅 {d}\n总计: {format_dur(dur)}\n{breakdown}\n(点击钻取当日图鉴明细)"
+                
                 bars.append(
                     ft.Column([
                         ft.Text(format_dur(dur), size=9, color="#8E8E93"),
                         ft.Container(
                             width=25, height=max(h, 5), bgcolor="#00A2FF", border_radius=4, 
-                            tooltip=f"点击钻取复盘 {d[-5:]} 数据\n总时长: {format_dur(dur)}",
+                            tooltip=tip,
                             on_click=lambda e, target_d=d: drill_down_to_date(target_d)
                         ),
                         ft.Text(d[-5:], size=10, color=text_main)
@@ -1074,8 +1133,11 @@ async def main(page: ft.Page):
 
     view_stats = ft.Container(
         content=ft.Column([
-            row_stat_nav, row_history_select, row_chart_nav, ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), ft.Container(height=5), col_stats
-        ]),
+            row_stat_nav, row_history_select, row_chart_nav, 
+            ft.Row([lbl_stat_total], alignment=ft.MainAxisAlignment.CENTER), 
+            ft.Row([lbl_stat_compare], alignment=ft.MainAxisAlignment.CENTER), 
+            ft.Container(height=5), col_stats
+        ], spacing=5),
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
