@@ -19,7 +19,6 @@ def get_safe_app_dir():
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         
-    # 探针：测试当前目录是否有写入权限
     test_file = os.path.join(base_dir, ".write_test_probe")
     try:
         with open(test_file, 'w') as f:
@@ -27,7 +26,6 @@ def get_safe_app_dir():
         os.remove(test_file)
         return base_dir
     except Exception:
-        # 如果没有权限（例如任务栏启动指向了只读系统目录），退维到用户主目录
         safe_fallback_dir = os.path.join(os.path.expanduser("~"), "StudyEngine_Data")
         os.makedirs(safe_fallback_dir, exist_ok=True)
         return safe_fallback_dir
@@ -36,7 +34,6 @@ APP_DIR = get_safe_app_dir()
 DATA_FILE = os.path.join(APP_DIR, "study_data.json")
 
 def get_backup_path():
-    """智能获取备份路径，优先保存到用户桌面"""
     try:
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         if os.path.exists(desktop):
@@ -462,13 +459,22 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 深度优化：窗口切换时执行“绝对底层校准机制”
     def toggle_mini_mode(e):
         st.is_mini_mode = not st.is_mini_mode
-        # 🚀 展开/收起时进行双向强制安全同步，以数据库为唯一真相来源
-        current_sub = db.data['currentSubject']
-        lbl_mini_subject.value = f"🔄 [{current_sub}]"
-        sel_subject.value = current_sub
+        
+        # 核心防延迟修复：强制從小窗口和主下拉框同时去读最新数据库，切断孤岛。
+        latest_sub = db.data['currentSubject']
+        lbl_mini_subject.value = f"🔄 [{latest_sub}]"
+        sel_subject.value = latest_sub
+        
         apply_theme_and_layout()
+        
+        # 强行越级重绘各组层
+        try:
+            mini_top_bar.update()
+            subject_container.update()
+        except: pass
 
     btn_pin_full, btn_pin_full_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
     btn_mini_shrink, btn_mini_shrink_lbl = create_btn("🔽", padding=6, width=35, on_click=toggle_mini_mode)
@@ -500,7 +506,7 @@ async def main(page: ft.Page):
         next_idx = (curr_idx + 1) % len(subs)
         new_sub = subs[next_idx]
         
-        # 🚀 绝对双向绑定：小窗口点击 -> 同步更新主窗口选择器
+        # 双向硬同步
         sel_subject.value = new_sub
         db.data["currentSubject"] = new_sub
         lbl_mini_subject.value = f"🔄 [{new_sub}]"
@@ -578,12 +584,19 @@ async def main(page: ft.Page):
     )
     
     def on_sub_change(e):
-        # 🌟 核心修复：直接从事件 e.control.value 获取绝对最新值，绕开 UI 更新延迟
+        # 🚀 拦截核心：直接截获最新值，不依赖延迟更新的控件属性
         new_val = str(e.control.value)
-        sel_subject.value = new_val
         db.data["currentSubject"] = new_val
         lbl_mini_subject.value = f"🔄 [{new_val}]" 
         db.save()
+        
+        # 🌟 重点硬核刷新：即使小窗口隐藏，也强制命令小窗口容器执行越级层刷新重绘。
+        try:
+            lbl_mini_subject.update()
+            mini_top_bar.update()
+        except:
+            pass
+        
         try: page.update()
         except: pass
         
