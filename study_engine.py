@@ -8,22 +8,38 @@ import random
 import traceback
 from datetime import datetime, timedelta
 
-# ================= 1. 初始化与数据管理 =================
-if getattr(sys, 'frozen', False):
-    application_path = os.path.dirname(sys.executable)
-    os.chdir(application_path)
-else:
-    application_path = os.path.dirname(os.path.abspath(__file__))
+# ================= 1. 初始化与绝对安全的数据管理 =================
+def get_app_path():
+    """
+    终极路径解析器：彻底解决 Windows 任务栏固定、快捷方式跳转导致的路径丢失问题。
+    """
+    if getattr(sys, 'frozen', False):
+        # 优先使用 sys.executable 获取真实 exe 路径
+        base_path = os.path.dirname(sys.executable)
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
     
+    # 强制将系统的当前工作目录切换到我们解析出的真实目录
+    # 这一步是防止系统底层 API (如相对路径读写) 迷失方向的关键
+    try:
+        os.chdir(base_path)
+    except:
+        pass
+    return base_path
+
+# 获取绝对安全的应用路径
+application_path = get_app_path()
 DATA_FILE = os.path.join(application_path, "study_data.json")
 
 def get_backup_path():
+    """智能获取备份路径，优先保存到用户桌面"""
     try:
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         if os.path.exists(desktop):
             return os.path.join(desktop, "StudyEngine_Backup.json")
     except:
         pass
+    # 兜底保存在程序同级目录
     return os.path.join(application_path, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
@@ -309,9 +325,12 @@ async def main(page: ft.Page):
         
         lbl_time.color = text_main
         lbl_time_mini.color = text_main
+        
+        # 🚀 迷你模式下科目颜色的同步
+        lbl_mini_subject.color = text_sec
+        
         lbl_quote.color = text_sec
         
-        # 🚀 彻底移除半透明，改用 100% 纯色填充所有下拉框
         solid_bg = surface if is_dark else "#FFFFFF"
         solid_border = "#38383A" if is_dark else "#C7C7CC"
         
@@ -459,11 +478,20 @@ async def main(page: ft.Page):
     )
 
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=6, width=35, on_click=toggle_mini_mode)
-    lbl_time_mini = ft.Text(value="60:00", size=24, weight="bold", max_lines=1)
+    
+    # 🚀 迷你模式重构：加入对科目的感知
+    lbl_time_mini = ft.Text(value="60:00", size=26, weight="bold", max_lines=1)
+    lbl_mini_subject = ft.Text(value=f"[{db.data['currentSubject']}]", size=12, weight="bold")
+    
+    col_mini_info = ft.Column(
+        [lbl_time_mini, lbl_mini_subject], 
+        alignment="center", horizontal_alignment="center", spacing=0
+    )
+    
     btn_pin_mini, btn_pin_mini_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
     
     mini_top_bar = ft.Container(
-        content=ft.Row([btn_mini_expand, lbl_time_mini, btn_pin_mini], alignment="spaceBetween", vertical_alignment="center"),
+        content=ft.Row([btn_mini_expand, col_mini_info, btn_pin_mini], alignment="spaceBetween", vertical_alignment="center"),
         padding=5, margin=0, visible=False
     )
 
@@ -508,7 +536,6 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
-    # 🚀 去掉 filled=True 防止底层透明材质覆盖
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
@@ -517,7 +544,11 @@ async def main(page: ft.Page):
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
+        lbl_mini_subject.value = f"[{sel_subject.value}]" # 🚀 同步更新迷你模式的科目显示
         db.save()
+        try: page.update()
+        except: pass
+        
     sel_subject.on_change = on_sub_change
 
     bar_goal = ft.ProgressBar(value=0, color="#34C759", height=6)
@@ -575,7 +606,6 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 去掉 filled=True 防止底层透明材质覆盖
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=135, dense=True, text_size=14,
@@ -848,8 +878,6 @@ async def main(page: ft.Page):
     grid_forest = ft.Column(spacing=15, horizontal_alignment="center")
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
-    
-    # 🚀 去掉 filled=True 防止底层透明材质覆盖
     forest_history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         content_padding=10
@@ -955,7 +983,6 @@ async def main(page: ft.Page):
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
     
-    # 🚀 去掉 filled=True 防止底层透明材质覆盖
     history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         content_padding=10
@@ -1249,6 +1276,10 @@ async def main(page: ft.Page):
             sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
             sel_subject.value = db.data["subjects"][0]
             db.data["currentSubject"] = sel_subject.value
+            
+            # 同步更新迷你模式
+            lbl_mini_subject.value = f"[{sel_subject.value}]"
+            
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
     def on_export(e):
@@ -1280,6 +1311,9 @@ async def main(page: ft.Page):
             sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
             if db.data["subjects"]:
                 sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
+            
+            # 导入数据后，同步更新迷你模式的科目显示
+            lbl_mini_subject.value = f"[{sel_subject.value}]"
             
             update_countdown()
             update_focus_ui()
