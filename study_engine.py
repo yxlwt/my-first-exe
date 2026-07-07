@@ -8,10 +8,32 @@ import random
 import traceback
 from datetime import datetime, timedelta
 
-# ================= 1. 初始化与纯相对路径管理 =================
-# 🚀 彻底贯彻要求：只使用纯粹相对路径！
-DATA_FILE = "study_data.json"
-BACKUP_FILE = "StudyEngine_Backup.json"
+# ================= 1. 初始化与绝对安全的数据管理 =================
+def get_safe_app_dir():
+    """
+    终极防御机制：解决任务栏固定启动时工作目录变为 System32 导致的白屏崩溃。
+    程序会先尝试在 exe 所在目录读写，如果权限被拒，自动降级到用户安全目录。
+    """
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+    # 探针：测试当前目录是否有写入权限
+    test_file = os.path.join(base_dir, ".write_test_probe")
+    try:
+        with open(test_file, 'w') as f:
+            f.write('ok')
+        os.remove(test_file)
+        return base_dir
+    except Exception:
+        # 如果没有权限（例如任务栏启动指向了只读系统目录），退维到用户主目录
+        safe_fallback_dir = os.path.join(os.path.expanduser("~"), "StudyEngine_Data")
+        os.makedirs(safe_fallback_dir, exist_ok=True)
+        return safe_fallback_dir
+
+APP_DIR = get_safe_app_dir()
+DATA_FILE = os.path.join(APP_DIR, "study_data.json")
 
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
@@ -213,6 +235,15 @@ async def main(page: ft.Page):
             page.window_height = 600
         except: pass
 
+    # 🚀 将 get_bp() 内嵌在 main 内，百分百作用域安全！
+    def get_bp():
+        try:
+            d = os.path.join(os.path.expanduser("~"), "Desktop")
+            if os.path.exists(d): 
+                return os.path.join(d, "StudyEngine_Backup.json")
+        except: pass
+        return os.path.join(APP_DIR, "StudyEngine_Backup.json")
+
     def open_dlg(d):
         if hasattr(page, "open"): page.open(d)
         else:
@@ -253,7 +284,6 @@ async def main(page: ft.Page):
         stats_scope = "day"
         last_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
         
-        # 🚀 状态管理器：用于后台监听下拉框
         last_pomo_val = "60" 
         last_subject_val = db.data.get("currentSubject", "专业课")
         last_forest_history_val = ""
@@ -437,13 +467,10 @@ async def main(page: ft.Page):
 
     def toggle_mini_mode(e):
         st.is_mini_mode = not st.is_mini_mode
-        
-        # 强制同步：把大窗口和小窗口同时对齐到数据库里的绝对真理
         current_sub = db.data.get('currentSubject', '专业课')
         lbl_mini_subject.value = f"🔄 [{current_sub}]"
-        st.last_sub_val = current_sub
+        st.last_subject_val = current_sub
         sel_subject.value = current_sub
-        
         apply_theme_and_layout()
         try: page.update()
         except: pass
@@ -472,14 +499,13 @@ async def main(page: ft.Page):
         subs = db.data["subjects"]
         if not subs: return
         try:
-            curr_idx = subs.index(st.last_sub_val)
+            curr_idx = subs.index(st.last_subject_val)
         except ValueError:
             curr_idx = -1
         next_idx = (curr_idx + 1) % len(subs)
         new_sub = subs[next_idx]
         
-        # 将最新值写入状态，心跳引擎会自动捕捉它并向全界面派发更新！
-        st.last_sub_val = new_sub
+        st.last_subject_val = new_sub
         sel_subject.value = new_sub
         lbl_mini_subject.value = f"🔄 [{new_sub}]"
         db.data["currentSubject"] = new_sub
@@ -548,7 +574,6 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
-    # 🚀 剥除所有的 on_change，防旧版底层事件断层。交由后台雷达接管。
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
@@ -699,16 +724,18 @@ async def main(page: ft.Page):
     lbl_title_confirm = ft.Text("确认结束", size=18, weight="bold")
     lbl_confirm_msg = ft.Text("", size=12, text_align="center")
     
-    btn_y, btn_y_lbl = create_btn("保存战果", txt_color="#FFFFFF", bgcolor="#FF3B30", padding=5, height=36, expand=True, on_click=on_confirm_save)
-    btn_n, btn_n_lbl = create_btn("直接销毁", padding=5, height=36, expand=True, on_click=on_discard)
-    btn_c, btn_c_lbl = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="#FFFFFF", padding=5, height=36, expand=True, on_click=on_cancel_dialog)
+    # 🚀 降低按钮高度并调小 padding 防止小屏幕遮挡
+    btn_y, btn_y_lbl = create_btn("保存战果", txt_color="#FFFFFF", bgcolor="#FF3B30", padding=3, height=32, expand=True, on_click=on_confirm_save)
+    btn_n, btn_n_lbl = create_btn("直接销毁", padding=3, height=32, expand=True, on_click=on_discard)
+    btn_c, btn_c_lbl = create_btn("手滑点错 (继续)", bgcolor="#34C759", txt_color="#FFFFFF", padding=3, height=32, expand=True, on_click=on_cancel_dialog)
 
     row_confirm_btns1 = ft.Row([btn_y, btn_n], alignment="center", spacing=10)
     row_confirm_btns2 = ft.Row([btn_c], alignment="center")
 
+    # 🚀 为确认面板加入 scroll="auto" 自动滚动防止超出边界
     col_confirm = ft.Column([
         lbl_icon_confirm, lbl_title_confirm, lbl_confirm_msg, row_confirm_btns1, row_confirm_btns2
-    ], alignment="center", horizontal_alignment="center", spacing=6, expand=True)
+    ], alignment="center", horizontal_alignment="center", spacing=6, scroll="auto")
 
     def on_success_save(e):
         db.add_record(sel_subject.value, int(st.elapsed), st.mode, False, txt_note.value)
@@ -728,7 +755,7 @@ async def main(page: ft.Page):
 
     col_success = ft.Column([
         lbl_icon_success, lbl_title_success, lbl_success_quote, row_note, row_success_btn
-    ], alignment="center", horizontal_alignment="center", spacing=6, expand=True)
+    ], alignment="center", horizontal_alignment="center", spacing=6, scroll="auto")
 
     def show_goal_reached_dialog():
         dlg_goal = ft.AlertDialog(
@@ -1257,8 +1284,17 @@ async def main(page: ft.Page):
             
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
+    # 🚀 将 get_bp() 内嵌在 main 内，百分百作用域安全！
+    def get_bp():
+        try:
+            d = os.path.join(os.path.expanduser("~"), "Desktop")
+            if os.path.exists(d): 
+                return os.path.join(d, "StudyEngine_Backup.json")
+        except: pass
+        return os.path.join(APP_DIR, "StudyEngine_Backup.json")
+
     def on_export(e):
-        bp = get_backup_path()
+        bp = get_bp()
         try:
             with open(bp, "w", encoding="utf-8") as f:
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
@@ -1267,7 +1303,7 @@ async def main(page: ft.Page):
             show_popup("❌ 导出失败", str(ex))
 
     def on_import(e):
-        bp = get_backup_path()
+        bp = get_bp()
         if not os.path.exists(bp):
             show_popup("⚠️ 未找到备份文件", f"引擎在以下路径没有找到您的备份文件：\n{bp}\n\n请确保您之前点击过导出，或将备份文件放在桌面上。")
             return
