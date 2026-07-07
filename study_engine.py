@@ -8,20 +8,42 @@ import random
 import traceback
 from datetime import datetime, timedelta
 
-# ================= 1. 初始化与纯净绿色版数据管理 =================
-def get_app_path():
+# ================= 1. 初始化与绝对安全的数据管理 =================
+def get_safe_app_dir():
     """
-    纯净路径解析器：放弃对工作目录的强制修改，做最纯粹的绿色单体软件。
-    只要用户不乱固定快捷方式，数据永远跟随 exe。
+    终极防御机制：解决任务栏固定启动时工作目录变为 System32 导致的白屏崩溃。
+    程序会先尝试在 exe 所在目录读写，如果权限被拒，自动降级到用户安全目录。
     """
     if getattr(sys, 'frozen', False):
-        return os.path.dirname(sys.executable)
+        base_dir = os.path.dirname(sys.executable)
     else:
-        return os.path.dirname(os.path.abspath(__file__))
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+    # 探针：测试当前目录是否有写入权限
+    test_file = os.path.join(base_dir, ".write_test_probe")
+    try:
+        with open(test_file, 'w') as f:
+            f.write('ok')
+        os.remove(test_file)
+        return base_dir
+    except Exception:
+        # 如果没有权限（例如任务栏启动指向了只读系统目录），退维到用户主目录
+        safe_fallback_dir = os.path.join(os.path.expanduser("~"), "StudyEngine_Data")
+        os.makedirs(safe_fallback_dir, exist_ok=True)
+        return safe_fallback_dir
 
-application_path = get_app_path()
-DATA_FILE = os.path.join(application_path, "study_data.json")
-BACKUP_FILE = os.path.join(application_path, "StudyEngine_Backup.json")
+APP_DIR = get_safe_app_dir()
+DATA_FILE = os.path.join(APP_DIR, "study_data.json")
+
+def get_backup_path():
+    """智能获取备份路径，优先保存到用户桌面"""
+    try:
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        if os.path.exists(desktop):
+            return os.path.join(desktop, "StudyEngine_Backup.json")
+    except:
+        pass
+    return os.path.join(APP_DIR, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
@@ -442,8 +464,10 @@ async def main(page: ft.Page):
 
     def toggle_mini_mode(e):
         st.is_mini_mode = not st.is_mini_mode
-        # 🚀 展开/收起时进行安全同步
-        lbl_mini_subject.value = f"🔄 [{db.data['currentSubject']}]"
+        # 🚀 展开/收起时进行双向强制安全同步，以数据库为唯一真相来源
+        current_sub = db.data['currentSubject']
+        lbl_mini_subject.value = f"🔄 [{current_sub}]"
+        sel_subject.value = current_sub
         apply_theme_and_layout()
 
     btn_pin_full, btn_pin_full_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
@@ -460,7 +484,6 @@ async def main(page: ft.Page):
 
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=6, width=35, on_click=toggle_mini_mode)
     
-    # 迷你模式下的UI组件
     lbl_time_mini = ft.Text(value="60:00", size=26, weight="bold", max_lines=1)
     lbl_mini_subject = ft.Text(value=f"🔄 [{db.data['currentSubject']}]", size=12, weight="bold")
     
@@ -471,20 +494,19 @@ async def main(page: ft.Page):
         subs = db.data["subjects"]
         if not subs: return
         try:
-            curr_idx = subs.index(sel_subject.value)
+            curr_idx = subs.index(db.data["currentSubject"])
         except ValueError:
             curr_idx = -1
         next_idx = (curr_idx + 1) % len(subs)
         new_sub = subs[next_idx]
         
-        # 🚀 小窗口切换 -> 主下拉框强制更新
+        # 🚀 绝对双向绑定：小窗口点击 -> 同步更新主窗口选择器
         sel_subject.value = new_sub
         db.data["currentSubject"] = new_sub
         lbl_mini_subject.value = f"🔄 [{new_sub}]"
         
         db.save()
-        try: page.update()
-        except: pass
+        page.update()
 
     mini_subject_container = ft.Container(
         content=lbl_mini_subject,
@@ -556,7 +578,7 @@ async def main(page: ft.Page):
     )
     
     def on_sub_change(e):
-        # 🚀 强制通过 e.control.value 获取最新值，绝不延迟
+        # 🌟 核心修复：直接从事件 e.control.value 获取绝对最新值，绕开 UI 更新延迟
         new_val = str(e.control.value)
         sel_subject.value = new_val
         db.data["currentSubject"] = new_val
