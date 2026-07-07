@@ -230,6 +230,13 @@ async def main(page: ft.Page):
             snack.open = True
             page.update()
 
+    def show_popup(title_text, content_text):
+        dlg = ft.AlertDialog(
+            title=ft.Text(title_text, weight="bold"),
+            content=ft.Text(content_text, size=13),
+        )
+        open_dlg(dlg)
+
     class State:
         session_active = False  
         timer_active = False 
@@ -511,9 +518,10 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=0, height=40, on_click=lambda e: switch_mode("stopwatch"))
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=6, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
+    
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
@@ -1127,20 +1135,33 @@ async def main(page: ft.Page):
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 🚀 导入导出功能 (修复了 Type Hint 报错) -----------------
+    # ----------------- 🚀 导入导出功能核心防崩溃逻辑 -----------------
+    # 使用 try...except 将 FilePicker 彻底包裹起来。
+    # 如果用户的 Flet 环境支持 FilePicker，就正常初始化；如果抛出任何异常，直接降级为“静默备份”模式。
+    use_file_picker = False
+    try:
+        export_picker = ft.FilePicker()
+        import_picker = ft.FilePicker()
+        # 绝杀：将函数绑定放在初始化之后，不传 __init__ 参数！
+        page.overlay.append(export_picker)
+        page.overlay.append(import_picker)
+        use_file_picker = True
+    except Exception:
+        pass
+
     def process_export(e):
-        if e.path:
-            try:
+        try:
+            if e.path:
                 with open(e.path, "w", encoding="utf-8") as f: 
                     json.dump(db.data, f, ensure_ascii=False, indent=4)
-                show_warning(f"✅ 备份导出成功！")
-            except Exception as ex: 
-                show_warning(f"❌ 导出失败: {str(ex)}")
+                show_popup("✅ 导出成功", f"备份已安全保存至:\n{e.path}")
+        except Exception as ex: 
+            show_popup("❌ 导出失败", str(ex))
 
     def process_import(e):
-        if e.files and len(e.files) > 0:
-            path = e.files[0].path
-            try:
+        try:
+            if e.files and len(e.files) > 0:
+                path = e.files[0].path
                 with open(path, "r", encoding="utf-8") as f:
                     backup_data = json.load(f)
                 db.data.clear()
@@ -1160,14 +1181,71 @@ async def main(page: ft.Page):
                 refresh_stats()
                 apply_theme_colors()
                 page.update()
-                show_warning("✅ 历史专注战果已成功导入！")
-            except Exception as ex:
-                show_warning(f"❌ 导入崩溃: {str(ex)}")
+                show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
+        except Exception as ex:
+            show_popup("❌ 导入崩溃", str(ex))
 
-    export_picker = ft.FilePicker(on_result=process_export)
-    import_picker = ft.FilePicker(on_result=process_import)
-    page.overlay.append(export_picker)
-    page.overlay.append(import_picker)
+    if use_file_picker:
+        export_picker.on_result = process_export
+        import_picker.on_result = process_import
+
+    # 这是在系统不支持弹窗时的安全兜底函数
+    def fallback_export():
+        backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
+        try:
+            with open(backup_path, "w", encoding="utf-8") as f:
+                json.dump(db.data, f, ensure_ascii=False, indent=4)
+            show_popup("✅ 导出成功", f"由于系统版本限制未弹出选择框。\n已默认备份至:\n{backup_path}")
+        except Exception as ex: 
+            show_popup("❌ 导出失败", str(ex))
+
+    def fallback_import():
+        backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
+        if os.path.exists(backup_path):
+            try:
+                with open(backup_path, "r", encoding="utf-8") as f:
+                    backup_data = json.load(f)
+                db.data.clear()
+                db.data.update(backup_data)
+                db.save()
+                
+                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
+                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
+                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+                if db.data["subjects"]:
+                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
+                
+                update_countdown()
+                update_focus_ui()
+                render_subs()
+                refresh_forest()
+                refresh_stats()
+                apply_theme_colors()
+                page.update()
+                show_popup("✅ 导入成功", "已从默认目录读取备份，历史战果恢复！")
+            except Exception as ex:
+                show_popup("❌ 导入崩溃", str(ex))
+        else:
+            show_popup("⚠️ 未找到备份", f"未能弹出选择框。\n请确保备份文件位于:\n{backup_path}")
+
+    # 按钮点击事件分发器
+    def btn_exp_click(e):
+        if use_file_picker:
+            try:
+                export_picker.save_file(allowed_extensions=["json"], file_name="StudyEngine_Backup.json")
+            except:
+                fallback_export()
+        else:
+            fallback_export()
+
+    def btn_imp_click(e):
+        if use_file_picker:
+            try:
+                import_picker.pick_files(allowed_extensions=["json"])
+            except:
+                fallback_import()
+        else:
+            fallback_import()
 
     # ----------------- 设置视图 (3) -----------------
     lbl_setting_1 = ft.Text(value="🎯 目标设置", weight="bold")
@@ -1224,8 +1302,8 @@ async def main(page: ft.Page):
             db.data["currentSubject"] = sel_subject.value
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    btn_exp, btn_exp_lbl = create_btn("⬇ 导出备份", padding=12, expand=True, on_click=lambda _: export_picker.save_file(allowed_extensions=["json"], file_name="StudyEngine_Backup.json"))
-    btn_imp, btn_imp_lbl = create_btn("⬆ 导入备份", padding=12, expand=True, on_click=lambda _: import_picker.pick_files(allowed_extensions=["json"]))
+    btn_exp, btn_exp_lbl = create_btn("⬇ 导出备份", padding=12, expand=True, on_click=btn_exp_click)
+    btn_imp, btn_imp_lbl = create_btn("⬆ 导入备份", padding=12, expand=True, on_click=btn_imp_click)
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
     col_settings_scroll = ft.Column([
