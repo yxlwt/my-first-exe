@@ -11,23 +11,14 @@ from datetime import datetime, timedelta
 # ================= 1. 初始化与绝对安全的数据管理 =================
 def get_app_path():
     """
-    终极路径解析器：彻底解决 Windows 任务栏固定、快捷方式跳转导致的路径丢失问题。
+    终极路径解析器：只获取绝对路径，绝不使用 os.chdir 修改系统工作目录，
+    彻底解决 Flet 引擎在任务栏/快捷方式启动时找不到自身依赖而导致的白屏问题。
     """
     if getattr(sys, 'frozen', False):
-        # 优先使用 sys.executable 获取真实 exe 路径
-        base_path = os.path.dirname(sys.executable)
+        return os.path.dirname(sys.executable)
     else:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    
-    # 强制将系统的当前工作目录切换到我们解析出的真实目录
-    # 这一步是防止系统底层 API (如相对路径读写) 迷失方向的关键
-    try:
-        os.chdir(base_path)
-    except:
-        pass
-    return base_path
+        return os.path.dirname(os.path.abspath(__file__))
 
-# 获取绝对安全的应用路径
 application_path = get_app_path()
 DATA_FILE = os.path.join(application_path, "study_data.json")
 
@@ -39,7 +30,6 @@ def get_backup_path():
             return os.path.join(desktop, "StudyEngine_Backup.json")
     except:
         pass
-    # 兜底保存在程序同级目录
     return os.path.join(application_path, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
@@ -326,9 +316,7 @@ async def main(page: ft.Page):
         lbl_time.color = text_main
         lbl_time_mini.color = text_main
         
-        # 🚀 迷你模式下科目颜色的同步
         lbl_mini_subject.color = text_sec
-        
         lbl_quote.color = text_sec
         
         solid_bg = surface if is_dark else "#FFFFFF"
@@ -479,12 +467,41 @@ async def main(page: ft.Page):
 
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=6, width=35, on_click=toggle_mini_mode)
     
-    # 🚀 迷你模式重构：加入对科目的感知
+    # 🚀 迷你模式重构：加入可点击切换的交互科目标签
     lbl_time_mini = ft.Text(value="60:00", size=26, weight="bold", max_lines=1)
     lbl_mini_subject = ft.Text(value=f"[{db.data['currentSubject']}]", size=12, weight="bold")
     
+    def on_mini_subject_click(e):
+        if st.session_active:
+            show_warning("🚨 专注期间禁止切换科目！")
+            return
+        subs = db.data["subjects"]
+        if not subs: return
+        try:
+            curr_idx = subs.index(sel_subject.value)
+        except ValueError:
+            curr_idx = -1
+        next_idx = (curr_idx + 1) % len(subs)
+        new_sub = subs[next_idx]
+        
+        # 底层数据更新与双向绑定
+        sel_subject.value = new_sub
+        db.data["currentSubject"] = new_sub
+        lbl_mini_subject.value = f"[{new_sub}]"
+        db.save()
+        page.update()
+
+    mini_subject_container = ft.Container(
+        content=lbl_mini_subject,
+        on_click=on_mini_subject_click,
+        tooltip="点击快速切换科目",
+        bgcolor="transparent",
+        padding=ft.padding.symmetric(horizontal=5, vertical=2),
+        border_radius=5
+    )
+    
     col_mini_info = ft.Column(
-        [lbl_time_mini, lbl_mini_subject], 
+        [lbl_time_mini, mini_subject_container], 
         alignment="center", horizontal_alignment="center", spacing=0
     )
     
@@ -544,7 +561,7 @@ async def main(page: ft.Page):
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
-        lbl_mini_subject.value = f"[{sel_subject.value}]" # 🚀 同步更新迷你模式的科目显示
+        lbl_mini_subject.value = f"[{sel_subject.value}]" 
         db.save()
         try: page.update()
         except: pass
@@ -878,6 +895,7 @@ async def main(page: ft.Page):
     grid_forest = ft.Column(spacing=15, horizontal_alignment="center")
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
+    
     forest_history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         content_padding=10
@@ -1277,7 +1295,6 @@ async def main(page: ft.Page):
             sel_subject.value = db.data["subjects"][0]
             db.data["currentSubject"] = sel_subject.value
             
-            # 同步更新迷你模式
             lbl_mini_subject.value = f"[{sel_subject.value}]"
             
             db.save(); render_subs(); apply_theme_colors(); page.update()
@@ -1312,7 +1329,6 @@ async def main(page: ft.Page):
             if db.data["subjects"]:
                 sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
             
-            # 导入数据后，同步更新迷你模式的科目显示
             lbl_mini_subject.value = f"[{sel_subject.value}]"
             
             update_countdown()
