@@ -8,35 +8,10 @@ import random
 import traceback
 from datetime import datetime, timedelta
 
-# ================= 1. 初始化与绝对安全的数据管理 =================
-def get_safe_app_dir():
-    if getattr(sys, 'frozen', False):
-        base_dir = os.path.dirname(sys.executable)
-    else:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        
-    test_file = os.path.join(base_dir, ".write_test_probe")
-    try:
-        with open(test_file, 'w') as f:
-            f.write('ok')
-        os.remove(test_file)
-        return base_dir
-    except Exception:
-        safe_fallback_dir = os.path.join(os.path.expanduser("~"), "StudyEngine_Data")
-        os.makedirs(safe_fallback_dir, exist_ok=True)
-        return safe_fallback_dir
-
-APP_DIR = get_safe_app_dir()
-DATA_FILE = os.path.join(APP_DIR, "study_data.json")
-
-def get_backup_path():
-    try:
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        if os.path.exists(desktop):
-            return os.path.join(desktop, "StudyEngine_Backup.json")
-    except:
-        pass
-    return os.path.join(APP_DIR, "StudyEngine_Backup.json")
+# ================= 1. 初始化与纯相对路径管理 =================
+# 🚀 彻底贯彻要求：只使用纯粹相对路径！
+DATA_FILE = "study_data.json"
+BACKUP_FILE = "StudyEngine_Backup.json"
 
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
@@ -277,7 +252,12 @@ async def main(page: ft.Page):
         forest_scope = "day"
         stats_scope = "day"
         last_date = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
+        
+        # 🚀 状态管理器：用于后台监听下拉框
         last_pomo_val = "60" 
+        last_subject_val = db.data.get("currentSubject", "专业课")
+        last_forest_history_val = ""
+        last_stat_history_val = ""
         
         active_tab = 0
         forest_tab = 0
@@ -455,14 +435,14 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 强制数据双向绑定的核心开关
     def toggle_mini_mode(e):
         st.is_mini_mode = not st.is_mini_mode
         
-        # 每次放大/缩小，强制把数据库的真理状态写入两个窗口，防止状态脱节
-        current_sub = db.data.get("currentSubject", "")
-        sel_subject.value = current_sub
+        # 强制同步：把大窗口和小窗口同时对齐到数据库里的绝对真理
+        current_sub = db.data.get('currentSubject', '专业课')
         lbl_mini_subject.value = f"🔄 [{current_sub}]"
+        st.last_sub_val = current_sub
+        sel_subject.value = current_sub
         
         apply_theme_and_layout()
         try: page.update()
@@ -492,20 +472,19 @@ async def main(page: ft.Page):
         subs = db.data["subjects"]
         if not subs: return
         try:
-            curr_idx = subs.index(db.data["currentSubject"])
+            curr_idx = subs.index(st.last_sub_val)
         except ValueError:
             curr_idx = -1
         next_idx = (curr_idx + 1) % len(subs)
         new_sub = subs[next_idx]
         
-        # 同步数据库与双窗口 UI
-        db.data["currentSubject"] = new_sub
+        # 将最新值写入状态，心跳引擎会自动捕捉它并向全界面派发更新！
+        st.last_sub_val = new_sub
         sel_subject.value = new_sub
         lbl_mini_subject.value = f"🔄 [{new_sub}]"
-        
+        db.data["currentSubject"] = new_sub
         db.save()
-        try: page.update()
-        except: pass
+        page.update()
 
     mini_subject_container = ft.Container(
         content=lbl_mini_subject,
@@ -569,26 +548,13 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
-    # 🚀 剥离初始化括号中的 on_change，防红屏崩溃
+    # 🚀 剥除所有的 on_change，防旧版底层事件断层。交由后台雷达接管。
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
         width=160, dense=True, border_radius=8, 
         text_size=14, content_padding=10
     )
-    
-    def on_sub_change(e):
-        # 从 Flet 底层捕获绝对最新值
-        new_val = str(e.control.value)
-        db.data["currentSubject"] = new_val
-        sel_subject.value = new_val
-        lbl_mini_subject.value = f"🔄 [{new_val}]" 
-        db.save()
-        try: page.update()
-        except: pass
-        
-    # 🚀 延迟绑定事件
-    sel_subject.on_change = on_sub_change
 
     bar_goal = ft.ProgressBar(value=0, color="#34C759", height=6)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=11, weight="bold", max_lines=1)
@@ -625,35 +591,11 @@ async def main(page: ft.Page):
         bgcolor="transparent"
     )
 
-    def on_pomo_change(e):
-        if st.session_active:
-            show_warning("🚨 专注期间禁止修改目标时间！")
-            sel_pomo.value = st.last_pomo_val
-            try: page.update()
-            except: pass
-            return
-        st.last_pomo_val = str(e.control.value)
-        try: st.pomo_target = int(e.control.value) * 60
-        except: st.pomo_target = 60 * 60 
-        st.mode = "pomodoro"
-        sel_pomo.disabled = False
-        st.elapsed = 0
-        
-        time_str = format_time(st.pomo_target)
-        lbl_time.value = time_str
-        lbl_time_mini.value = time_str
-        
-        apply_theme_colors()
-        try: page.update()
-        except: pass
-
-    # 🚀 剥离 on_change 解决崩溃
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=135, dense=True, text_size=14,
         border_radius=8, content_padding=10
     )
-    sel_pomo.on_change = on_pomo_change
 
     mode_pm_view = ft.Container(
         content=ft.Row(
@@ -921,16 +863,10 @@ async def main(page: ft.Page):
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
     
-    # 🚀 剥离 on_change
     forest_history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         content_padding=10
     )
-    def on_forest_history_change(e):
-        if e.control.value:
-            st.forest_scope = f"custom:{e.control.value}"
-        refresh_forest()
-    forest_history_dropdown.on_change = on_forest_history_change
     
     row_forest_history = ft.Row([lbl_forest_history, forest_history_dropdown], alignment="center", visible=False)
 
@@ -1027,16 +963,10 @@ async def main(page: ft.Page):
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
     
-    # 🚀 剥离 on_change
     history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         content_padding=10
     )
-    def on_history_change(e):
-        if e.control.value:
-            st.stats_scope = f"custom:{e.control.value}"
-        refresh_stats()
-    history_dropdown.on_change = on_history_change
 
     row_history_select = ft.Row([lbl_stat_history, history_dropdown], alignment="center", visible=False)
 
@@ -1416,8 +1346,13 @@ async def main(page: ft.Page):
             await asyncio.sleep(0.1) 
             
             try:
+                # -------------------------------------------------------------
+                # 🚀 终极同步大法：后台极速心跳轮询！彻底干掉不可靠的 on_change！
+                # -------------------------------------------------------------
+                
+                # 1. 强力监听【专注时长选择】变化
                 current_pomo_val = str(sel_pomo.value)
-                if current_pomo_val != st.last_pomo_val:
+                if current_pomo_val != st.last_pomo_val and current_pomo_val != "None":
                     if st.session_active:
                         sel_pomo.value = st.last_pomo_val
                         page.update()
@@ -1428,13 +1363,42 @@ async def main(page: ft.Page):
                         sel_pomo.disabled = False
                         st.elapsed = 0
                         st.last_ui_second = -1 
-                        
                         time_str = format_time(st.pomo_target)
                         lbl_time.value = time_str
                         lbl_time_mini.value = time_str
-                        
                         apply_theme_colors()
                         page.update()
+
+                # 2. 强力监听【主窗口科目选择】变化
+                current_main_sub = str(sel_subject.value)
+                if current_main_sub != st.last_subject_val and current_main_sub != "None":
+                    if st.session_active:
+                        sel_subject.value = st.last_subject_val
+                        page.update()
+                    else:
+                        st.last_subject_val = current_main_sub
+                        db.data["currentSubject"] = current_main_sub
+                        db.save()
+                        # 全网强行广播：更新小窗口文字！
+                        lbl_mini_subject.value = f"🔄 [{current_main_sub}]"
+                        page.update()
+
+                # 3. 强力监听【图鉴选择日期】变化
+                fh_val = str(forest_history_dropdown.value)
+                if fh_val != st.last_forest_history_val and fh_val != "None":
+                    st.last_forest_history_val = fh_val
+                    if fh_val:
+                        st.forest_scope = f"custom:{fh_val}"
+                        refresh_forest()
+
+                # 4. 强力监听【统计选择日期】变化
+                sh_val = str(history_dropdown.value)
+                if sh_val != st.last_stat_history_val and sh_val != "None":
+                    st.last_stat_history_val = sh_val
+                    if sh_val:
+                        st.stats_scope = f"custom:{sh_val}"
+                        refresh_stats()
+
             except Exception: pass
             
             if not st.timer_active: continue
