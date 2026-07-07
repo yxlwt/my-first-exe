@@ -200,6 +200,25 @@ async def main(page: ft.Page):
 
     st = State()
 
+    def on_window_event(e):
+        if e.data == "close":
+            if st.session_active and int(st.elapsed) >= 5:
+                try:
+                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序意外关闭 (数据已抢救)")
+                except Exception:
+                    pass
+            os._exit(0)
+            
+    try:
+        page.window.prevent_close = True
+        page.window.on_event = on_window_event
+    except AttributeError:
+        try:
+            page.window_prevent_close = True
+            page.on_window_event = on_window_event
+        except Exception:
+            pass
+
     # ========================================================
     # 🚀 主题色调度中心
     # ========================================================
@@ -244,8 +263,18 @@ async def main(page: ft.Page):
         mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
         sel_pomo.color = text_main
         
-        btn_stop_view.bgcolor = surface_variant
-        btn_stop_lbl.color = text_sec
+        # 🚀 修复点 2：根据当前专注状态（st.session_active），动态维持按钮的醒目颜色，防止切换主题或窗口大小时掉色
+        if st.session_active:
+            btn_stop_view.bgcolor = "#FF3B30"
+            btn_stop_lbl.color = "white"
+            if st.timer_active:
+                btn_start_view.bgcolor = "#FF9500"
+            else:
+                btn_start_view.bgcolor = "#34C759"
+        else:
+            btn_start_view.bgcolor = "#34C759"
+            btn_stop_view.bgcolor = surface_variant
+            btn_stop_lbl.color = text_sec
         
         lbl_title_confirm.color = text_main
         lbl_confirm_msg.color = text_sec
@@ -312,7 +341,36 @@ async def main(page: ft.Page):
             c.bgcolor = bg
             c.content.controls[0].color = text_main
 
-    # ----------------- 🎯 内嵌顶栏 -----------------
+    # ----------------- 🎯 内嵌顶栏与按钮组件 -----------------
+    def toggle_theme(e):
+        page.theme_mode = "dark" if page.theme_mode == "light" else "light"
+        apply_theme_colors()
+        refresh_forest()
+        refresh_stats()
+        try: page.update()
+        except: pass
+
+    def toggle_pin(e):
+        st.is_pinned = not st.is_pinned
+        try: page.window.always_on_top = st.is_pinned
+        except AttributeError:
+            try: page.window_always_on_top = st.is_pinned
+            except: pass
+        apply_theme_colors()
+        try: page.update()
+        except: pass
+
+    def toggle_mini_mode(e):
+        st.is_mini_mode = not st.is_mini_mode
+        apply_theme_and_layout()
+
+    # 🚀 修复点 1：将按钮创建放在调用它们的容器之前，彻底消灭初始化引发的 NameError
+    btn_pin_full, btn_pin_full_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
+    btn_mini_shrink, btn_mini_shrink_lbl = create_btn("🔽", padding=6, width=35, on_click=toggle_mini_mode)
+    btn_theme, btn_theme_lbl = create_btn("🌙", padding=6, width=35, on_click=toggle_theme)
+
+    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=15, weight=ft.FontWeight.BOLD, color="#007AFF", max_lines=1)
+    
     def update_countdown():
         try:
             today = datetime.now().date()
@@ -324,7 +382,6 @@ async def main(page: ft.Page):
             countdown_text.value = "距离初试仅剩 -- 天"
 
     row_left_controls_full = ft.Row([btn_pin_full, btn_mini_shrink], spacing=5, vertical_alignment=ft.CrossAxisAlignment.CENTER)
-    countdown_text = ft.Text(value="距离初试仅剩 -- 天", size=15, weight=ft.FontWeight.BOLD, color="#007AFF", max_lines=1)
 
     card_countdown_full = ft.Container(
         content=ft.Row([row_left_controls_full, countdown_text, btn_theme], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, vertical_alignment=ft.CrossAxisAlignment.CENTER),
@@ -781,7 +838,6 @@ async def main(page: ft.Page):
         grid_forest.controls.clear()
         
         if not records:
-            # 🚀 优化点 3：升级高级空状态自适应提示卡片
             grid_forest.controls.append(
                 ft.Container(
                     content=ft.Column([
@@ -794,7 +850,6 @@ async def main(page: ft.Page):
         else:
             current_row = []
             for r in records:
-                # 🚀 细节追加 3：将悬浮提示卡片重构为多行极其详实的信息
                 tip = f"📅 专注日期: {r['date']}\n📚 打卡科目: {r['subject']}\n⏱️ 精准时长: {format_dur(r['duration'])}\n📝 复盘便签: {r.get('note','') or '无便签描述'}"
                 icon_view = ft.Container(
                     content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment=ft.MainAxisAlignment.CENTER),
@@ -817,7 +872,7 @@ async def main(page: ft.Page):
         ]), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 🚀 统计视图 (2) 环比对比与动态追溯 -----------------
+    # ----------------- 统计视图 (2) -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight=ft.FontWeight.BOLD)
     col_stats = ft.Column(scroll=ft.ScrollMode.ADAPTIVE, expand=True)
     
@@ -857,7 +912,6 @@ async def main(page: ft.Page):
         apply_theme_colors()
         refresh_stats()
 
-    # 🚀 联动追溯函数：点击柱子直接下钻穿透到历史某一天的精细数据
     def drill_down_to_date(target_date):
         sw_stat(3) 
         history_dropdown.value = target_date
@@ -913,7 +967,6 @@ async def main(page: ft.Page):
             smap = {}
             for r in records: smap[r["subject"]] = smap.get(r["subject"], 0) + r["duration"]
             
-            # 🚀 优化点 2：如果点击【本周】，自动抓取“上周同一跨度”的底层数据进行大模型化周环比运算
             last_week_map = {}
             is_week_mode = (st.stats_scope == "week")
             if is_week_mode:
@@ -953,7 +1006,6 @@ async def main(page: ft.Page):
                     ], spacing=6)
                 )
                 
-            # 🚀 细节追加 2：全自动组装硬核周环比复盘科学评语卡片
             if is_week_mode:
                 comment_str = "💡 本周冲刺复盘建议：\n"
                 if not increased_subs and not decreased_subs:
@@ -1022,7 +1074,6 @@ async def main(page: ft.Page):
                 bars.append(
                     ft.Column([
                         ft.Text(format_dur(dur), size=9, color="#8E8E93"),
-                        # 🚀 细节追加：在柱子上附加 on_click，点击瞬间触发动态历史穿透追溯！
                         ft.Container(
                             width=25, height=max(h, 5), bgcolor="#00A2FF", border_radius=4, 
                             tooltip=f"点击钻取复盘 {d[-5:]} 数据\n总时长: {format_dur(dur)}",
@@ -1056,7 +1107,6 @@ async def main(page: ft.Page):
         except: txt_goal.value = str(int(db.data["dailyGoal"] // 3600)); page.update()
     txt_goal.on_blur = on_goal_blur
 
-    # 🚀 细节追加 1：新增初试目标日期动态编辑输入框组件
     txt_exam_date = ft.TextField(value=str(db.data.get("examDate", "2026-12-20")), label="初试目标日期 (YYYY-MM-DD)")
     def on_exam_date_blur(e):
         val = txt_exam_date.value.strip()
@@ -1107,7 +1157,6 @@ async def main(page: ft.Page):
             show_warning("⬇ 备份导出成功 (StudyEngine_Backup.json)")
         except: pass
 
-    # 🚀 细节追加 1：全新开发“一键导入本地备份数据”功能模块
     def on_import(e):
         if os.path.exists("StudyEngine_Backup.json"):
             try:
@@ -1117,7 +1166,6 @@ async def main(page: ft.Page):
                 db.data.update(backup_data)
                 db.save()
                 
-                # 重新刷新重置所有UI核心变量
                 txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
                 txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
                 sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
@@ -1138,7 +1186,7 @@ async def main(page: ft.Page):
             show_warning("⚠️ 未在同目录下检测到 StudyEngine_Backup.json 备份")
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
-    btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入本地备份", padding=12, expand=True, on_click=on_import)
+    btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment=ft.MainAxisAlignment.CENTER)
 
     col_settings_scroll = ft.Column([
@@ -1169,7 +1217,6 @@ async def main(page: ft.Page):
     sw_chart(0) 
     render_subs()
     
-    # 🚀 生命周期冷启动双重守护：挂机立即触发倒计时、学习进度与备份日期的三维同步加载
     update_countdown()
     update_focus_ui()
 
