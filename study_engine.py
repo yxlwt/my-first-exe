@@ -237,6 +237,49 @@ async def main(page: ft.Page):
         )
         open_dlg(dlg)
 
+    # ================= 文件选择器弹窗逻辑 =================
+    def on_export_result(e: ft.FilePickerResultEvent):
+        if e.path:
+            try:
+                with open(e.path, "w", encoding="utf-8") as f:
+                    json.dump(db.data, f, ensure_ascii=False, indent=4)
+                show_popup("✅ 导出成功", f"数据已安全备份至:\n{e.path}")
+            except Exception as ex:
+                show_popup("❌ 导出失败", str(ex))
+
+    def on_import_result(e: ft.FilePickerResultEvent):
+        if e.files and len(e.files) > 0:
+            import_path = e.files[0].path
+            try:
+                with open(import_path, "r", encoding="utf-8") as f:
+                    backup_data = json.load(f)
+                
+                db.data.clear()
+                db.data.update(backup_data)
+                db.save()
+                
+                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
+                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
+                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+                if db.data["subjects"]:
+                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
+                
+                update_countdown()
+                update_focus_ui()
+                render_subs()
+                refresh_forest()
+                refresh_stats()
+                apply_theme_colors()
+                page.update()
+                show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
+            except Exception as ex:
+                show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
+
+    export_picker = ft.FilePicker(on_result=on_export_result)
+    import_picker = ft.FilePicker(on_result=on_import_result)
+    page.overlay.extend([export_picker, import_picker])
+    # =====================================================
+
     class State:
         session_active = False  
         timer_active = False 
@@ -265,7 +308,7 @@ async def main(page: ft.Page):
     st = State()
 
     # ========================================================
-    # 🚀 主题色调度中心
+    # 主题色调度中心
     # ========================================================
     def apply_theme_colors():
         is_dark = page.theme_mode == "dark"
@@ -305,7 +348,7 @@ async def main(page: ft.Page):
         mode_sw_view.bgcolor = surface if st.mode == "stopwatch" else "transparent"
         mode_sw_lbl.color = text_main if st.mode == "stopwatch" else text_sec
         mode_pm_view.bgcolor = surface if st.mode == "pomodoro" else "transparent"
-        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_main
+        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
         sel_pomo.color = text_main
         
         if st.session_active:
@@ -387,7 +430,7 @@ async def main(page: ft.Page):
             c.bgcolor = bg
             c.content.controls[0].color = text_main
 
-    # ----------------- 🎯 内嵌顶栏 -----------------
+    # ----------------- 内嵌顶栏 -----------------
     def update_countdown():
         try:
             today = datetime.now().date()
@@ -476,7 +519,7 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 专注功能面板与组件美化
+    # 专注功能面板与组件美化
     # ========================================================
     lbl_icon = ft.Text(value="🌰", size=65, text_align="center", max_lines=1) 
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
@@ -521,7 +564,7 @@ async def main(page: ft.Page):
     mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=6, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
-    
+
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
@@ -551,17 +594,20 @@ async def main(page: ft.Page):
 
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=110, dense=True, content_padding=0, text_size=13,
-        text_align="center", border="none", filled=False, bgcolor="transparent"
+        value="60", width=125, dense=True, content_padding=5, text_size=13,
+        text_align="center",
+        border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
-            spacing=2, alignment="center", vertical_alignment="center"
+            spacing=0, 
+            alignment="center",
+            vertical_alignment="center" 
         ),
-        border_radius=8, expand=True, height=40, padding=0
+        border_radius=8, expand=True
     )
 
     def stop_timer_handler(e):
@@ -622,7 +668,7 @@ async def main(page: ft.Page):
     ], alignment="center", horizontal_alignment="center", spacing=10, expand=True)
 
     # ========================================================
-    # 🚀 确认与结算面板
+    # 确认与结算面板
     # ========================================================
     def reset_timer():
         st.session_active = False
@@ -764,7 +810,7 @@ async def main(page: ft.Page):
             show_goal_reached_dialog()
 
     # ========================================================
-    # 🚀 完美的程序控制切换：尺寸与缩放联动控制
+    # 尺寸与缩放联动控制
     # ========================================================
     def apply_theme_and_layout():
         if st.is_mini_mode:
@@ -911,7 +957,7 @@ async def main(page: ft.Page):
         ], spacing=5), border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 🚀 统计视图 (2) -----------------
+    # ----------------- 统计视图 (2) -----------------
     lbl_stat_total = ft.Text(value="0s", size=42, weight="bold")
     lbl_stat_compare = ft.Text(value="", size=12, text_align="center", weight="bold")
     col_stats = ft.Column(scroll="adaptive", expand=True)
@@ -1135,118 +1181,6 @@ async def main(page: ft.Page):
         border_radius=15, padding=15, expand=True, visible=False, margin=0
     )
 
-    # ----------------- 🚀 导入导出功能核心防崩溃逻辑 -----------------
-    # 使用 try...except 将 FilePicker 彻底包裹起来。
-    # 如果用户的 Flet 环境支持 FilePicker，就正常初始化；如果抛出任何异常，直接降级为“静默备份”模式。
-    use_file_picker = False
-    try:
-        export_picker = ft.FilePicker()
-        import_picker = ft.FilePicker()
-        # 绝杀：将函数绑定放在初始化之后，不传 __init__ 参数！
-        page.overlay.append(export_picker)
-        page.overlay.append(import_picker)
-        use_file_picker = True
-    except Exception:
-        pass
-
-    def process_export(e):
-        try:
-            if e.path:
-                with open(e.path, "w", encoding="utf-8") as f: 
-                    json.dump(db.data, f, ensure_ascii=False, indent=4)
-                show_popup("✅ 导出成功", f"备份已安全保存至:\n{e.path}")
-        except Exception as ex: 
-            show_popup("❌ 导出失败", str(ex))
-
-    def process_import(e):
-        try:
-            if e.files and len(e.files) > 0:
-                path = e.files[0].path
-                with open(path, "r", encoding="utf-8") as f:
-                    backup_data = json.load(f)
-                db.data.clear()
-                db.data.update(backup_data)
-                db.save()
-                
-                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
-                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
-                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-                if db.data["subjects"]:
-                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
-                
-                update_countdown()
-                update_focus_ui()
-                render_subs()
-                refresh_forest()
-                refresh_stats()
-                apply_theme_colors()
-                page.update()
-                show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
-        except Exception as ex:
-            show_popup("❌ 导入崩溃", str(ex))
-
-    if use_file_picker:
-        export_picker.on_result = process_export
-        import_picker.on_result = process_import
-
-    # 这是在系统不支持弹窗时的安全兜底函数
-    def fallback_export():
-        backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
-        try:
-            with open(backup_path, "w", encoding="utf-8") as f:
-                json.dump(db.data, f, ensure_ascii=False, indent=4)
-            show_popup("✅ 导出成功", f"由于系统版本限制未弹出选择框。\n已默认备份至:\n{backup_path}")
-        except Exception as ex: 
-            show_popup("❌ 导出失败", str(ex))
-
-    def fallback_import():
-        backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
-        if os.path.exists(backup_path):
-            try:
-                with open(backup_path, "r", encoding="utf-8") as f:
-                    backup_data = json.load(f)
-                db.data.clear()
-                db.data.update(backup_data)
-                db.save()
-                
-                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
-                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
-                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-                if db.data["subjects"]:
-                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
-                
-                update_countdown()
-                update_focus_ui()
-                render_subs()
-                refresh_forest()
-                refresh_stats()
-                apply_theme_colors()
-                page.update()
-                show_popup("✅ 导入成功", "已从默认目录读取备份，历史战果恢复！")
-            except Exception as ex:
-                show_popup("❌ 导入崩溃", str(ex))
-        else:
-            show_popup("⚠️ 未找到备份", f"未能弹出选择框。\n请确保备份文件位于:\n{backup_path}")
-
-    # 按钮点击事件分发器
-    def btn_exp_click(e):
-        if use_file_picker:
-            try:
-                export_picker.save_file(allowed_extensions=["json"], file_name="StudyEngine_Backup.json")
-            except:
-                fallback_export()
-        else:
-            fallback_export()
-
-    def btn_imp_click(e):
-        if use_file_picker:
-            try:
-                import_picker.pick_files(allowed_extensions=["json"])
-            except:
-                fallback_import()
-        else:
-            fallback_import()
-
     # ----------------- 设置视图 (3) -----------------
     lbl_setting_1 = ft.Text(value="🎯 目标设置", weight="bold")
     lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight="bold")
@@ -1302,8 +1236,23 @@ async def main(page: ft.Page):
             db.data["currentSubject"] = sel_subject.value
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    btn_exp, btn_exp_lbl = create_btn("⬇ 导出备份", padding=12, expand=True, on_click=btn_exp_click)
-    btn_imp, btn_imp_lbl = create_btn("⬆ 导入备份", padding=12, expand=True, on_click=btn_imp_click)
+    # ================= 修改点击事件 =================
+    def on_export(e):
+        export_picker.save_file(
+            dialog_title="选择备份保存位置",
+            file_name=f"StudyEngine_Backup_{datetime.now().strftime('%Y%m%d')}.json",
+            allowed_extensions=["json"]
+        )
+
+    def on_import(e):
+        import_picker.pick_files(
+            dialog_title="选择历史备份文件",
+            allowed_extensions=["json"]
+        )
+    # =================================================
+
+    btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
+    btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
     col_settings_scroll = ft.Column([
@@ -1318,7 +1267,7 @@ async def main(page: ft.Page):
     )
 
     # ========================================================
-    # 🚀 组装与生命周期挂载
+    # 组装与生命周期挂载
     # ========================================================
     page.add(
         ft.Column([
