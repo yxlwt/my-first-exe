@@ -11,19 +11,19 @@ from datetime import datetime, timedelta
 # ================= 1. 初始化与数据管理 =================
 if getattr(sys, 'frozen', False):
     application_path = os.path.dirname(sys.executable)
+    os.chdir(application_path)
 else:
     application_path = os.path.dirname(os.path.abspath(__file__))
+    
 DATA_FILE = os.path.join(application_path, "study_data.json")
 
 def get_backup_path():
-    """智能获取备份路径，优先保存到用户桌面，极致安全便捷"""
     try:
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         if os.path.exists(desktop):
             return os.path.join(desktop, "StudyEngine_Backup.json")
     except:
         pass
-    # 若获取桌面路径失败，兜底保存在程序同级目录
     return os.path.join(application_path, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
@@ -70,7 +70,10 @@ class DataManager:
                 pass
 
     def add_record(self, subject, duration, mode, is_dead, note):
-        logical_today = (datetime.now() - timedelta(hours=2)).strftime("%Y-%m-%d")
+        now = datetime.now()
+        logical_today = (now - timedelta(hours=2)).strftime("%Y-%m-%d")
+        start_time = (now - timedelta(seconds=duration)).strftime("%H:%M")
+        
         icon = "🌱"
         if mode == "pomodoro":
             if is_dead: icon = "🥀"
@@ -85,6 +88,8 @@ class DataManager:
 
         self.data["studyData"].append({
             "date": logical_today,
+            "time": start_time,
+            "is_dead": is_dead,
             "subject": subject,
             "duration": duration,
             "tree": icon,
@@ -109,7 +114,7 @@ class DataManager:
             return [i for i in self.data["studyData"] if i.get("date") == target_date]
         return []
 
-# ================= 2. 辅助函数与高能算法 =================
+# ================= 2. 辅助函数 =================
 def format_dur(seconds):
     s = max(0, int(seconds))
     h = s // 3600
@@ -306,9 +311,25 @@ async def main(page: ft.Page):
         lbl_time_mini.color = text_main
         lbl_quote.color = text_sec
         
-        sel_subject.bgcolor = "transparent"
-        sel_subject.border_color = text_sec
+        # 🚀 彻底移除半透明，改用 100% 纯色填充所有下拉框
+        solid_bg = surface if is_dark else "#FFFFFF"
+        solid_border = "#38383A" if is_dark else "#C7C7CC"
+        
+        sel_subject.bgcolor = solid_bg
+        sel_subject.border_color = solid_border
         sel_subject.color = text_main
+        
+        sel_pomo.bgcolor = solid_bg
+        sel_pomo.border_color = solid_border
+        sel_pomo.color = text_main
+        
+        forest_history_dropdown.bgcolor = solid_bg
+        forest_history_dropdown.border_color = solid_border
+        forest_history_dropdown.color = text_main
+        
+        history_dropdown.bgcolor = solid_bg
+        history_dropdown.border_color = solid_border
+        history_dropdown.color = text_main
         
         bar_goal.bgcolor = surface_variant
         lbl_goal.color = text_sec
@@ -318,10 +339,6 @@ async def main(page: ft.Page):
         mode_sw_lbl.color = text_main if st.mode == "stopwatch" else text_sec
         mode_pm_view.bgcolor = surface if st.mode == "pomodoro" else "transparent"
         mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
-        
-        sel_pomo.bgcolor = "transparent"
-        sel_pomo.border_color = text_sec
-        sel_pomo.color = text_main
         
         if st.session_active:
             btn_stop_view.bgcolor = "#FF3B30"
@@ -373,14 +390,6 @@ async def main(page: ft.Page):
         btn_imp.bgcolor = surface_variant
         btn_imp_lbl.color = text_main
         view_settings.bgcolor = surface
-        
-        forest_history_dropdown.bgcolor = "transparent"
-        forest_history_dropdown.border_color = text_sec
-        forest_history_dropdown.color = text_main
-        
-        history_dropdown.bgcolor = "transparent"
-        history_dropdown.border_color = text_sec
-        history_dropdown.color = text_main
         
         for i, item in enumerate(nav_buttons):
             item["view"].bgcolor = surface if i == st.active_tab else "transparent"
@@ -499,6 +508,7 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
+    # 🚀 去掉 filled=True 防止底层透明材质覆盖
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
@@ -565,12 +575,11 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # ✨ 增大宽度到135，保证文字不被箭头遮挡
+    # 🚀 去掉 filled=True 防止底层透明材质覆盖
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=135, dense=True, text_size=14,
-        border_radius=8, filled=True, border_color="transparent",
-        content_padding=10
+        border_radius=8, content_padding=10
     )
     sel_pomo.on_change = on_pomo_change  
 
@@ -839,10 +848,10 @@ async def main(page: ft.Page):
     grid_forest = ft.Column(spacing=15, horizontal_alignment="center")
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
-    # ✨ 保持同步美化
+    
+    # 🚀 去掉 filled=True 防止底层透明材质覆盖
     forest_history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
-        filled=True, border_color="transparent",
         content_padding=10
     )
     def on_forest_history_change(e):
@@ -909,7 +918,12 @@ async def main(page: ft.Page):
         else:
             current_row = []
             for r in records:
-                tip = f"📅 {r['date']}\n📚 {r['subject']}\n⏱️ {format_dur(r['duration'])}\n📝 {r.get('note','') or '无便签'}"
+                is_dead = r.get("is_dead", r.get("note") == "中途放弃" or r.get("tree") == "🥀")
+                status_str = "⚠️ 中途放弃" if is_dead else "✅ 顺利完成"
+                dur_mins = max(1, r['duration'] // 60)
+                time_str = r.get('time', '')
+                
+                tip = f"📅 {r['date']} {time_str}\n📚 {r['subject']}\n⏱️ {status_str} ({dur_mins} 分钟)\n📝 {r.get('note','') or '无便签'}"
                 icon_view = ft.Container(
                     content=ft.Row([ft.Text(value=r.get("tree","🌲"), size=42, tooltip=tip)], alignment="center"),
                     width=55, height=55
@@ -940,10 +954,10 @@ async def main(page: ft.Page):
     col_stats = ft.Column(scroll="adaptive", expand=True)
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
-    # ✨ 保持同步美化
+    
+    # 🚀 去掉 filled=True 防止底层透明材质覆盖
     history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
-        filled=True, border_color="transparent",
         content_padding=10
     )
     def on_history_change(e):
@@ -1042,12 +1056,18 @@ async def main(page: ft.Page):
                 
                 if st.stats_scope == "day" or st.stats_scope.startswith("custom:"):
                     for r in sub_records:
+                        time_str = r.get("time", "未知时间")
                         n_str = f" - {r.get('note','')}" if r.get('note','') else ""
-                        tooltip_lines.append(f"• {format_dur(r['duration'])}{n_str}")
+                        tooltip_lines.append(f"• [{time_str} 起] 专注 {format_dur(r['duration'])}{n_str}")
                 elif st.stats_scope == "week":
                     day_map = {}
                     for r in sub_records: day_map[r["date"]] = day_map.get(r["date"], 0) + r["duration"]
-                    for d in sorted(day_map.keys()): tooltip_lines.append(f"• {d[-5:]}: {format_dur(day_map[d])}")
+                    for d in sorted(day_map.keys()): 
+                        try:
+                            weekday = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][datetime.strptime(d, "%Y-%m-%d").weekday()]
+                        except:
+                            weekday = ""
+                        tooltip_lines.append(f"• {d[-5:]} ({weekday}): 累计 {format_dur(day_map[d])}")
                 elif st.stats_scope == "month":
                     month_week_map = {"第1周":0, "第2周":0, "第3周":0, "第4周":0, "第5周":0}
                     for r in sub_records:
@@ -1129,9 +1149,20 @@ async def main(page: ft.Page):
                 
                 day_records = [r for r in records if r["date"] == d]
                 day_smap = {}
-                for r in day_records: day_smap[r["subject"]] = day_smap.get(r["subject"], 0) + r["duration"]
+                
+                valid_dur = 0
+                dead_dur = 0
+                
+                for r in day_records: 
+                    day_smap[r["subject"]] = day_smap.get(r["subject"], 0) + r["duration"]
+                    if r.get("is_dead", r.get("note") == "中途放弃"):
+                        dead_dur += r["duration"]
+                    else:
+                        valid_dur += r["duration"]
+                        
                 breakdown = "\n".join([f"• {s}: {format_dur(s_dur)}" for s, s_dur in day_smap.items()])
-                tip = f"📅 {d}\n总计: {format_dur(dur)}\n{breakdown}\n(点击钻取当日明细)"
+                
+                tip = f"📅 {d}\n总计: {format_dur(dur)}\n(✅完成 {format_dur(valid_dur)} | ⚠️放弃 {format_dur(dead_dur)})\n\n{breakdown}\n(点击钻取当日明细)"
                 
                 bars.append(
                     ft.Column([
@@ -1265,7 +1296,6 @@ async def main(page: ft.Page):
     btn_imp, btn_imp_lbl = create_btn("⬆ 从桌面恢复备份", padding=12, expand=True, on_click=on_import)
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
-    # ✨ 完美修复设置页布局，增加纵向呼吸空间
     col_settings_scroll = ft.Column([
         lbl_setting_1, 
         txt_goal, 
@@ -1356,4 +1386,7 @@ if __name__ == "__main__":
     try:
         ft.app(target=main)
     except Exception:
-        with open("crash_log.txt", "w", encoding="utf-8") as f: traceback.print_exc(file=f)
+        import os, sys
+        app_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+        with open(os.path.join(app_dir, "crash_log.txt"), "w", encoding="utf-8") as f: 
+            traceback.print_exc(file=f)
