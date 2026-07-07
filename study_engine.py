@@ -19,6 +19,7 @@ def get_safe_app_dir():
     else:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         
+    # 探针：测试当前目录是否有写入权限
     test_file = os.path.join(base_dir, ".write_test_probe")
     try:
         with open(test_file, 'w') as f:
@@ -26,6 +27,7 @@ def get_safe_app_dir():
         os.remove(test_file)
         return base_dir
     except Exception:
+        # 如果没有权限（例如任务栏启动指向了只读系统目录），退维到用户主目录
         safe_fallback_dir = os.path.join(os.path.expanduser("~"), "StudyEngine_Data")
         os.makedirs(safe_fallback_dir, exist_ok=True)
         return safe_fallback_dir
@@ -34,6 +36,7 @@ APP_DIR = get_safe_app_dir()
 DATA_FILE = os.path.join(APP_DIR, "study_data.json")
 
 def get_backup_path():
+    """智能获取备份路径，优先保存到用户桌面"""
     try:
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         if os.path.exists(desktop):
@@ -459,22 +462,9 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 深度优化：窗口切换时执行“绝对底层校准机制”
     def toggle_mini_mode(e):
         st.is_mini_mode = not st.is_mini_mode
-        
-        # 核心防延迟修复：强制從小窗口和主下拉框同时去读最新数据库，切断孤岛。
-        latest_sub = db.data['currentSubject']
-        lbl_mini_subject.value = f"🔄 [{latest_sub}]"
-        sel_subject.value = latest_sub
-        
         apply_theme_and_layout()
-        
-        # 强行越级重绘各组层
-        try:
-            mini_top_bar.update()
-            subject_container.update()
-        except: pass
 
     btn_pin_full, btn_pin_full_lbl = create_btn("📌", padding=6, width=35, on_click=toggle_pin)
     btn_mini_shrink, btn_mini_shrink_lbl = create_btn("🔽", padding=6, width=35, on_click=toggle_mini_mode)
@@ -506,13 +496,14 @@ async def main(page: ft.Page):
         next_idx = (curr_idx + 1) % len(subs)
         new_sub = subs[next_idx]
         
-        # 双向硬同步
+        # 🚀 绝对双向绑定：小窗口点击 -> 同步更新主窗口选择器
         sel_subject.value = new_sub
         db.data["currentSubject"] = new_sub
         lbl_mini_subject.value = f"🔄 [{new_sub}]"
         
         db.save()
-        page.update()
+        try: page.update()
+        except: pass
 
     mini_subject_container = ft.Container(
         content=lbl_mini_subject,
@@ -576,31 +567,23 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
+    # 🚀 彻底根除事件断层：强制将 on_change 写进组件实例化的构造函数里
+    def on_sub_change(e):
+        new_val = str(e.control.value)
+        sel_subject.value = new_val
+        db.data["currentSubject"] = new_val
+        lbl_mini_subject.value = f"🔄 [{new_val}]" 
+        db.save()
+        try: page.update()
+        except: pass
+
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
         width=160, dense=True, border_radius=8, 
-        text_size=14, content_padding=10
+        text_size=14, content_padding=10,
+        on_change=on_sub_change  # <-- 就是这里，直接在出生时绑死事件！
     )
-    
-    def on_sub_change(e):
-        # 🚀 拦截核心：直接截获最新值，不依赖延迟更新的控件属性
-        new_val = str(e.control.value)
-        db.data["currentSubject"] = new_val
-        lbl_mini_subject.value = f"🔄 [{new_val}]" 
-        db.save()
-        
-        # 🌟 重点硬核刷新：即使小窗口隐藏，也强制命令小窗口容器执行越级层刷新重绘。
-        try:
-            lbl_mini_subject.update()
-            mini_top_bar.update()
-        except:
-            pass
-        
-        try: page.update()
-        except: pass
-        
-    sel_subject.on_change = on_sub_change
 
     bar_goal = ft.ProgressBar(value=0, color="#34C759", height=6)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=11, weight="bold", max_lines=1)
@@ -637,13 +620,16 @@ async def main(page: ft.Page):
         bgcolor="transparent"
     )
 
+    # 🚀 同理，番茄钟时间改变也写进构造函数
     def on_pomo_change(e):
         if st.session_active:
             show_warning("🚨 专注期间禁止修改目标时间！")
-            page.update()
+            sel_pomo.value = st.last_pomo_val
+            try: page.update()
+            except: pass
             return
-        st.last_pomo_val = str(sel_pomo.value)
-        try: st.pomo_target = int(sel_pomo.value) * 60
+        st.last_pomo_val = str(e.control.value)
+        try: st.pomo_target = int(e.control.value) * 60
         except: st.pomo_target = 60 * 60 
         st.mode = "pomodoro"
         sel_pomo.disabled = False
@@ -660,9 +646,9 @@ async def main(page: ft.Page):
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=135, dense=True, text_size=14,
-        border_radius=8, content_padding=10
+        border_radius=8, content_padding=10,
+        on_change=on_pomo_change  # <-- 绑死
     )
-    sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row(
@@ -930,15 +916,17 @@ async def main(page: ft.Page):
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
     
+    # 🚀 历史选择下拉框的绑定
+    def on_forest_history_change(e):
+        if e.control.value:
+            st.forest_scope = f"custom:{e.control.value}"
+        refresh_forest()
+        
     forest_history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
-        content_padding=10
+        content_padding=10,
+        on_change=on_forest_history_change  # <-- 绑死
     )
-    def on_forest_history_change(e):
-        if forest_history_dropdown.value:
-            st.forest_scope = f"custom:{forest_history_dropdown.value}"
-        refresh_forest()
-    forest_history_dropdown.on_change = on_forest_history_change
     
     row_forest_history = ft.Row([lbl_forest_history, forest_history_dropdown], alignment="center", visible=False)
 
@@ -1035,15 +1023,18 @@ async def main(page: ft.Page):
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
     
+    # 🚀 历史选择下拉框的绑定
+    def on_history_change(e):
+        if e.control.value:
+            st.stats_scope = f"custom:{e.control.value}"
+        refresh_stats()
+        
     history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
-        content_padding=10
+        content_padding=10,
+        on_change=on_history_change  # <-- 绑死
     )
-    def on_history_change(e):
-        if history_dropdown.value:
-            st.stats_scope = f"custom:{history_dropdown.value}"
-        refresh_stats()
-    history_dropdown.on_change = on_history_change
+    
     row_history_select = ft.Row([lbl_stat_history, history_dropdown], alignment="center", visible=False)
 
     stat_nav_btns = []
