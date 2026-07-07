@@ -92,6 +92,10 @@ class DataManager:
         elif range_str == "month":
             prefix = logical_now.strftime("%Y-%m-")
             return [i for i in self.data["studyData"] if str(i.get("date")).startswith(prefix)]
+        # 🚀 修复点：添加历史查询的底层过滤逻辑！
+        elif range_str.startswith("custom:"):
+            target_date = range_str.split(":")[1]
+            return [i for i in self.data["studyData"] if i.get("date") == target_date]
         return []
 
 # ================= 2. 辅助函数 =================
@@ -197,6 +201,25 @@ async def main(page: ft.Page):
 
     st = State()
 
+    def on_window_event(e):
+        if e.data == "close":
+            if st.session_active and int(st.elapsed) >= 5:
+                try:
+                    db.add_record(sel_subject.value, int(st.elapsed), st.mode, True, "程序意外关闭 (数据已抢救)")
+                except Exception:
+                    pass
+            os._exit(0)
+            
+    try:
+        page.window.prevent_close = True
+        page.window.on_event = on_window_event
+    except AttributeError:
+        try:
+            page.window_prevent_close = True
+            page.on_window_event = on_window_event
+        except Exception:
+            pass
+
     # ========================================================
     # 🚀 主题色调度中心
     # ========================================================
@@ -225,7 +248,6 @@ async def main(page: ft.Page):
         
         lbl_time.color = text_main
         lbl_time_mini.color = text_main
-        
         lbl_quote.color = text_sec
         
         sel_subject.bgcolor = "transparent"
@@ -1057,7 +1079,6 @@ async def main(page: ft.Page):
     sw_chart(0) 
     render_subs()
     
-    # 🚀 最终定位补跑：确保开启瞬时加载历史数据渲染，解决重启显示 0 的数据断流 Bug
     update_focus_ui()
 
     async def heart_beat():
