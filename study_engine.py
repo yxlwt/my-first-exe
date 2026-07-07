@@ -43,7 +43,7 @@ class DataManager:
             "currentSubject": "专业课",
             "subjects": ["专业课", "数学", "英语", "政治"],
             "studyData": [],
-            "examName": "初试",  # 默认倒计时名称
+            "examName": "初试",  
             "examDate": "2026-12-20"
         }
         if os.path.exists(path):
@@ -306,7 +306,6 @@ async def main(page: ft.Page):
         lbl_time_mini.color = text_main
         lbl_quote.color = text_sec
         
-        # 🎨 下拉框使用标准轮廓，颜色适配
         sel_subject.bgcolor = "transparent"
         sel_subject.border_color = text_sec
         sel_subject.color = text_main
@@ -500,12 +499,11 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
-    # ✨ 优化下拉框美化：使用标准圆角和自然内边距，移除容易变形的属性
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
         width=160, dense=True, border_radius=8, 
-        text_size=14
+        text_size=14, content_padding=10
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -567,11 +565,12 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # ✨ 优化番茄钟时间下拉选择器
+    # ✨ 增大宽度到135，保证文字不被箭头遮挡
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=110, dense=True, text_size=14,
-        border_radius=8
+        value="60", width=135, dense=True, text_size=14,
+        border_radius=8, filled=True, border_color="transparent",
+        content_padding=10
     )
     sel_pomo.on_change = on_pomo_change  
 
@@ -840,8 +839,11 @@ async def main(page: ft.Page):
     grid_forest = ft.Column(spacing=15, horizontal_alignment="center")
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
+    # ✨ 保持同步美化
     forest_history_dropdown = ft.Dropdown(
-        options=[], width=140, dense=True, text_size=13, border_radius=8
+        options=[], width=140, dense=True, text_size=13, border_radius=8,
+        filled=True, border_color="transparent",
+        content_padding=10
     )
     def on_forest_history_change(e):
         if forest_history_dropdown.value:
@@ -938,8 +940,11 @@ async def main(page: ft.Page):
     col_stats = ft.Column(scroll="adaptive", expand=True)
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
+    # ✨ 保持同步美化
     history_dropdown = ft.Dropdown(
-        options=[], width=140, dense=True, text_size=13, border_radius=8
+        options=[], width=140, dense=True, text_size=13, border_radius=8,
+        filled=True, border_color="transparent",
+        content_padding=10
     )
     def on_history_change(e):
         if history_dropdown.value:
@@ -1167,7 +1172,6 @@ async def main(page: ft.Page):
         except: txt_goal.value = str(int(db.data["dailyGoal"] // 3600)); page.update()
     txt_goal.on_blur = on_goal_blur
 
-    # ✨ 自定义倒计时名称和日期
     txt_exam_name = ft.TextField(value=str(db.data.get("examName", "初试")), label="目标名称 (如: 初试/期末)", expand=1)
     txt_exam_date = ft.TextField(value=str(db.data.get("examDate", "2026-12-20")), label="目标日期 (YYYY-MM-DD)", expand=1)
     
@@ -1216,7 +1220,6 @@ async def main(page: ft.Page):
             db.data["currentSubject"] = sel_subject.value
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    # ================= 🚀 桌面级静默一键备份引擎 =================
     def on_export(e):
         bp = get_backup_path()
         try:
@@ -1257,16 +1260,21 @@ async def main(page: ft.Page):
             show_popup("✅ 一键导入成功", "历史专注战果已从桌面全部同步恢复！请继续你的冲刺。")
         except Exception as ex:
             show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
-    # =======================================================
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 一键备份到桌面", padding=12, expand=True, on_click=on_export)
     btn_imp, btn_imp_lbl = create_btn("⬆ 从桌面恢复备份", padding=12, expand=True, on_click=on_import)
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
+    # ✨ 完美修复设置页布局，增加纵向呼吸空间
     col_settings_scroll = ft.Column([
-        lbl_setting_1, txt_goal, row_exam_info, ft.Container(height=5),
-        lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=5), 
+        lbl_setting_1, 
+        txt_goal, 
+        ft.Container(height=5), 
+        row_exam_info, 
+        ft.Container(height=15), 
+        lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=15), 
         lbl_setting_3, row_backup_group, 
+        ft.Container(height=5),
         ft.Text("小贴士: 为了保证最高稳定性，导入导出功能不再呼出弹窗，而是直接与您的 Windows 桌面(Desktop)交互文件。", size=10, color="#8E8E93")
     ], scroll="auto", expand=True)
 
