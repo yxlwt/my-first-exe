@@ -32,7 +32,7 @@ class DataManager:
             "currentSubject": "专业课",
             "subjects": ["专业课", "数学", "英语", "政治"],
             "studyData": [],
-            "examName": "初试",  # 🚀 新增：倒计时目标名称
+            "examName": "初试",  
             "examDate": "2026-12-20"
         }
         if os.path.exists(path):
@@ -295,7 +295,6 @@ async def main(page: ft.Page):
         lbl_time_mini.color = text_main
         lbl_quote.color = text_sec
         
-        # 🚀 胶囊下拉框颜色适配
         sel_subject.bgcolor = surface_variant
         sel_subject.border_color = "transparent"
         sel_subject.color = text_main
@@ -490,13 +489,13 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
-    # 🚀 修复核心：胶囊填充式美化下拉框，去除导致拥挤的中心对齐
+    # 🚀 替换为安全、通用整数的内边距，完全移除 ft.padding.only
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
         width=160, dense=True, border_radius=15, 
         filled=True, border_color="transparent",
-        text_size=15, content_padding=ft.padding.only(left=20, top=10, bottom=10, right=10)
+        text_size=15, content_padding=10
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -558,12 +557,12 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 番茄钟时间选择器美化
+    # 🚀 使用通用的整数边距填充
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
         value="60", width=120, dense=True, text_size=13,
         border_radius=8, filled=True, border_color="transparent",
-        content_padding=ft.padding.only(left=15, top=5, bottom=5, right=5)
+        content_padding=5
     )
     sel_pomo.on_change = on_pomo_change  
 
@@ -832,11 +831,11 @@ async def main(page: ft.Page):
     grid_forest = ft.Column(spacing=15, horizontal_alignment="center")
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
-    # 🚀 历史选择下拉框美化
+    # 🚀 使用通用的整数边距填充
     forest_history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         filled=True, border_color="transparent",
-        content_padding=ft.padding.only(left=15, top=5, bottom=5, right=5)
+        content_padding=5
     )
     def on_forest_history_change(e):
         if forest_history_dropdown.value:
@@ -933,10 +932,11 @@ async def main(page: ft.Page):
     col_stats = ft.Column(scroll="adaptive", expand=True)
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
+    # 🚀 使用通用的整数边距填充
     history_dropdown = ft.Dropdown(
         options=[], width=140, dense=True, text_size=13, border_radius=8,
         filled=True, border_color="transparent",
-        content_padding=ft.padding.only(left=15, top=5, bottom=5, right=5)
+        content_padding=5
     )
     def on_history_change(e):
         if history_dropdown.value:
@@ -1164,7 +1164,6 @@ async def main(page: ft.Page):
         except: txt_goal.value = str(int(db.data["dailyGoal"] // 3600)); page.update()
     txt_goal.on_blur = on_goal_blur
 
-    # 🚀 目标配置组件重构为并排显示
     txt_exam_name = ft.TextField(value=str(db.data.get("examName", "初试")), label="倒计时名称", expand=1)
     txt_exam_date = ft.TextField(value=str(db.data.get("examDate", "2026-12-20")), label="目标日期 (YYYY-MM-DD)", expand=2)
     
@@ -1213,30 +1212,24 @@ async def main(page: ft.Page):
             db.data["currentSubject"] = sel_subject.value
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    async def on_export(e):
-        try:
-            path = await ft.FilePicker().save_file(
-                dialog_title="选择备份保存位置",
-                file_name=f"StudyEngine_Backup_{datetime.now().strftime('%Y%m%d')}.json",
-                file_type=ft.FilePickerFileType.CUSTOM,
-                allowed_extensions=["json"]
-            )
-            if path:
-                with open(path, "w", encoding="utf-8") as f:
-                    json.dump(db.data, f, ensure_ascii=False, indent=4)
-                show_popup("✅ 导出成功", f"数据已安全备份至:\n{path}")
-        except Exception as ex:
-            show_popup("❌ 导出失败", str(ex))
+    # ================= 🚀 最稳妥的回调挂载模式 =================
+    export_picker = ft.FilePicker()
+    import_picker = ft.FilePicker()
+    page.overlay.extend([export_picker, import_picker])
 
-    async def on_import(e):
-        try:
-            files = await ft.FilePicker().pick_files(
-                dialog_title="选择历史备份文件",
-                file_type=ft.FilePickerFileType.CUSTOM,
-                allowed_extensions=["json"]
-            )
-            if files and len(files) > 0:
-                import_path = files[0].path
+    def on_export_result(e):
+        if e.path:
+            try:
+                with open(e.path, "w", encoding="utf-8") as f:
+                    json.dump(db.data, f, ensure_ascii=False, indent=4)
+                show_popup("✅ 导出成功", f"数据已安全备份至:\n{e.path}")
+            except Exception as ex:
+                show_popup("❌ 导出失败", str(ex))
+
+    def on_import_result(e):
+        if getattr(e, "files", None) and len(e.files) > 0:
+            import_path = e.files[0].path
+            try:
                 with open(import_path, "r", encoding="utf-8") as f:
                     backup_data = json.load(f)
                 
@@ -1259,8 +1252,18 @@ async def main(page: ft.Page):
                 apply_theme_colors()
                 page.update()
                 show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
-        except Exception as ex:
-            show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
+            except Exception as ex:
+                show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
+
+    export_picker.on_result = on_export_result
+    import_picker.on_result = on_import_result
+
+    def on_export(e):
+        export_picker.save_file(file_name=f"StudyEngine_Backup_{datetime.now().strftime('%Y%m%d')}.json")
+
+    def on_import(e):
+        import_picker.pick_files()
+    # =======================================================
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
     btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
