@@ -237,49 +237,6 @@ async def main(page: ft.Page):
         )
         open_dlg(dlg)
 
-    # ================= 🚀 修复核心：移除参数类型提示 =================
-    def on_export_result(e):
-        if e.path:
-            try:
-                with open(e.path, "w", encoding="utf-8") as f:
-                    json.dump(db.data, f, ensure_ascii=False, indent=4)
-                show_popup("✅ 导出成功", f"数据已安全备份至:\n{e.path}")
-            except Exception as ex:
-                show_popup("❌ 导出失败", str(ex))
-
-    def on_import_result(e):
-        if e.files and len(e.files) > 0:
-            import_path = e.files[0].path
-            try:
-                with open(import_path, "r", encoding="utf-8") as f:
-                    backup_data = json.load(f)
-                
-                db.data.clear()
-                db.data.update(backup_data)
-                db.save()
-                
-                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
-                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
-                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
-                if db.data["subjects"]:
-                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
-                
-                update_countdown()
-                update_focus_ui()
-                render_subs()
-                refresh_forest()
-                refresh_stats()
-                apply_theme_colors()
-                page.update()
-                show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
-            except Exception as ex:
-                show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
-    # =====================================================
-
-    export_picker = ft.FilePicker(on_result=on_export_result)
-    import_picker = ft.FilePicker(on_result=on_import_result)
-    page.overlay.extend([export_picker, import_picker])
-
     class State:
         session_active = False  
         timer_active = False 
@@ -1236,20 +1193,55 @@ async def main(page: ft.Page):
             db.data["currentSubject"] = sel_subject.value
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    # ================= 修改点击事件 =================
-    def on_export(e):
-        export_picker.save_file(
-            dialog_title="选择备份保存位置",
-            file_name=f"StudyEngine_Backup_{datetime.now().strftime('%Y%m%d')}.json",
-            allowed_extensions=["json"]
-        )
+    # ================= 🚀 修复核心：采用 Flet 1.0+ 异步 Service API =================
+    async def on_export(e):
+        try:
+            path = await ft.FilePicker().save_file(
+                dialog_title="选择备份保存位置",
+                file_name=f"StudyEngine_Backup_{datetime.now().strftime('%Y%m%d')}.json",
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["json"]
+            )
+            if path:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(db.data, f, ensure_ascii=False, indent=4)
+                show_popup("✅ 导出成功", f"数据已安全备份至:\n{path}")
+        except Exception as ex:
+            show_popup("❌ 导出失败", str(ex))
 
-    def on_import(e):
-        import_picker.pick_files(
-            dialog_title="选择历史备份文件",
-            allowed_extensions=["json"]
-        )
-    # =================================================
+    async def on_import(e):
+        try:
+            files = await ft.FilePicker().pick_files(
+                dialog_title="选择历史备份文件",
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["json"]
+            )
+            if files and len(files) > 0:
+                import_path = files[0].path
+                with open(import_path, "r", encoding="utf-8") as f:
+                    backup_data = json.load(f)
+                
+                db.data.clear()
+                db.data.update(backup_data)
+                db.save()
+                
+                txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
+                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
+                sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
+                if db.data["subjects"]:
+                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
+                
+                update_countdown()
+                update_focus_ui()
+                render_subs()
+                refresh_forest()
+                refresh_stats()
+                apply_theme_colors()
+                page.update()
+                show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
+        except Exception as ex:
+            show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
+    # =====================================================
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
     btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
