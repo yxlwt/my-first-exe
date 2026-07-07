@@ -32,6 +32,7 @@ class DataManager:
             "currentSubject": "专业课",
             "subjects": ["专业课", "数学", "英语", "政治"],
             "studyData": [],
+            "examName": "初试",  # 🚀 新增：倒计时目标名称
             "examDate": "2026-12-20"
         }
         if os.path.exists(path):
@@ -294,8 +295,9 @@ async def main(page: ft.Page):
         lbl_time_mini.color = text_main
         lbl_quote.color = text_sec
         
-        sel_subject.bgcolor = "transparent"
-        sel_subject.border_color = "#38383A" if is_dark else "#C7C7CC"
+        # 🚀 胶囊下拉框颜色适配
+        sel_subject.bgcolor = surface_variant
+        sel_subject.border_color = "transparent"
         sel_subject.color = text_main
         
         bar_goal.bgcolor = surface_variant
@@ -306,6 +308,8 @@ async def main(page: ft.Page):
         mode_sw_lbl.color = text_main if st.mode == "stopwatch" else text_sec
         mode_pm_view.bgcolor = surface if st.mode == "pomodoro" else "transparent"
         mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
+        
+        sel_pomo.bgcolor = surface if is_dark else "#FFFFFF"
         sel_pomo.color = text_main
         
         if st.session_active:
@@ -347,6 +351,8 @@ async def main(page: ft.Page):
         lbl_setting_3.color = text_main
         txt_goal.border_color = text_sec
         txt_goal.color = text_main
+        txt_exam_name.border_color = text_sec
+        txt_exam_name.color = text_main
         txt_exam_date.border_color = text_sec
         txt_exam_date.color = text_main
         txt_new_sub.border_color = text_sec
@@ -358,13 +364,13 @@ async def main(page: ft.Page):
         view_settings.bgcolor = surface
         
         lbl_forest_history.color = text_sec
-        forest_history_dropdown.bgcolor = "transparent"
-        forest_history_dropdown.border_color = "#38383A" if is_dark else "#C7C7CC"
+        forest_history_dropdown.bgcolor = surface_variant
+        forest_history_dropdown.border_color = "transparent"
         forest_history_dropdown.color = text_main
         
         lbl_stat_history.color = text_sec
-        history_dropdown.bgcolor = "transparent"
-        history_dropdown.border_color = "#38383A" if is_dark else "#C7C7CC"
+        history_dropdown.bgcolor = surface_variant
+        history_dropdown.border_color = "transparent"
         history_dropdown.color = text_main
         
         for i, item in enumerate(nav_buttons):
@@ -391,12 +397,14 @@ async def main(page: ft.Page):
     def update_countdown():
         try:
             today = datetime.now().date()
-            exam = datetime.strptime(db.data.get("examDate", "2026-12-20"), "%Y-%m-%d").date()
+            exam_date_str = db.data.get("examDate", "2026-12-20")
+            exam_name = db.data.get("examName", "初试")
+            exam = datetime.strptime(exam_date_str, "%Y-%m-%d").date()
             diff = (exam - today).days
-            countdown_text.value = f"距离初试仅剩 {diff} 天"
+            countdown_text.value = f"距离{exam_name}仅剩 {diff} 天"
             countdown_text.color = "#FF3B30" if diff < 150 else "#007AFF"
         except:
-            countdown_text.value = "距离初试仅剩 -- 天"
+            countdown_text.value = "距离目标仅剩 -- 天"
 
     def toggle_theme(e):
         page.theme_mode = "dark" if page.theme_mode == "light" else "light"
@@ -482,12 +490,13 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
+    # 🚀 修复核心：胶囊填充式美化下拉框，去除导致拥挤的中心对齐
     sel_subject = ft.Dropdown(
         options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
         value=db.data["currentSubject"], 
-        width=180, dense=True, border_radius=12, 
-        text_align="center",  
-        text_size=15, content_padding=8
+        width=160, dense=True, border_radius=15, 
+        filled=True, border_color="transparent",
+        text_size=15, content_padding=ft.padding.only(left=20, top=10, bottom=10, right=10)
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
@@ -549,11 +558,12 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 番茄钟时间选择器美化
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=125, dense=True, content_padding=5, text_size=13,
-        text_align="center",
-        border_color="transparent", bgcolor="transparent"
+        value="60", width=120, dense=True, text_size=13,
+        border_radius=8, filled=True, border_color="transparent",
+        content_padding=ft.padding.only(left=15, top=5, bottom=5, right=5)
     )
     sel_pomo.on_change = on_pomo_change  
 
@@ -822,8 +832,11 @@ async def main(page: ft.Page):
     grid_forest = ft.Column(spacing=15, horizontal_alignment="center")
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
+    # 🚀 历史选择下拉框美化
     forest_history_dropdown = ft.Dropdown(
-        options=[], width=140, dense=True, content_padding=5, text_size=13, text_align="center"
+        options=[], width=140, dense=True, text_size=13, border_radius=8,
+        filled=True, border_color="transparent",
+        content_padding=ft.padding.only(left=15, top=5, bottom=5, right=5)
     )
     def on_forest_history_change(e):
         if forest_history_dropdown.value:
@@ -921,7 +934,9 @@ async def main(page: ft.Page):
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
     history_dropdown = ft.Dropdown(
-        options=[], width=140, dense=True, content_padding=5, text_size=13, text_align="center"
+        options=[], width=140, dense=True, text_size=13, border_radius=8,
+        filled=True, border_color="transparent",
+        content_padding=ft.padding.only(left=15, top=5, bottom=5, right=5)
     )
     def on_history_change(e):
         if history_dropdown.value:
@@ -1149,19 +1164,24 @@ async def main(page: ft.Page):
         except: txt_goal.value = str(int(db.data["dailyGoal"] // 3600)); page.update()
     txt_goal.on_blur = on_goal_blur
 
-    txt_exam_date = ft.TextField(value=str(db.data.get("examDate", "2026-12-20")), label="初试目标日期 (YYYY-MM-DD)")
-    def on_exam_date_blur(e):
-        val = txt_exam_date.value.strip()
+    # 🚀 目标配置组件重构为并排显示
+    txt_exam_name = ft.TextField(value=str(db.data.get("examName", "初试")), label="倒计时名称", expand=1)
+    txt_exam_date = ft.TextField(value=str(db.data.get("examDate", "2026-12-20")), label="目标日期 (YYYY-MM-DD)", expand=2)
+    
+    def on_exam_info_blur(e):
+        db.data["examName"] = txt_exam_name.value.strip() or "初试"
         try:
-            datetime.strptime(val, "%Y-%m-%d")
-            db.data["examDate"] = val
-            db.save()
-            update_countdown()
-            page.update()
+            datetime.strptime(txt_exam_date.value.strip(), "%Y-%m-%d")
+            db.data["examDate"] = txt_exam_date.value.strip()
         except:
             txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
-            page.update()
-    txt_exam_date.on_blur = on_exam_date_blur
+        db.save()
+        update_countdown()
+        page.update()
+        
+    txt_exam_name.on_blur = on_exam_info_blur
+    txt_exam_date.on_blur = on_exam_info_blur
+    row_exam_info = ft.Row([txt_exam_name, txt_exam_date], spacing=10)
 
     col_subs = ft.Column(spacing=8)
     txt_new_sub = ft.TextField(hint_text="新科目", expand=True)
@@ -1193,7 +1213,6 @@ async def main(page: ft.Page):
             db.data["currentSubject"] = sel_subject.value
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    # ================= 🚀 修复核心：采用 Flet 1.0+ 异步 Service API =================
     async def on_export(e):
         try:
             path = await ft.FilePicker().save_file(
@@ -1226,6 +1245,7 @@ async def main(page: ft.Page):
                 db.save()
                 
                 txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
+                txt_exam_name.value = str(db.data.get("examName", "初试"))
                 txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
                 sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
                 if db.data["subjects"]:
@@ -1241,14 +1261,13 @@ async def main(page: ft.Page):
                 show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
         except Exception as ex:
             show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
-    # =====================================================
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
     btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
     col_settings_scroll = ft.Column([
-        lbl_setting_1, txt_goal, txt_exam_date, ft.Container(height=5),
+        lbl_setting_1, txt_goal, row_exam_info, ft.Container(height=5),
         lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=5), 
         lbl_setting_3, row_backup_group
     ], scroll="auto", expand=True)
