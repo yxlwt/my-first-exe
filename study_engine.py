@@ -8,10 +8,42 @@ import random
 import traceback
 from datetime import datetime, timedelta
 
-# ================= 1. 初始化与极简相对路径数据管理 =================
-# 🚀 完全遵循要求：去掉所有绝对路径，回归最纯粹的相对路径
-DATA_FILE = "study_data.json"
-BACKUP_FILE = "StudyEngine_Backup.json"
+# ================= 1. 初始化与绝对安全的数据管理 =================
+def get_safe_app_dir():
+    """
+    终极防御机制：解决任务栏固定启动时工作目录变为 System32 导致的白屏崩溃。
+    程序会先尝试在 exe 所在目录读写，如果权限被拒，自动降级到用户安全目录。
+    """
+    if getattr(sys, 'frozen', False):
+        base_dir = os.path.dirname(sys.executable)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        
+    # 探针：测试当前目录是否有写入权限
+    test_file = os.path.join(base_dir, ".write_test_probe")
+    try:
+        with open(test_file, 'w') as f:
+            f.write('ok')
+        os.remove(test_file)
+        return base_dir
+    except Exception:
+        # 如果没有权限（例如任务栏启动指向了只读系统目录），退维到用户主目录
+        safe_fallback_dir = os.path.join(os.path.expanduser("~"), "StudyEngine_Data")
+        os.makedirs(safe_fallback_dir, exist_ok=True)
+        return safe_fallback_dir
+
+APP_DIR = get_safe_app_dir()
+DATA_FILE = os.path.join(APP_DIR, "study_data.json")
+
+def get_backup_path():
+    """智能获取备份路径，优先保存到用户桌面"""
+    try:
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        if os.path.exists(desktop):
+            return os.path.join(desktop, "StudyEngine_Backup.json")
+    except:
+        pass
+    return os.path.join(APP_DIR, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
@@ -448,8 +480,11 @@ async def main(page: ft.Page):
 
     btn_mini_expand, btn_mini_expand_lbl = create_btn("🔼", padding=6, width=35, on_click=toggle_mini_mode)
     
+    # 🚀 迷你模式重构：加入可点击切换的交互科目标签
     lbl_time_mini = ft.Text(value="60:00", size=26, weight="bold", max_lines=1)
-    lbl_mini_subject = ft.Text(value=f"[{db.data['currentSubject']}]", size=12, weight="bold")
+    
+    # 加上 🔄 图标提示用户这里是可点击切换的
+    lbl_mini_subject = ft.Text(value=f"🔄 [{db.data['currentSubject']}]", size=12, weight="bold")
     
     def on_mini_subject_click(e):
         if st.session_active:
@@ -464,13 +499,14 @@ async def main(page: ft.Page):
         next_idx = (curr_idx + 1) % len(subs)
         new_sub = subs[next_idx]
         
+        # 🚀 绝对双向绑定：小窗口点击 -> 同步更新主窗口选择器
         sel_subject.value = new_sub
         db.data["currentSubject"] = new_sub
-        lbl_mini_subject.value = f"[{new_sub}]"
+        lbl_mini_subject.value = f"🔄 [{new_sub}]"
+        
         db.save()
         page.update()
 
-    # 🚀 修复核心：移除了导致报错的 ft.padding.symmetric，改为全兼容整数 5
     mini_subject_container = ft.Container(
         content=lbl_mini_subject,
         on_click=on_mini_subject_click,
@@ -541,7 +577,8 @@ async def main(page: ft.Page):
     )
     def on_sub_change(e):
         db.data["currentSubject"] = sel_subject.value
-        lbl_mini_subject.value = f"[{sel_subject.value}]" 
+        # 🚀 绝对双向绑定：主窗口改变 -> 同步更新小窗口文字
+        lbl_mini_subject.value = f"🔄 [{sel_subject.value}]" 
         db.save()
         try: page.update()
         except: pass
@@ -1220,7 +1257,7 @@ async def main(page: ft.Page):
     # ----------------- 设置视图 (3) -----------------
     lbl_setting_1 = ft.Text(value="🎯 目标设置", weight="bold")
     lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight="bold")
-    lbl_setting_3 = ft.Text(value="💾 数据备份", weight="bold")
+    lbl_setting_3 = ft.Text(value="💾 数据备份 (桌面级快速同步)", weight="bold")
     
     txt_goal = ft.TextField(value=str(int(db.data["dailyGoal"] // 3600)), label="每日专注目标 (小时)")
     def on_goal_blur(e):
@@ -1275,25 +1312,27 @@ async def main(page: ft.Page):
             sel_subject.value = db.data["subjects"][0]
             db.data["currentSubject"] = sel_subject.value
             
-            lbl_mini_subject.value = f"[{sel_subject.value}]"
+            lbl_mini_subject.value = f"🔄 [{sel_subject.value}]"
             
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
     def on_export(e):
+        bp = get_backup_path()
         try:
-            with open(BACKUP_FILE, "w", encoding="utf-8") as f:
+            with open(bp, "w", encoding="utf-8") as f:
                 json.dump(db.data, f, ensure_ascii=False, indent=4)
-            show_popup("✅ 一键导出成功", f"数据已安全备份至程序所在目录：\n\n{BACKUP_FILE}")
+            show_popup("✅ 一键导出成功", f"为了防止卡顿，已静默将数据安全备份至您的电脑桌面：\n\n{bp}")
         except Exception as ex:
             show_popup("❌ 导出失败", str(ex))
 
     def on_import(e):
-        if not os.path.exists(BACKUP_FILE):
-            show_popup("⚠️ 未找到备份文件", f"引擎在以下相对路径没有找到备份文件：\n{BACKUP_FILE}\n\n请确保您之前点击过导出。")
+        bp = get_backup_path()
+        if not os.path.exists(bp):
+            show_popup("⚠️ 未找到备份文件", f"引擎在以下路径没有找到您的备份文件：\n{bp}\n\n请确保您之前点击过导出，或将备份文件放在桌面上。")
             return
             
         try:
-            with open(BACKUP_FILE, "r", encoding="utf-8") as f:
+            with open(bp, "r", encoding="utf-8") as f:
                 backup_data = json.load(f)
             
             db.data.clear()
@@ -1307,7 +1346,7 @@ async def main(page: ft.Page):
             if db.data["subjects"]:
                 sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
             
-            lbl_mini_subject.value = f"[{sel_subject.value}]"
+            lbl_mini_subject.value = f"🔄 [{sel_subject.value}]"
             
             update_countdown()
             update_focus_ui()
@@ -1316,12 +1355,12 @@ async def main(page: ft.Page):
             refresh_stats()
             apply_theme_colors()
             page.update()
-            show_popup("✅ 一键导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
+            show_popup("✅ 一键导入成功", "历史专注战果已从桌面全部同步恢复！请继续你的冲刺。")
         except Exception as ex:
             show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
 
-    btn_exp, btn_exp_lbl = create_btn("⬇ 一键备份数据", padding=12, expand=True, on_click=on_export)
-    btn_imp, btn_imp_lbl = create_btn("⬆ 从备份中恢复", padding=12, expand=True, on_click=on_import)
+    btn_exp, btn_exp_lbl = create_btn("⬇ 一键备份到桌面", padding=12, expand=True, on_click=on_export)
+    btn_imp, btn_imp_lbl = create_btn("⬆ 从桌面恢复备份", padding=12, expand=True, on_click=on_import)
     row_backup_group = ft.Row([btn_exp, btn_imp], spacing=10, alignment="center")
 
     col_settings_scroll = ft.Column([
@@ -1333,7 +1372,7 @@ async def main(page: ft.Page):
         lbl_setting_2, col_subs, ft.Row([txt_new_sub, btn_add]), ft.Container(height=15), 
         lbl_setting_3, row_backup_group, 
         ft.Container(height=5),
-        ft.Text("小贴士: 已彻底移除绝对路径依赖。备份文件将被静默保存在程序当前运行目录的同级位置。", size=10, color="#8E8E93")
+        ft.Text("小贴士: 为了保证最高稳定性，导入导出功能不再呼出弹窗，而是直接与您的 Windows 桌面(Desktop)交互文件。", size=10, color="#8E8E93")
     ], scroll="auto", expand=True)
 
     view_settings = ft.Container(
@@ -1413,6 +1452,5 @@ async def main(page: ft.Page):
 if __name__ == "__main__":
     try:
         ft.app(target=main)
-    except Exception as e:
-        # 直接打印错误，不要向不可预知的系统路径写文件
-        print(f"CRITICAL ERROR: {str(e)}")
+    except Exception:
+        pass
