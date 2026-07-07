@@ -14,6 +14,7 @@ if getattr(sys, 'frozen', False):
 else:
     application_path = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(application_path, "study_data.json")
+BACKUP_FILE = os.path.join(application_path, "StudyEngine_Backup.json")
 
 ENCOURAGEMENTS = [
     "星光不问赶路人，时光不负有心人。",
@@ -230,6 +231,13 @@ async def main(page: ft.Page):
             snack.open = True
             page.update()
 
+    def show_popup(title_text, content_text):
+        dlg = ft.AlertDialog(
+            title=ft.Text(title_text, weight="bold"),
+            content=ft.Text(content_text, size=13),
+        )
+        open_dlg(dlg)
+
     class State:
         session_active = False  
         timer_active = False 
@@ -298,7 +306,7 @@ async def main(page: ft.Page):
         mode_sw_view.bgcolor = surface if st.mode == "stopwatch" else "transparent"
         mode_sw_lbl.color = text_main if st.mode == "stopwatch" else text_sec
         mode_pm_view.bgcolor = surface if st.mode == "pomodoro" else "transparent"
-        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_main
+        mode_pm_lbl.color = text_main if st.mode == "pomodoro" else text_sec
         sel_pomo.color = text_main
         
         if st.session_active:
@@ -511,13 +519,15 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=0, height=40, on_click=lambda e: switch_mode("stopwatch"))
+    # 🚀 完全采纳你发来的完美 UI 代码
+    mode_sw_view, mode_sw_lbl = create_btn("🧱 筑城 (正向)", radius=8, expand=True, padding=6, on_click=lambda e: switch_mode("stopwatch"))
 
     mode_pm_lbl = ft.Text("🌱 种树", weight="bold", max_lines=1)
+
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=ft.padding.only(left=8, right=4),
+        padding=5,
         bgcolor="transparent"
     )
 
@@ -541,19 +551,23 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
+    # 🚀 使用 text_align="center" 原生安全属性保证文字居中
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=110, dense=True, content_padding=0, text_size=13,
-        text_align="center", border="none", filled=False, bgcolor="transparent"
+        value="60", width=125, dense=True, content_padding=5, text_size=13,
+        text_align="center",
+        border_color="transparent", bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
-            spacing=2, alignment="center", vertical_alignment="center"
+            spacing=0, 
+            alignment="center",
+            vertical_alignment="center" 
         ),
-        border_radius=8, expand=True, height=40, padding=0
+        border_radius=8, expand=True
     )
 
     def stop_timer_handler(e):
@@ -1190,35 +1204,26 @@ async def main(page: ft.Page):
         open_dlg(dlg)
 
     def on_export(e):
-        # 🚀 绝对路径锁定，解决找不到文件的问题
-        backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
         try:
-            with open(backup_path, "w", encoding="utf-8") as f:
-                json.dump(db.data, f, ensure_ascii=False, indent=4)
-            show_popup("✅ 导出成功", f"备份已安全保存至:\n{backup_path}")
-        except Exception as ex:
+            with open(BACKUP_FILE, "w", encoding="utf-8") as f: json.dump(db.data, f, ensure_ascii=False, indent=4)
+            show_popup("✅ 导出成功", f"备份已安全保存至:\n{BACKUP_FILE}")
+        except Exception as ex: 
             show_popup("❌ 导出失败", str(ex))
 
     def on_import(e):
-        # 🚀 绝对路径锁定读取，解决导入没反应、被吞没的问题
-        backup_path = os.path.join(application_path, "StudyEngine_Backup.json")
-        if os.path.exists(backup_path):
+        if os.path.exists(BACKUP_FILE):
             try:
-                with open(backup_path, "r", encoding="utf-8") as f:
+                with open(BACKUP_FILE, "r", encoding="utf-8") as f:
                     backup_data = json.load(f)
-                
-                db.data["dailyGoal"] = backup_data.get("dailyGoal", 6 * 3600)
-                db.data["currentSubject"] = backup_data.get("currentSubject", "专业课")
-                db.data["subjects"] = backup_data.get("subjects", ["专业课", "数学", "英语", "政治"])
-                db.data["studyData"] = backup_data.get("studyData", [])
-                db.data["examDate"] = backup_data.get("examDate", "2026-12-20")
+                db.data.clear()
+                db.data.update(backup_data)
                 db.save()
                 
                 txt_goal.value = str(int(db.data["dailyGoal"] // 3600))
-                txt_exam_date.value = str(db.data["examDate"])
+                txt_exam_date.value = str(db.data.get("examDate", "2026-12-20"))
                 sel_subject.options = [ft.dropdown.Option(key=x) for x in db.data["subjects"]]
                 if db.data["subjects"]:
-                    sel_subject.value = db.data["currentSubject"] if db.data["currentSubject"] in db.data["subjects"] else db.data["subjects"][0]
+                    sel_subject.value = db.data.get("currentSubject", db.data["subjects"][0])
                 
                 update_countdown()
                 update_focus_ui()
@@ -1227,12 +1232,11 @@ async def main(page: ft.Page):
                 refresh_stats()
                 apply_theme_colors()
                 page.update()
-                
                 show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
             except Exception as ex:
                 show_popup("❌ 导入崩溃", str(ex))
         else:
-            show_popup("⚠️ 未找到备份", f"请确保备份文件位于:\n{backup_path}")
+            show_popup("⚠️ 未找到备份", f"请确保备份文件位于:\n{BACKUP_FILE}")
 
     btn_exp, btn_exp_lbl = create_btn("⬇ 导出本地备份", padding=12, expand=True, on_click=on_export)
     btn_imp, btn_imp_lbl = create_btn("⬆ 一键导入备份", padding=12, expand=True, on_click=on_import)
