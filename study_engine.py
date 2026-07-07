@@ -237,8 +237,8 @@ async def main(page: ft.Page):
         )
         open_dlg(dlg)
 
-    # ================= 文件选择器弹窗逻辑 =================
-    def on_export_result(e: ft.FilePickerResultEvent):
+    # ================= 🚀 修复核心：移除参数类型提示 =================
+    def on_export_result(e):
         if e.path:
             try:
                 with open(e.path, "w", encoding="utf-8") as f:
@@ -247,7 +247,7 @@ async def main(page: ft.Page):
             except Exception as ex:
                 show_popup("❌ 导出失败", str(ex))
 
-    def on_import_result(e: ft.FilePickerResultEvent):
+    def on_import_result(e):
         if e.files and len(e.files) > 0:
             import_path = e.files[0].path
             try:
@@ -274,11 +274,11 @@ async def main(page: ft.Page):
                 show_popup("✅ 导入成功", "历史专注战果已全部同步恢复！请继续你的冲刺。")
             except Exception as ex:
                 show_popup("❌ 导入崩溃", f"文件格式有误或读取失败:\n{str(ex)}")
+    # =====================================================
 
     export_picker = ft.FilePicker(on_result=on_export_result)
     import_picker = ft.FilePicker(on_result=on_import_result)
     page.overlay.extend([export_picker, import_picker])
-    # =====================================================
 
     class State:
         session_active = False  
