@@ -517,7 +517,7 @@ async def main(page: ft.Page):
     mode_pm_click_area = ft.Container(
         content=mode_pm_lbl, 
         on_click=lambda e: switch_mode("pomodoro"), 
-        padding=5,
+        padding=0, 
         bgcolor="transparent"
     )
 
@@ -541,18 +541,18 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    # 🚀 坚决只使用 text_align="center" 原理解决居中，完全舍弃容易报错的 alignment
+    # 🚀 绝杀修复点：彻底去掉边框、背景填色和内边距，让下拉框化身为“纯净文本”
     sel_pomo = ft.Dropdown(
         options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=110, dense=True, content_padding=8, text_size=13,
-        text_align="center", border_color="transparent", bgcolor="transparent"
+        value="60", width=95, dense=True, content_padding=0, text_size=13,
+        text_align="center", border="none", filled=False, bgcolor="transparent"
     )
     sel_pomo.on_change = on_pomo_change  
 
     mode_pm_view = ft.Container(
         content=ft.Row(
             [mode_pm_click_area, sel_pomo], 
-            spacing=0, alignment="center", vertical_alignment="center"
+            spacing=2, alignment="center", vertical_alignment="center"
         ),
         border_radius=8, expand=True, height=40, padding=0
     )
