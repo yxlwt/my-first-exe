@@ -7,35 +7,23 @@ import time
 import random
 import traceback
 from datetime import datetime, timedelta
-# 🚀 引入 Python 自带的底层原生弹窗库，彻底绕过 Flet 的报错缺陷
+
+# 🚀 引入 Python 自带的原生 UI 库，用来呼出 100% 稳定的文件选择弹窗
 import tkinter as tk
 from tkinter import filedialog
 
 # ================= 1. 初始化与绝对安全的数据管理 =================
-def get_safe_app_dir():
+def get_app_dir():
     """
-    终极防御机制：解决任务栏固定启动时工作目录变为 System32 导致的白屏崩溃。
-    程序会先尝试在 exe 所在目录读写，如果权限被拒，自动降级到用户安全目录。
+    纯净路径解析器：放弃对工作目录的强制修改，做最纯粹的绿色单体软件。
+    数据永远跟随 exe 同级目录。
     """
     if getattr(sys, 'frozen', False):
-        base_dir = os.path.dirname(sys.executable)
+        return os.path.dirname(sys.executable)
     else:
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        
-    # 探针：测试当前目录是否有写入权限
-    test_file = os.path.join(base_dir, ".write_test_probe")
-    try:
-        with open(test_file, 'w') as f:
-            f.write('ok')
-        os.remove(test_file)
-        return base_dir
-    except Exception:
-        # 如果没有权限，退维到用户主目录
-        safe_fallback_dir = os.path.join(os.path.expanduser("~"), "StudyEngine_Data")
-        os.makedirs(safe_fallback_dir, exist_ok=True)
-        return safe_fallback_dir
+        return os.path.dirname(os.path.abspath(__file__))
 
-APP_DIR = get_safe_app_dir()
+APP_DIR = get_app_dir()
 DATA_FILE = os.path.join(APP_DIR, "study_data.json")
 
 ENCOURAGEMENTS = [
@@ -569,6 +557,14 @@ async def main(page: ft.Page):
     lbl_time = ft.Text(value="60:00", size=50, weight="bold", text_align="center", max_lines=1) 
     lbl_quote = ft.Text(value=random.choice(ENCOURAGEMENTS), size=11, text_align="center", max_lines=1)
     
+    # 🚀 剥除所有的 on_change，防旧版底层事件断层。
+    sel_subject = ft.Dropdown(
+        options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
+        value=db.data["currentSubject"], 
+        width=160, dense=True, border_radius=8, 
+        text_size=14, content_padding=10
+    )
+    
     def on_sub_change(e):
         new_val = str(e.control.value)
         db.data["currentSubject"] = new_val
@@ -577,14 +573,9 @@ async def main(page: ft.Page):
         db.save()
         try: page.update()
         except: pass
-
-    sel_subject = ft.Dropdown(
-        options=[ft.dropdown.Option(key=s) for s in db.data["subjects"]],
-        value=db.data["currentSubject"], 
-        width=160, dense=True, border_radius=8, 
-        text_size=14, content_padding=10,
-        on_change=on_sub_change
-    )
+        
+    # 🚀 延迟绑定事件
+    sel_subject.on_change = on_sub_change
 
     bar_goal = ft.ProgressBar(value=0, color="#34C759", height=6)
     lbl_goal = ft.Text(value="今日进度: 0m / 6h", size=11, weight="bold", max_lines=1)
@@ -621,6 +612,12 @@ async def main(page: ft.Page):
         bgcolor="transparent"
     )
 
+    sel_pomo = ft.Dropdown(
+        options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
+        value="60", width=135, dense=True, text_size=14,
+        border_radius=8, content_padding=10
+    )
+
     def on_pomo_change(e):
         if st.session_active:
             show_warning("🚨 专注期间禁止修改目标时间！")
@@ -643,12 +640,8 @@ async def main(page: ft.Page):
         try: page.update()
         except: pass
 
-    sel_pomo = ft.Dropdown(
-        options=[ft.dropdown.Option(key=str(m), text=f"{m} 分钟") for m in [15, 25, 35, 45, 60, 90, 120]],
-        value="60", width=135, dense=True, text_size=14,
-        border_radius=8, content_padding=10,
-        on_change=on_pomo_change
-    )
+    # 🚀 剥离 on_change 解决崩溃
+    sel_pomo.on_change = on_pomo_change
 
     mode_pm_view = ft.Container(
         content=ft.Row(
@@ -759,6 +752,7 @@ async def main(page: ft.Page):
     row_confirm_btns1 = ft.Row([btn_y, btn_n], alignment="center", spacing=10)
     row_confirm_btns2 = ft.Row([btn_c], alignment="center")
 
+    # 🚀 确认面板自动滚动
     col_confirm = ft.Column([
         lbl_icon_confirm, lbl_title_confirm, lbl_confirm_msg, row_confirm_btns1, row_confirm_btns2
     ], alignment="center", horizontal_alignment="center", spacing=6, scroll="auto")
@@ -779,6 +773,7 @@ async def main(page: ft.Page):
     row_success_btn = ft.Row([btn_success_save], alignment="center")
     lbl_success_quote = ft.Text("", size=11, text_align="center")
 
+    # 🚀 成功面板自动滚动
     col_success = ft.Column([
         lbl_icon_success, lbl_title_success, lbl_success_quote, row_note, row_success_btn
     ], alignment="center", horizontal_alignment="center", spacing=6, scroll="auto")
@@ -879,16 +874,17 @@ async def main(page: ft.Page):
             btn_stop_view.height = 36; btn_stop_view.padding = 5; btn_stop_lbl.size = 12
             row_main_btns.spacing = 10; col_main.spacing = 5
             
+            # 🌟 极度压缩小窗口确认界面的排版
             lbl_icon_confirm.size = 24
-            lbl_title_confirm.size = 15
-            lbl_confirm_msg.size = 11
+            lbl_title_confirm.size = 14
+            lbl_confirm_msg.size = 10
             col_confirm.spacing = 2
             btn_y.height = 30; btn_y.padding = 2; btn_y_lbl.size = 11
             btn_n.height = 30; btn_n.padding = 2; btn_n_lbl.size = 11
             btn_c.height = 30; btn_c.padding = 2; btn_c_lbl.size = 11
             
             lbl_icon_success.size = 28
-            lbl_title_success.size = 15
+            lbl_title_success.size = 14
             lbl_success_quote.size = 10
             txt_note.content_padding = 5
             btn_success_save.height = 30; btn_success_save.padding = 2; btn_success_save_lbl.size = 11
@@ -915,6 +911,7 @@ async def main(page: ft.Page):
             btn_stop_view.height = 42; btn_stop_view.padding = 8; btn_stop_lbl.size = 14
             row_main_btns.spacing = 15; col_main.spacing = 10
             
+            # 🌟 恢复大窗口宽敞排版
             lbl_icon_confirm.size = 35
             lbl_title_confirm.size = 18
             lbl_confirm_msg.size = 12
@@ -948,16 +945,16 @@ async def main(page: ft.Page):
     
     lbl_forest_history = ft.Text("选择日期:", size=12, weight="bold")
     
+    forest_history_dropdown = ft.Dropdown(
+        options=[], width=140, dense=True, text_size=13, border_radius=8,
+        content_padding=10
+    )
     def on_forest_history_change(e):
         if e.control.value:
             st.forest_scope = f"custom:{e.control.value}"
         refresh_forest()
         
-    forest_history_dropdown = ft.Dropdown(
-        options=[], width=140, dense=True, text_size=13, border_radius=8,
-        content_padding=10,
-        on_change=on_forest_history_change
-    )
+    forest_history_dropdown.on_change = on_forest_history_change
     
     row_forest_history = ft.Row([lbl_forest_history, forest_history_dropdown], alignment="center", visible=False)
 
@@ -1054,16 +1051,16 @@ async def main(page: ft.Page):
     
     lbl_stat_history = ft.Text("选择日期:", size=12, weight="bold")
     
+    history_dropdown = ft.Dropdown(
+        options=[], width=140, dense=True, text_size=13, border_radius=8,
+        content_padding=10
+    )
     def on_history_change(e):
         if e.control.value:
             st.stats_scope = f"custom:{e.control.value}"
         refresh_stats()
         
-    history_dropdown = ft.Dropdown(
-        options=[], width=140, dense=True, text_size=13, border_radius=8,
-        content_padding=10,
-        on_change=on_history_change
-    )
+    history_dropdown.on_change = on_history_change
 
     row_history_select = ft.Row([lbl_stat_history, history_dropdown], alignment="center", visible=False)
 
@@ -1295,7 +1292,7 @@ async def main(page: ft.Page):
     # ----------------- 设置视图 (3) -----------------
     lbl_setting_1 = ft.Text(value="🎯 目标设置", weight="bold")
     lbl_setting_2 = ft.Text(value="🏷️ 科目管理", weight="bold")
-    lbl_setting_3 = ft.Text(value="💾 数据备份 (系统原生弹窗)", weight="bold")
+    lbl_setting_3 = ft.Text(value="💾 数据备份 (安全原生模式)", weight="bold")
     
     txt_goal = ft.TextField(value=str(int(db.data["dailyGoal"] // 3600)), label="每日专注目标 (小时)")
     def on_goal_blur(e):
@@ -1354,7 +1351,7 @@ async def main(page: ft.Page):
             
             db.save(); render_subs(); apply_theme_colors(); page.update()
 
-    # 🚀 使用 Tkinter 的原生文件对话框，彻底拜托 FilePicker
+    # 🚀 使用 Tkinter 原生安全弹窗
     def on_export(e):
         try:
             root = tk.Tk()
